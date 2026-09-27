@@ -48,6 +48,11 @@ impl InfraState {
             started_at: Instant::now(),
         }
     }
+
+    /// Start durable background executors after database migrations complete.
+    pub fn start_workers(&self) {
+        task::start_worker(self.pool.clone());
+    }
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -1758,5 +1763,28 @@ mod record_error_tests {
         assert!(!is_client_data_violation("42P01")); // undefined table
         assert!(!is_client_data_violation("53300")); // too many connections
         assert!(!is_client_data_violation(""));
+    }
+}
+
+#[cfg(test)]
+mod api_contract_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn openapi_contains_typed_scan_and_inspection_contracts() {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://rustset:rustset@127.0.0.1:5432/rustset")
+            .unwrap();
+        let mut document = aide::openapi::OpenApi::default();
+        let _router = routes(InfraState::new(pool)).finish_api(&mut document);
+        let json = serde_json::to_string(&document).unwrap();
+        for schema in [
+            "CreateScanTaskRequest",
+            "ScanTaskResponse",
+            "RunInspectionRequest",
+            "InspectionResultResponse",
+        ] {
+            assert!(json.contains(schema), "missing OpenAPI schema {schema}");
+        }
     }
 }

@@ -5,7 +5,7 @@ import { message } from 'ant-design-vue';
 import { getRiskList, updateRisk } from '#/api/scan/risk';
 import { useCrudList } from '../composables/useCrudList';
 
-interface Risk { id:string; asset_ip:string; port:number; severity:string; description:string; solution?:string; status:string; assigned_to?:string; }
+interface Risk { id:string; asset_ip:string; port:number; severity:string; description:string; solution?:string; status:string; assigned_to?:string; source_type?:string; }
 const { data, loading, fetchData } = useCrudList<Risk>({
   api: { list: getRiskList },
   defaultForm: () => ({
@@ -27,6 +27,7 @@ const columns = [
   { title:'资产IP', dataIndex:'asset_ip', key:'asset_ip', width:140 },
   { title:'端口', dataIndex:'port', key:'port', width:70 },
   { title:'严重', dataIndex:'severity', key:'severity', width:80 },
+  { title:'来源', dataIndex:'source_type', key:'source_type', width:95 },
   { title:'描述', dataIndex:'description', key:'description', ellipsis:true },
   { title:'状态', dataIndex:'status', key:'status', width:90 },
   { title:'负责人', dataIndex:'assigned_to', key:'assigned_to', width:90 },
@@ -53,7 +54,7 @@ async function handleStatus(r:Risk,status:string) { await updateRisk(r.id,{statu
 <template>
   <Page auto-content-height>
     <div style="padding:16px">
-      <a-page-header title="风险管理" sub-title="统一查看扫描发现的漏洞风险并跟踪处置状态" style="margin-bottom:16px;padding:0" />
+      <a-page-header title="风险管理" sub-title="统一查看扫描与网络策略发现的风险并跟踪处置状态" style="margin-bottom:16px;padding:0" />
 
       <div class="risk-summary">
         <div class="summary-title"><Icon icon="lucide:shield-alert" /><span>风险概览</span><strong>{{ data.length }}</strong></div>
@@ -80,6 +81,7 @@ async function handleStatus(r:Risk,status:string) { await updateRisk(r.id,{statu
         <a-table :columns="columns" :data-source="filtered" :loading="loading" row-key="id" size="middle" :pagination="{pageSize:20}">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key==='severity'"><a-tag :color="sevColor[record.severity]||'default'">{{ record.severity }}</a-tag></template>
+            <template v-if="column.key==='source_type'"><a-tag :color="record.source_type==='network_policy'?'volcano':'blue'">{{ record.source_type==='network_policy'?'网络策略':'扫描核查' }}</a-tag></template>
             <template v-if="column.key==='status'"><a-tag :color="stColor[record.status]">{{ stLabel[record.status]||record.status }}</a-tag></template>
             <template v-if="column.key==='actions'">
               <a-space>
@@ -107,6 +109,7 @@ async function handleStatus(r:Risk,status:string) { await updateRisk(r.id,{statu
             <a-descriptions-item label="资产IP">{{ detailRisk.asset_ip }}</a-descriptions-item>
             <a-descriptions-item label="端口">{{ detailRisk.port }}</a-descriptions-item>
             <a-descriptions-item label="严重程度"><a-tag :color="sevColor[detailRisk.severity]">{{ detailRisk.severity }}</a-tag></a-descriptions-item>
+            <a-descriptions-item label="来源">{{ detailRisk.source_type==='network_policy'?'网络策略高风险端口匹配':'扫描核查' }}</a-descriptions-item>
             <a-descriptions-item label="状态"><a-tag :color="stColor[detailRisk.status]">{{ stLabel[detailRisk.status] }}</a-tag></a-descriptions-item>
             <a-descriptions-item label="负责人">{{ detailRisk.assigned_to||'未分配' }}</a-descriptions-item>
           </a-descriptions>

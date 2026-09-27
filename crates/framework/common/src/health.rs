@@ -10,14 +10,14 @@ pub struct HealthResponse {
 }
 
 pub fn health_route(service_name: &'static str) -> axum::Router {
-    axum::Router::new().route(
-        "/health",
-        get(move || async move {
-            Json(HealthResponse {
-                service: service_name.to_string(),
-                status: "ok",
-                checked_at: Utc::now(),
-            })
-        }),
-    )
+    let handler = move || async move {
+        Json(HealthResponse {
+            service: service_name.to_string(),
+            status: "ok",
+            checked_at: Utc::now(),
+        })
+    };
+    axum::Router::new()
+        .route("/health", get(handler.clone()))
+        .route("/health/live", get(handler))
 }

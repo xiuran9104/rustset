@@ -1,90 +1,71 @@
 import { requestClient } from '#/api/request';
 
-import { fromInfraResponse } from './compat';
+import type { ScanTaskApi } from './task';
 
 export namespace InspectionApi {
-  export interface InspectionTask {
-    id: string;
-    name: string;
-    target: string;
-    status: string;
-    start_time?: string;
-    end_time?: string;
-    scan_ports: number[];
-    total_targets: number;
-    completed_targets: number;
-    found_assets: number;
-    found_risks: number;
-    error_message?: string;
-  }
+  export type InspectionTask = ScanTaskApi.ScanTask;
 
   export interface InspectionDifference {
+    description: string;
     kind: string;
     port?: number;
     severity: string;
-    description: string;
   }
 
   export interface InspectionRiskRef {
+    assetIp: string;
+    description: string;
     id: string;
-    asset_ip: string;
     port: number;
     severity: string;
-    description: string;
     solution?: string;
     status: string;
   }
 
   export interface InspectionResult {
-    id: string;
-    task_id: string;
-    ip: string;
-    registered: boolean;
-    baseline_ports: number[] | null;
-    open_ports: number[];
-    uncertain_ports: number[];
+    baselinePorts: null | number[];
+    createTime: string;
     differences: InspectionDifference[];
+    id: string;
+    ip: string;
+    openPorts: number[];
+    registered: boolean;
     risks: InspectionRiskRef[];
+    taskId: string;
+    uncertainPorts: number[];
   }
 
   export interface InspectionBaseline {
+    allowedPorts: number[];
     ip: string;
-    allowed_ports: number[];
     reason: string;
-    updated_by: string;
-    update_time?: string;
+    updateTime: string;
+    updatedBy: string;
   }
 }
 
-export async function getInspectionList(): Promise<
-  InspectionApi.InspectionTask[]
-> {
-  const rows = await requestClient.get<any[]>('/infra/inspection/list');
-  return fromInfraResponse(rows);
+export function getInspectionList() {
+  return requestClient.get<InspectionApi.InspectionTask[]>('/infra/inspection/list');
 }
 
-export async function getInspectionResults(
-  taskId: string,
-): Promise<InspectionApi.InspectionResult[]> {
-  const rows = await requestClient.get<any[]>('/infra/inspection/results', {
-    params: { taskId },
-  });
-  return fromInfraResponse(rows);
+export function getInspectionResults(taskId: string) {
+  return requestClient.get<InspectionApi.InspectionResult[]>(
+    '/infra/inspection/results',
+    { params: { taskId } },
+  );
 }
 
-export async function getInspectionBaseline(
-  ip: string,
-): Promise<InspectionApi.InspectionBaseline | null> {
-  const row = await requestClient.get<any>('/infra/inspection/baseline', {
-    params: { ip },
-  });
-  return fromInfraResponse(row);
+export function getInspectionBaseline(ip: string) {
+  return requestClient.get<InspectionApi.InspectionBaseline | null>(
+    '/infra/inspection/baseline',
+    { params: { ip } },
+  );
 }
 
 export function runInspection(data: {
   name?: string;
-  targetIps: string[];
   ports: number[];
+  targetIps: string[];
 }) {
   return requestClient.post('/infra/inspection/run', data);
 }

@@ -11,9 +11,12 @@ use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
-use schemars::JsonSchema;
-use serde::Deserialize;
-use serde_json::{Value, json};
+use rustset_infra_api::{
+    InspectionBaselineResponse, InspectionDifference, InspectionResultQuery,
+    InspectionResultResponse, IpQuery, QueuedTaskResponse, RunInspectionRequest,
+    SaveInspectionBaselineRequest, ScanTaskResponse,
+};
+use serde_json::json;
 use sqlx::{PgPool, Row};
 use std::{
     collections::BTreeSet,
@@ -33,15 +36,7 @@ pub fn routes() -> ApiRouter<InfraState> {
         )
 }
 
-#[derive(Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct ScanRequest {
-    pub target_ips: Vec<String>,
-    pub ports: Vec<i32>,
-    pub name: Option<String>,
-}
-
-fn normalize(request: &ScanRequest) -> Result<(Vec<IpAddr>, Vec<i32>), AppError> {
+fn normalize(request: &RunInspectionRequest) -> Result<(Vec<IpAddr>, Vec<i32>), AppError> {
     if request.target_ips.is_empty() || request.target_ips.len() > 64 {
         return Err(AppError::bad_request("每次核查需要 1–64 个明确的 IP 地址"));
     }
@@ -78,8 +73,8 @@ fn normalize_ports(ports: &[i32], allow_empty: bool) -> Result<Vec<i32>, AppErro
 async fn run(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(request): Json<ScanRequest>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
+    Json(request): Json<RunInspectionRequest>,
+) -> Result<Json<ApiResponse<QueuedTaskResponse>>, AppError> {
     start_scan(
         &s.pool,
         TenantContext::from_user(&user)?,
@@ -94,8 +89,8 @@ pub(crate) async fn start_scan(
     pool: &PgPool,
     tenant: TenantContext,
     operator: &str,
-    request: ScanRequest,
-) -> Result<Value, AppError> {
+    request: RunInspectionRequest,
+) -> Result<QueuedTaskResponse, AppError> {
     let (ips, ports) = normalize(&request)?;
     let name = request.name.as_deref().unwrap_or("资产基线核查").trim();
     if name.is_empty() || name.chars().count() > 128 {
@@ -107,8 +102,7 @@ pub(crate) async fn start_scan(
         .execute(&mut *tx)
         .await
         .map_err(db_error)?;
-    sqlx::query("UPDATE infra_task SET status='failed',error_message='执行中断或超时，请重新核查',end_time=now()::text,update_time=now() WHERE tenant_id=$1 AND task_kind='inspection' AND status='running' AND update_time < now()-interval '15 minutes'").bind(tenant.id()).execute(&mut *tx).await.map_err(db_error)?;
-    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM infra_task WHERE tenant_id=$1 AND task_kind='inspection' AND status='running'").bind(tenant.id()).fetch_one(&mut *tx).await.map_err(db_error)?;
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM infra_task WHERE tenant_id=$1 AND task_kind='inspection' AND status IN ('queued','retrying','running') AND deleted=0").bind(tenant.id()).fetch_one(&mut *tx).await.map_err(db_error)?;
     if count >= 4 {
         return Err(AppError::bad_request("已有 4 个核查任务在执行，请稍后重试"));
     }
@@ -118,19 +112,14 @@ pub(crate) async fn start_scan(
     } else {
         format!("{} 等 {} 个 IP", ips[0], ips.len())
     };
-    sqlx::query("INSERT INTO infra_task(id,name,target,status,port_policy,created_by,task_kind,scan_ports,total_targets,start_time,tenant_id) VALUES($1,$2,$3,'running','custom',$4,'inspection',$5,$6,now()::text,$7)")
-        .bind(&id).bind(name).bind(summary).bind(operator).bind(&ports).bind(ips.len() as i32).bind(tenant.id()).execute(&mut *tx).await.map_err(db_error)?;
+    let payload = json!({"targetIps":ips,"ports":ports});
+    sqlx::query("INSERT INTO infra_task(id,name,target,status,port_policy,created_by,task_kind,scan_ports,total_targets,tenant_id,payload,max_attempts,timeout_seconds) VALUES($1,$2,$3,'queued','custom',$4,'inspection',$5,$6,$7,$8,3,900)")
+        .bind(&id).bind(name).bind(summary).bind(operator).bind(&ports).bind(ips.len() as i32).bind(tenant.id()).bind(payload).execute(&mut *tx).await.map_err(db_error)?;
     tx.commit().await.map_err(db_error)?;
-    let worker_pool = pool.clone();
-    let task_id = id.clone();
-    tokio::spawn(async move {
-        if let Err(error) = execute(&worker_pool, &tenant, &task_id, ips, ports).await {
-            tracing::error!(task_id, ?error, "inspection failed");
-            let _=sqlx::query("UPDATE infra_task SET status='failed',error_message='核查执行或结果保存失败，请重新核查',end_time=now()::text,update_time=now() WHERE id=$1")
-                .bind(&task_id).execute(&worker_pool).await;
-        }
-    });
-    Ok(json!({"taskId":id,"message":"核查任务已启动"}))
+    Ok(QueuedTaskResponse {
+        task_id: id,
+        message: "核查任务已排队".to_owned(),
+    })
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -153,23 +142,44 @@ async fn probe(ip: IpAddr, port: i32) -> Observation {
     }
 }
 
-fn differences(registered: bool, baseline: Option<&[i32]>, open: &[i32]) -> Vec<Value> {
+fn differences(
+    registered: bool,
+    baseline: Option<&[i32]>,
+    open: &[i32],
+) -> Vec<InspectionDifference> {
     if open.is_empty() {
-        return vec![
-            json!({"kind":"no_open_ports","severity":"Info","description":"本次未发现开放 TCP 端口，不代表资产离线"}),
-        ];
+        return vec![InspectionDifference {
+            kind: "no_open_ports".to_owned(),
+            port: None,
+            severity: "Info".to_owned(),
+            description: "本次未发现开放 TCP 端口，不代表资产离线".to_owned(),
+        }];
     }
     if !registered {
-        return vec![
-            json!({"kind":"unknown_asset","port":0,"severity":"Medium","description":"发现可连接的 IP，但资产台账未登记"}),
-        ];
+        return vec![InspectionDifference {
+            kind: "unknown_asset".to_owned(),
+            port: Some(0),
+            severity: "Medium".to_owned(),
+            description: "发现可连接的 IP，但资产台账未登记".to_owned(),
+        }];
     }
     let Some(allowed) = baseline else {
-        return vec![
-            json!({"kind":"baseline_missing","severity":"Info","description":"资产已登记，尚未确认允许开放的 TCP 端口基线"}),
-        ];
+        return vec![InspectionDifference {
+            kind: "baseline_missing".to_owned(),
+            port: None,
+            severity: "Info".to_owned(),
+            description: "资产已登记，尚未确认允许开放的 TCP 端口基线".to_owned(),
+        }];
     };
-    open.iter().filter(|p|!allowed.contains(p)).map(|p|json!({"kind":"unexpected_port","port":p,"severity":"Medium","description":format!("TCP 端口 {p} 开放，超出已确认基线；需核查业务用途") })).collect()
+    open.iter()
+        .filter(|p| !allowed.contains(p))
+        .map(|p| InspectionDifference {
+            kind: "unexpected_port".to_owned(),
+            port: Some(*p),
+            severity: "Medium".to_owned(),
+            description: format!("TCP 端口 {p} 开放，超出已确认基线；需核查业务用途"),
+        })
+        .collect()
 }
 
 async fn registered(pool: &PgPool, tenant: &TenantContext, ip: &str) -> Result<bool, sqlx::Error> {
@@ -190,14 +200,16 @@ async fn registered(pool: &PgPool, tenant: &TenantContext, ip: &str) -> Result<b
     }))
 }
 
-async fn execute(
+pub(crate) async fn execute_queued(
     pool: &PgPool,
     tenant: &TenantContext,
     task: &str,
+    lease_owner: &str,
     ips: Vec<IpAddr>,
     ports: Vec<i32>,
-) -> Result<(), sqlx::Error> {
+) -> Result<(i32, i32), String> {
     for ip in ips {
+        crate::task::worker::ensure_active(pool, lease_owner, task).await?;
         let mut observations = Vec::new();
         for chunk in ports.chunks(32) {
             let mut probes = tokio::task::JoinSet::new();
@@ -205,14 +217,19 @@ async fn execute(
                 probes.spawn(async move { (port, probe(ip, port).await) });
             }
             while let Some(result) = probes.join_next().await {
-                observations.push(result.map_err(|e| sqlx::Error::Protocol(e.to_string()))?);
+                observations.push(result.map_err(|error| error.to_string())?);
             }
         }
-        save_observation(pool, tenant, task, ip, &observations).await?;
+        save_observation(pool, tenant, task, ip, &observations)
+            .await
+            .map_err(|error| error.to_string())?;
+        crate::task::worker::renew_lease(pool, lease_owner, task).await?;
     }
-    sqlx::query("UPDATE infra_task SET status='completed',end_time=now()::text,update_time=now() WHERE id=$1")
-        .bind(task).execute(pool).await?;
-    Ok(())
+    sqlx::query_as("SELECT found_assets,found_risks FROM infra_task WHERE id=$1")
+        .bind(task)
+        .fetch_one(pool)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 async fn save_observation(
@@ -251,19 +268,19 @@ async fn save_observation(
         .await?;
     let mut risk_ids = Vec::new();
     for diff in &differences {
-        let kind = diff["kind"].as_str().unwrap_or_default();
+        let kind = diff.kind.as_str();
         if !matches!(kind, "unknown_asset" | "unexpected_port") {
             continue;
         }
-        let port = diff["port"].as_i64().unwrap_or(0) as i32;
+        let port = diff.port.unwrap_or(0);
         let key = format!("{kind}:{address}:{port}");
         let risk: String=sqlx::query_scalar("INSERT INTO infra_risk(id,asset_ip,port,severity,description,status,inspection_key,solution,tenant_id) VALUES($1,$2,$3,$4,$5,'open',$6,'核实资产归属和业务用途，完成整改后重新核查',$7) ON CONFLICT(tenant_id,inspection_key) WHERE deleted=0 AND inspection_key IS NOT NULL DO UPDATE SET update_time=now(),description=EXCLUDED.description,status=CASE WHEN infra_risk.status='resolved' THEN 'open' ELSE infra_risk.status END RETURNING id")
-            .bind(Uuid::new_v4().to_string()).bind(&address).bind(port).bind(diff["severity"].as_str().unwrap_or("Medium")).bind(diff["description"].as_str().unwrap_or_default()).bind(key).bind(tenant.id()).fetch_one(&mut *tx).await?;
+            .bind(Uuid::new_v4().to_string()).bind(&address).bind(port).bind(&diff.severity).bind(&diff.description).bind(key).bind(tenant.id()).fetch_one(&mut *tx).await?;
         risk_ids.push(risk);
     }
     // Fresh registration resolves unknown-asset alerts. Port closure requires a
     // refused connection or an explicitly approved baseline, never a timeout.
-    let old=sqlx::query("SELECT id,port,inspection_key FROM infra_risk WHERE asset_ip=$1 AND tenant_id=$2 AND inspection_key IS NOT NULL AND deleted=0 AND status NOT IN ('ignored','false_positive','resolved')").bind(&address).fetch_all(&mut *tx).await?;
+    let old=sqlx::query("SELECT id,port,inspection_key FROM infra_risk WHERE asset_ip=$1 AND tenant_id=$2 AND inspection_key IS NOT NULL AND deleted=0 AND status NOT IN ('ignored','false_positive','resolved')").bind(&address).bind(tenant.id()).fetch_all(&mut *tx).await?;
     for row in old {
         let key: String = row.get("inspection_key");
         let port: i32 = row.get("port");
@@ -283,7 +300,8 @@ async fn save_observation(
                 .await?;
         }
     }
-    sqlx::query("INSERT INTO infra_inspection_result(id,task_id,ip,registered,baseline_ports,open_ports,uncertain_ports,differences,risk_ids,tenant_id) VALUES($1,$2,$3::inet,$4,$5,$6,$7,$8,$9,$10)")
+    sqlx::query("INSERT INTO infra_inspection_result(id,task_id,ip,registered,baseline_ports,open_ports,uncertain_ports,differences,risk_ids,tenant_id) VALUES($1,$2,$3::inet,$4,$5,$6,$7,$8,$9,$10)
+        ON CONFLICT(task_id,ip) DO UPDATE SET registered=EXCLUDED.registered,baseline_ports=EXCLUDED.baseline_ports,open_ports=EXCLUDED.open_ports,uncertain_ports=EXCLUDED.uncertain_ports,differences=EXCLUDED.differences,risk_ids=EXCLUDED.risk_ids,tenant_id=EXCLUDED.tenant_id,create_time=now()")
         .bind(Uuid::new_v4().to_string()).bind(task).bind(&address).bind(known).bind(&baseline).bind(&open).bind(&uncertain).bind(json!(differences)).bind(&risk_ids).bind(tenant.id()).execute(&mut *tx).await?;
     sqlx::query("UPDATE infra_task SET completed_targets=completed_targets+1,found_assets=found_assets+$2,found_risks=found_risks+$3,update_time=now() WHERE id=$1")
         .bind(task).bind(i32::from(!open.is_empty())).bind(risk_ids.len() as i32).execute(&mut *tx).await?;
@@ -298,63 +316,109 @@ fn db_error(error: sqlx::Error) -> AppError {
 async fn list(
     State(s): State<InfraState>,
     user: CurrentUser,
-) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ScanTaskResponse>>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
-    sqlx::query("UPDATE infra_task SET status='failed',error_message='执行中断或超时，请重新核查',end_time=now()::text,update_time=now() WHERE tenant_id=$1 AND task_kind='inspection' AND status='running' AND update_time < now()-interval '15 minutes'").bind(tenant.id()).execute(&s.pool).await.map_err(db_error)?;
-    let rows=sqlx::query_scalar::<_,Value>("SELECT to_jsonb(t) FROM infra_task t WHERE tenant_id=$1 AND task_kind='inspection' AND deleted=0 ORDER BY create_time DESC LIMIT 200").bind(tenant.id()).fetch_all(&s.pool).await.map_err(db_error)?;
-    Ok(Json(ApiResponse::new(
-        rows.into_iter().map(crate::table_value).collect(),
-    )))
+    let rows = crate::task::repository::list_kind(&s.pool, tenant.id(), "inspection")
+        .await
+        .map_err(db_error)?;
+    Ok(Json(ApiResponse::new(rows)))
 }
 
-#[derive(Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct ResultQuery {
-    task_id: String,
-}
 async fn results(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Query(q): Query<ResultQuery>,
-) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    Query(q): Query<InspectionResultQuery>,
+) -> Result<Json<ApiResponse<Vec<InspectionResultResponse>>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
-    let rows=sqlx::query_scalar::<_,Value>("SELECT to_jsonb(r) || jsonb_build_object('ip',host(r.ip),'risks',COALESCE((SELECT jsonb_agg(to_jsonb(k)) FROM infra_risk k WHERE k.id=ANY(r.risk_ids) AND k.tenant_id=r.tenant_id AND k.deleted=0),'[]'::jsonb)) FROM infra_inspection_result r WHERE task_id=$1 AND r.tenant_id=$2 ORDER BY r.ip").bind(q.task_id).bind(tenant.id()).fetch_all(&s.pool).await.map_err(db_error)?;
     Ok(Json(ApiResponse::new(
-        rows.into_iter().map(crate::table_value).collect(),
+        load_results(&s.pool, &tenant, &q.task_id).await?,
     )))
 }
 
-#[derive(Deserialize, JsonSchema)]
-struct IpQuery {
-    ip: String,
+pub(crate) async fn load_results(
+    pool: &PgPool,
+    tenant: &TenantContext,
+    task_id: &str,
+) -> Result<Vec<InspectionResultResponse>, AppError> {
+    let rows = sqlx::query(
+        "SELECT r.id,r.task_id,host(r.ip) AS ip,r.registered,r.baseline_ports,
+            r.open_ports,r.uncertain_ports,r.differences,r.create_time,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'id',k.id,'assetIp',k.asset_ip,'port',k.port,'severity',k.severity,
+                'description',k.description,'solution',k.solution,'status',k.status))
+              FROM infra_risk k WHERE k.id=ANY(r.risk_ids)
+                AND k.tenant_id=r.tenant_id AND k.deleted=0),'[]'::jsonb) AS risks
+         FROM infra_inspection_result r
+         WHERE r.task_id=$1 AND r.tenant_id=$2 ORDER BY r.ip",
+    )
+    .bind(task_id)
+    .bind(tenant.id())
+    .fetch_all(pool)
+    .await
+    .map_err(db_error)?;
+    let rows = rows
+        .into_iter()
+        .map(|row| {
+            let differences = serde_json::from_value(row.get("differences"))
+                .map_err(|_| AppError::internal("核查差异数据格式无效"))?;
+            let risks = serde_json::from_value(row.get("risks"))
+                .map_err(|_| AppError::internal("核查风险数据格式无效"))?;
+            Ok(InspectionResultResponse {
+                id: row.get("id"),
+                task_id: row.get("task_id"),
+                ip: row.get("ip"),
+                registered: row.get("registered"),
+                baseline_ports: row.get("baseline_ports"),
+                open_ports: row.get("open_ports"),
+                uncertain_ports: row.get("uncertain_ports"),
+                differences,
+                risks,
+                create_time: row
+                    .get::<chrono::NaiveDateTime, _>("create_time")
+                    .and_utc()
+                    .to_rfc3339(),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    Ok(rows)
 }
+
 async fn baseline(
     State(s): State<InfraState>,
     user: CurrentUser,
     Query(q): Query<IpQuery>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
+) -> Result<Json<ApiResponse<Option<InspectionBaselineResponse>>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
     let ip =
         q.ip.parse::<IpAddr>()
             .map_err(|_| AppError::bad_request("IP 无效"))?
             .to_string();
-    let value=sqlx::query_scalar::<_,Value>("SELECT to_jsonb(b) || jsonb_build_object('ip',host(ip)) FROM infra_inspection_baseline b WHERE ip=$1::inet AND tenant_id=$2").bind(ip).bind(tenant.id()).fetch_optional(&s.pool).await.map_err(db_error)?;
-    Ok(Json(ApiResponse::new(
-        value.map(crate::table_value).unwrap_or(Value::Null),
-    )))
+    let row = sqlx::query(
+        "SELECT host(ip) AS ip,allowed_ports,reason,updated_by,update_time
+         FROM infra_inspection_baseline WHERE ip=$1::inet AND tenant_id=$2",
+    )
+    .bind(ip)
+    .bind(tenant.id())
+    .fetch_optional(&s.pool)
+    .await
+    .map_err(db_error)?;
+    let value = row.map(|row| InspectionBaselineResponse {
+        ip: row.get("ip"),
+        allowed_ports: row.get("allowed_ports"),
+        reason: row.get("reason"),
+        updated_by: row.get("updated_by"),
+        update_time: row
+            .get::<chrono::NaiveDateTime, _>("update_time")
+            .and_utc()
+            .to_rfc3339(),
+    });
+    Ok(Json(ApiResponse::new(value)))
 }
 
-#[derive(Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct BaselineRequest {
-    ip: String,
-    allowed_ports: Vec<i32>,
-    reason: String,
-}
 async fn save_baseline(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<BaselineRequest>,
+    Json(p): Json<SaveInspectionBaselineRequest>,
 ) -> Result<Json<ApiResponse<bool>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
     let ip =

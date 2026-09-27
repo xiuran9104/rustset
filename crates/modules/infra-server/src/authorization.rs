@@ -718,6 +718,7 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         Some("infra:service-provider:create"),
     ),
     ("POST", "/infra/task/create", Some("infra:task:create")),
+    ("POST", "/infra/task/retry", Some("infra:task:execute")),
     (
         "POST",
         "/infra/task/trigger-scan",
@@ -849,6 +850,7 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         "/infra/service-provider/update",
         Some("infra:service-provider:update"),
     ),
+    ("PUT", "/infra/task/cancel", Some("infra:task:execute")),
     ("PUT", "/infra/task/update", Some("infra:task:update")),
 ];
 
@@ -903,7 +905,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 205);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 207);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

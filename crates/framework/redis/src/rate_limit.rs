@@ -72,7 +72,7 @@ pub async fn rate_limit(
 ) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_string();
-    if path == "/health" {
+    if path == "/health" || path.starts_with("/health/") {
         return next.run(request).await;
     }
     let actor = client_key(&request);

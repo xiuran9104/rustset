@@ -12,6 +12,24 @@ fn bulk_ids_preserve_uuid_and_legacy_string_ids() {
     }
 }
 
+#[test]
+fn scan_submission_normalizes_targets_ports_and_policies() {
+    assert_eq!(
+        parse_targets("127.0.0.1, ::1;127.0.0.1").unwrap(),
+        vec![
+            "127.0.0.1".parse::<std::net::IpAddr>().unwrap(),
+            "::1".parse::<std::net::IpAddr>().unwrap(),
+        ]
+    );
+    assert!(parse_targets("10.0.0.0/24").is_err());
+    assert_eq!(normalize_ports(vec![443, 22, 443]).unwrap(), vec![22, 443]);
+    assert!(normalize_ports(vec![0]).is_err());
+    assert_eq!(ports_for_policy("COMMON").unwrap().len(), 28);
+    assert_eq!(ports_for_policy("TOP100").unwrap().len(), 28);
+    assert!(ports_for_policy("TOP1000").unwrap().len() > 1_000);
+    assert_eq!(ports_for_policy("ALL").unwrap().len(), 65_535);
+}
+
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
 async fn bulk_delete_is_atomic_and_retryable() {

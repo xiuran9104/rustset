@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 28);
+    assert_eq!(applied, 30);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -42,6 +42,49 @@ async fn applies_all_migrations_to_empty_postgres() {
     .execute(&pool)
     .await
     .expect("rerun tenant isolation migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0027_asset_policy_tenants.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun asset and policy tenant migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0028_network_policy_port_risk.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun network-policy risk migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0029_asset_tenant_unique_ip.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun tenant asset uniqueness migration");
+    let asset_unique_index: String = sqlx::query_scalar(
+        "SELECT indexdef FROM pg_indexes
+         WHERE schemaname='public' AND indexname='idx_asset_tenant_ip_unique'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read tenant asset unique index");
+    assert!(asset_unique_index.contains("tenant_id, ip"));
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0030_recoverable_scan_tasks.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun recoverable scan-task migration");
+    let task_queue_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_task'
+           AND column_name IN ('payload','idempotency_key','attempt_count','max_attempts',
+             'timeout_seconds','next_attempt_at','lease_owner','lease_expires_at',
+             'heartbeat_at','cancel_requested')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect durable task queue");
+    assert_eq!(task_queue_columns, 10);
 
     for table in ["cmdb_instance", "cmdb_relation", "infra_resource_ticket"] {
         let nullable: String = sqlx::query_scalar("SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='tenant_id'")
