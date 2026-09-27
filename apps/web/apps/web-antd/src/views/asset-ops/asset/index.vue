@@ -2,9 +2,17 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Page } from '@vben/common-ui';
+import { downloadFileFromBlobPart } from '@vben/utils';
 import { message } from 'ant-design-vue';
 import { requestClient } from '#/api/request';
-import { createAsset, getAssetList, updateAsset } from '#/api/scan/asset';
+import {
+  createAsset,
+  downloadAssetImportTemplate,
+  exportAssetCsv,
+  getAssetList,
+  importAssetCsv,
+  updateAsset,
+} from '#/api/scan/asset';
 import type { ScanAssetApi } from '#/api/scan/asset';
 
 type Asset = ScanAssetApi.Asset;
@@ -49,6 +57,21 @@ async function handleSubmit() {
   modalVisible.value=false; fetchData();
 }
 
+async function handleExportCsv() {
+  const data = await exportAssetCsv();
+  downloadFileFromBlobPart({ fileName: 'assets.csv', source: data });
+}
+async function handleTemplate() {
+  const data = await downloadAssetImportTemplate();
+  downloadFileFromBlobPart({ fileName: 'assets-import-template.csv', source: data });
+}
+async function handleImportCsv(file: File) {
+  const result: any = await importAssetCsv(file);
+  message.success(`导入完成：成功 ${result.created || 0} 条，失败 ${result.failed || 0} 条`);
+  await fetchData();
+  return false;
+}
+
 const viewMode = ref<'grid'|'table'>('grid');
 
 // 需求 D：查看该资产 IP 命中的网络策略（防火墙开通记录），支持跳转到网络策略页。
@@ -89,6 +112,11 @@ const statCards = [
             <a-input-search v-model:value="searchText" placeholder="搜索资产名称/IP/负责人..." style="width:260px" allow-clear />
             <a-segmented v-model:value="viewMode" :options="[{value:'grid',label:'卡片'},{value:'table',label:'列表'}]" />
             <a-button @click="fetchData"><Icon icon="lucide:refresh-cw" /> 刷新</a-button>
+            <a-button v-access:code="['infra:asset:query']" @click="handleExportCsv"><Icon icon="lucide:download" /> 导出 CSV</a-button>
+            <a-button v-access:code="['infra:asset:create']" @click="handleTemplate">下载模板</a-button>
+            <a-upload :show-upload-list="false" accept=".csv,text/csv" :before-upload="handleImportCsv">
+              <a-button v-access:code="['infra:asset:create']"><Icon icon="lucide:upload" /> 导入 CSV</a-button>
+            </a-upload>
             <a-button v-access:code="['infra:asset:create']" type="primary" @click="openCreate"><Icon icon="lucide:plus" /> 新建资产</a-button>
           </a-space>
         </template>

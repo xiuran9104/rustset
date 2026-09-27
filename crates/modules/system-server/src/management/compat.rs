@@ -1,5 +1,5 @@
-use std::{collections::HashMap, env};
 use schemars::JsonSchema;
+use std::{collections::HashMap, env};
 
 use crate::{
     SystemState,
@@ -34,628 +34,661 @@ pub struct QueryParams {
 
 pub fn routes() -> aide::axum::ApiRouter<SystemState> {
     aide::axum::ApiRouter::new()
+        .api_route("/system/user/page", aide::axum::routing::get(user_page))
+        .api_route("/system/user/list", aide::axum::routing::get(user_list))
         .api_route(
-"/system/user/page", aide::axum::routing::get(user_page))
-        .api_route(
-"/system/user/list", aide::axum::routing::get(user_list))
-        .api_route(
-"/system/user/simple-list",
+            "/system/user/simple-list",
             aide::axum::routing::get(user_simple_list),
         )
         .api_route(
-"/system/user/get-simple", aide::axum::routing::get(user_get))
-        .api_route(
-"/system/user/list-by-nickname",
-            aide::axum::routing::get(user_simple_list),
+            "/system/user/get-simple",
+            aide::axum::routing::get(user_get),
         )
         .api_route(
-"/system/user/get", aide::axum::routing::get(user_get))
+            "/system/user/list-by-nickname",
+            aide::axum::routing::get(user_simple_list),
+        )
+        .api_route("/system/user/get", aide::axum::routing::get(user_get))
         .api_route(
-"/system/user/create", aide::axum::routing::post(user_create))
+            "/system/user/create",
+            aide::axum::routing::post(user_create),
+        )
+        .api_route("/system/user/update", aide::axum::routing::put(user_update))
         .api_route(
-"/system/user/update", aide::axum::routing::put(user_update))
-        .api_route(
-"/system/user/update-status",
+            "/system/user/update-status",
             aide::axum::routing::put(user_update_status),
         )
         .api_route(
-"/system/user/update-password",
+            "/system/user/update-password",
             aide::axum::routing::put(user_update_password),
         )
         .api_route(
-"/system/user/delete", aide::axum::routing::delete(user_delete))
+            "/system/user/delete",
+            aide::axum::routing::delete(user_delete),
+        )
         .api_route(
-"/system/user/delete-list",
+            "/system/user/delete-list",
             aide::axum::routing::delete(user_delete_list),
         )
         .api_route(
-"/system/user/export-excel",
+            "/system/user/export-excel",
             aide::axum::routing::get(super::excel::user_export),
         )
         .api_route(
-"/system/user/get-import-template",
+            "/system/user/get-import-template",
             aide::axum::routing::get(super::excel::user_import_template),
         )
         .api_route(
-"/system/user/import",
+            "/system/user/import",
             aide::axum::routing::post(super::excel::user_import),
         )
+        .api_route("/system/role/page", aide::axum::routing::get(role_page))
         .api_route(
-"/system/role/page", aide::axum::routing::get(role_page))
+            "/system/role/simple-list",
+            aide::axum::routing::get(role_list),
+        )
+        .api_route("/system/role/get", aide::axum::routing::get(role_get))
         .api_route(
-"/system/role/simple-list", aide::axum::routing::get(role_list))
+            "/system/role/create",
+            aide::axum::routing::post(role_create),
+        )
+        .api_route("/system/role/update", aide::axum::routing::put(role_update))
         .api_route(
-"/system/role/get", aide::axum::routing::get(role_get))
+            "/system/role/delete",
+            aide::axum::routing::delete(role_delete),
+        )
         .api_route(
-"/system/role/create", aide::axum::routing::post(role_create))
-        .api_route(
-"/system/role/update", aide::axum::routing::put(role_update))
-        .api_route(
-"/system/role/delete", aide::axum::routing::delete(role_delete))
-        .api_route(
-"/system/role/delete-list",
+            "/system/role/delete-list",
             aide::axum::routing::delete(role_delete_list),
         )
         .api_route(
-"/system/role/export-excel",
+            "/system/role/export-excel",
             aide::axum::routing::get(super::excel::role_export),
         )
         .api_route(
-"/system/permission/list-user-roles",
+            "/system/permission/list-user-roles",
             aide::axum::routing::get(permission_user_roles),
         )
         .api_route(
-"/system/permission/assign-user-role",
+            "/system/permission/assign-user-role",
             aide::axum::routing::post(permission_assign_user_roles),
         )
         .api_route(
-"/system/permission/list-role-menus",
+            "/system/permission/list-role-menus",
             aide::axum::routing::get(permission_role_menus),
         )
         .api_route(
-"/system/permission/assign-role-menu",
+            "/system/permission/assign-role-menu",
             aide::axum::routing::post(permission_assign_role_menus),
         )
         .api_route(
-"/system/permission/assign-role-data-scope",
+            "/system/permission/assign-role-data-scope",
             aide::axum::routing::post(role_update_data_scope),
         )
         .api_route(
-"/system/menu/page", aide::axum::routing::get(generic_page_menu))
+            "/system/menu/page",
+            aide::axum::routing::get(generic_page_menu),
+        )
         .api_route(
-"/system/menu/simple-list", aide::axum::routing::get(menu_list))
+            "/system/menu/simple-list",
+            aide::axum::routing::get(menu_list),
+        )
+        .api_route("/system/menu/list", aide::axum::routing::get(menu_list))
         .api_route(
-"/system/menu/list", aide::axum::routing::get(menu_list))
+            "/system/menu/get",
+            aide::axum::routing::get(generic_get_menu),
+        )
         .api_route(
-"/system/menu/get", aide::axum::routing::get(generic_get_menu))
-        .api_route(
-"/system/menu/create",
+            "/system/menu/create",
             aide::axum::routing::post(generic_create_menu),
         )
         .api_route(
-"/system/menu/update",
+            "/system/menu/update",
             aide::axum::routing::put(generic_update_menu),
         )
         .api_route(
-"/system/menu/delete",
+            "/system/menu/delete",
             aide::axum::routing::delete(generic_delete_menu),
         )
         .api_route(
-"/system/menu/delete-list",
+            "/system/menu/delete-list",
             aide::axum::routing::delete(generic_delete_list_menu),
         )
         .api_route(
-"/system/dept/page", aide::axum::routing::get(generic_page_dept))
+            "/system/dept/page",
+            aide::axum::routing::get(generic_page_dept),
+        )
         .api_route(
-"/system/dept/simple-list",
+            "/system/dept/simple-list",
             aide::axum::routing::get(generic_list_dept),
         )
         .api_route(
-"/system/dept/list", aide::axum::routing::get(generic_list_dept))
+            "/system/dept/list",
+            aide::axum::routing::get(generic_list_dept),
+        )
         .api_route(
-"/system/dept/get", aide::axum::routing::get(generic_get_dept))
+            "/system/dept/get",
+            aide::axum::routing::get(generic_get_dept),
+        )
         .api_route(
-"/system/dept/create",
+            "/system/dept/create",
             aide::axum::routing::post(generic_create_dept),
         )
         .api_route(
-"/system/dept/update",
+            "/system/dept/update",
             aide::axum::routing::put(generic_update_dept),
         )
         .api_route(
-"/system/dept/delete",
+            "/system/dept/delete",
             aide::axum::routing::delete(generic_delete_dept),
         )
         .api_route(
-"/system/dept/delete-list",
+            "/system/dept/delete-list",
             aide::axum::routing::delete(generic_delete_list_dept),
         )
         .api_route(
-"/system/post/page", aide::axum::routing::get(generic_page_post))
+            "/system/post/page",
+            aide::axum::routing::get(generic_page_post),
+        )
         .api_route(
-"/system/post/simple-list",
+            "/system/post/simple-list",
             aide::axum::routing::get(generic_list_post),
         )
         .api_route(
-"/system/post/get", aide::axum::routing::get(generic_get_post))
+            "/system/post/get",
+            aide::axum::routing::get(generic_get_post),
+        )
         .api_route(
-"/system/post/create",
+            "/system/post/create",
             aide::axum::routing::post(generic_create_post),
         )
         .api_route(
-"/system/post/update",
+            "/system/post/update",
             aide::axum::routing::put(generic_update_post),
         )
         .api_route(
-"/system/post/delete",
+            "/system/post/delete",
             aide::axum::routing::delete(generic_delete_post),
         )
         .api_route(
-"/system/post/delete-list",
+            "/system/post/delete-list",
             aide::axum::routing::delete(generic_delete_list_post),
         )
         .api_route(
-"/system/post/export-excel",
+            "/system/post/export-excel",
             aide::axum::routing::get(super::excel::post_export),
         )
         .api_route(
-"/system/dict-type/list-all-simple",
+            "/system/dict-type/list-all-simple",
             aide::axum::routing::get(generic_list_dict_type),
         )
         .api_route(
-"/system/dict-type/page",
+            "/system/dict-type/page",
             aide::axum::routing::get(generic_page_dict_type),
         )
         .api_route(
-"/system/dict-type/get",
+            "/system/dict-type/get",
             aide::axum::routing::get(generic_get_dict_type),
         )
         .api_route(
-"/system/dict-type/create",
+            "/system/dict-type/create",
             aide::axum::routing::post(generic_create_dict_type),
         )
         .api_route(
-"/system/dict-type/update",
+            "/system/dict-type/update",
             aide::axum::routing::put(generic_update_dict_type),
         )
         .api_route(
-"/system/dict-type/delete",
+            "/system/dict-type/delete",
             aide::axum::routing::delete(generic_delete_dict_type),
         )
         .api_route(
-"/system/dict-type/delete-list",
+            "/system/dict-type/delete-list",
             aide::axum::routing::delete(generic_delete_list_dict_type),
         )
         .api_route(
-"/system/dict-type/export-excel",
+            "/system/dict-type/export-excel",
             aide::axum::routing::get(super::excel::dict_type_export),
         )
         .api_route(
-"/system/dict-data/simple-list",
+            "/system/dict-data/simple-list",
             aide::axum::routing::get(generic_list_dict_data),
         )
         .api_route(
-"/system/dict-data/page",
+            "/system/dict-data/page",
             aide::axum::routing::get(generic_page_dict_data),
         )
         .api_route(
-"/system/dict-data/get",
+            "/system/dict-data/get",
             aide::axum::routing::get(generic_get_dict_data),
         )
         .api_route(
-"/system/dict-data/create",
+            "/system/dict-data/create",
             aide::axum::routing::post(generic_create_dict_data),
         )
         .api_route(
-"/system/dict-data/update",
+            "/system/dict-data/update",
             aide::axum::routing::put(generic_update_dict_data),
         )
         .api_route(
-"/system/dict-data/delete",
+            "/system/dict-data/delete",
             aide::axum::routing::delete(generic_delete_dict_data),
         )
         .api_route(
-"/system/dict-data/delete-list",
+            "/system/dict-data/delete-list",
             aide::axum::routing::delete(generic_delete_list_dict_data),
         )
         .api_route(
-"/system/dict-data/export-excel",
+            "/system/dict-data/export-excel",
             aide::axum::routing::get(super::excel::dict_data_export),
         )
         .api_route(
-"/system/tenant/page",
+            "/system/tenant/page",
             aide::axum::routing::get(generic_page_tenant),
         )
         .api_route(
-"/system/tenant/get", aide::axum::routing::get(generic_get_tenant))
+            "/system/tenant/get",
+            aide::axum::routing::get(generic_get_tenant),
+        )
         .api_route(
-"/system/tenant/create",
+            "/system/tenant/create",
             aide::axum::routing::post(generic_create_tenant),
         )
         .api_route(
-"/system/tenant/update",
+            "/system/tenant/update",
             aide::axum::routing::put(generic_update_tenant),
         )
         .api_route(
-"/system/tenant/delete",
+            "/system/tenant/delete",
             aide::axum::routing::delete(generic_delete_tenant),
         )
         .api_route(
-"/system/tenant/delete-list",
+            "/system/tenant/delete-list",
             aide::axum::routing::delete(generic_delete_list_tenant),
         )
         .api_route(
-"/system/tenant/export-excel",
+            "/system/tenant/export-excel",
             aide::axum::routing::get(super::excel::tenant_export),
         )
         .api_route(
-"/system/tenant-package/page",
+            "/system/tenant-package/page",
             aide::axum::routing::get(generic_page_tenant_package),
         )
         .api_route(
-"/system/tenant-package/get-simple-list",
+            "/system/tenant-package/get-simple-list",
             aide::axum::routing::get(generic_list_tenant_package),
         )
         .api_route(
-"/system/tenant-package/get",
+            "/system/tenant-package/get",
             aide::axum::routing::get(generic_get_tenant_package),
         )
         .api_route(
-"/system/tenant-package/create",
+            "/system/tenant-package/create",
             aide::axum::routing::post(generic_create_tenant_package),
         )
         .api_route(
-"/system/tenant-package/update",
+            "/system/tenant-package/update",
             aide::axum::routing::put(generic_update_tenant_package),
         )
         .api_route(
-"/system/tenant-package/delete",
+            "/system/tenant-package/delete",
             aide::axum::routing::delete(generic_delete_tenant_package),
         )
         .api_route(
-"/system/tenant-package/delete-list",
+            "/system/tenant-package/delete-list",
             aide::axum::routing::delete(generic_delete_list_tenant_package),
         )
+        .api_route("/system/area/tree", aide::axum::routing::get(area_tree))
         .api_route(
-"/system/area/tree", aide::axum::routing::get(area_tree))
+            "/system/area/get-by-ip",
+            aide::axum::routing::get(area_by_ip),
+        )
         .api_route(
-"/system/area/get-by-ip", aide::axum::routing::get(area_by_ip))
-        .api_route(
-"/system/operate-log/page",
+            "/system/operate-log/page",
             aide::axum::routing::get(operate_log_page),
         )
         .api_route(
-"/system/operate-log/export-excel",
+            "/system/operate-log/export-excel",
             aide::axum::routing::get(super::excel::operate_log_export),
         )
         .api_route(
-"/system/login-log/page", aide::axum::routing::get(login_log_page))
+            "/system/login-log/page",
+            aide::axum::routing::get(login_log_page),
+        )
         .api_route(
-"/system/login-log/export-excel",
+            "/system/login-log/export-excel",
             aide::axum::routing::get(super::excel::login_log_export),
         )
         .api_route(
-"/system/notice/page",
+            "/system/notice/page",
             aide::axum::routing::get(generic_page_notice),
         )
         .api_route(
-"/system/notice/get", aide::axum::routing::get(generic_get_notice))
+            "/system/notice/get",
+            aide::axum::routing::get(generic_get_notice),
+        )
         .api_route(
-"/system/notice/create",
+            "/system/notice/create",
             aide::axum::routing::post(generic_create_notice),
         )
         .api_route(
-"/system/notice/update",
+            "/system/notice/update",
             aide::axum::routing::put(generic_update_notice),
         )
         .api_route(
-"/system/notice/delete",
+            "/system/notice/delete",
             aide::axum::routing::delete(generic_delete_notice),
         )
         .api_route(
-"/system/notice/delete-list",
+            "/system/notice/delete-list",
             aide::axum::routing::delete(generic_delete_list_notice),
         )
         .api_route(
-"/system/notice/push",
+            "/system/notice/push",
             aide::axum::routing::post(super::messaging::notice_push),
         )
         .api_route(
-"/system/user/profile/get", aide::axum::routing::get(profile_get))
+            "/system/user/profile/get",
+            aide::axum::routing::get(profile_get),
+        )
         .api_route(
-"/system/user/profile/update",
+            "/system/user/profile/update",
             aide::axum::routing::put(profile_update),
         )
         .api_route(
-"/system/user/profile/update-password",
+            "/system/user/profile/update-password",
             aide::axum::routing::put(profile_password),
         )
         .api_route(
-"/system/oauth2-client/page",
+            "/system/oauth2-client/page",
             aide::axum::routing::get(generic_page_oauth2_client),
         )
         .api_route(
-"/system/oauth2-client/get",
+            "/system/oauth2-client/get",
             aide::axum::routing::get(generic_get_oauth2_client),
         )
         .api_route(
-"/system/oauth2-client/create",
+            "/system/oauth2-client/create",
             aide::axum::routing::post(generic_create_oauth2_client),
         )
         .api_route(
-"/system/oauth2-client/update",
+            "/system/oauth2-client/update",
             aide::axum::routing::put(generic_update_oauth2_client),
         )
         .api_route(
-"/system/oauth2-client/delete",
+            "/system/oauth2-client/delete",
             aide::axum::routing::delete(generic_delete_oauth2_client),
         )
         .api_route(
-"/system/oauth2-client/delete-list",
+            "/system/oauth2-client/delete-list",
             aide::axum::routing::delete(generic_delete_list_oauth2_client),
         )
         .api_route(
-"/system/oauth2-token/page",
+            "/system/oauth2-token/page",
             aide::axum::routing::get(oauth2_token_page),
         )
         .api_route(
-"/system/oauth2-token/delete",
+            "/system/oauth2-token/delete",
             aide::axum::routing::delete(oauth2_token_delete),
         )
         .api_route(
-"/system/social-client/page",
+            "/system/social-client/page",
             aide::axum::routing::get(generic_page_social_client),
         )
         .api_route(
-"/system/social-client/get",
+            "/system/social-client/get",
             aide::axum::routing::get(generic_get_social_client),
         )
         .api_route(
-"/system/social-client/create",
+            "/system/social-client/create",
             aide::axum::routing::post(generic_create_social_client),
         )
         .api_route(
-"/system/social-client/update",
+            "/system/social-client/update",
             aide::axum::routing::put(generic_update_social_client),
         )
         .api_route(
-"/system/social-client/delete",
+            "/system/social-client/delete",
             aide::axum::routing::delete(generic_delete_social_client),
         )
         .api_route(
-"/system/social-client/delete-list",
+            "/system/social-client/delete-list",
             aide::axum::routing::delete(generic_delete_list_social_client),
         )
         .api_route(
-"/system/social-user/page",
+            "/system/social-user/page",
             aide::axum::routing::get(social_user_page),
         )
         .api_route(
-"/system/social-user/get",
+            "/system/social-user/get",
             aide::axum::routing::get(social_user_get),
         )
         .api_route(
-"/system/social-user/bind", aide::axum::routing::post(ok_bool))
+            "/system/social-user/bind",
+            aide::axum::routing::post(ok_bool),
+        )
         .api_route(
-"/system/social-user/unbind", aide::axum::routing::delete(ok_bool))
+            "/system/social-user/unbind",
+            aide::axum::routing::delete(ok_bool),
+        )
         .api_route(
-"/system/social-user/simple-list",
+            "/system/social-user/simple-list",
             aide::axum::routing::get(social_user_list),
         )
         .api_route(
-"/system/social-user/get-bind-list",
+            "/system/social-user/get-bind-list",
             aide::axum::routing::get(social_user_bind_list),
         )
         .api_route(
-"/system/notify-template/page",
+            "/system/notify-template/page",
             aide::axum::routing::get(generic_page_notify_template),
         )
         .api_route(
-"/system/notify-template/simple-list",
+            "/system/notify-template/simple-list",
             aide::axum::routing::get(generic_list_notify_template),
         )
         .api_route(
-"/system/notify-template/get",
+            "/system/notify-template/get",
             aide::axum::routing::get(generic_get_notify_template),
         )
         .api_route(
-"/system/notify-template/create",
+            "/system/notify-template/create",
             aide::axum::routing::post(generic_create_notify_template),
         )
         .api_route(
-"/system/notify-template/update",
+            "/system/notify-template/update",
             aide::axum::routing::put(generic_update_notify_template),
         )
         .api_route(
-"/system/notify-template/delete",
+            "/system/notify-template/delete",
             aide::axum::routing::delete(generic_delete_notify_template),
         )
         .api_route(
-"/system/notify-template/delete-list",
+            "/system/notify-template/delete-list",
             aide::axum::routing::delete(generic_delete_list_notify_template),
         )
         .api_route(
-"/system/notify-template/export-excel",
+            "/system/notify-template/export-excel",
             aide::axum::routing::get(super::excel::notify_template_export),
         )
         .api_route(
-"/system/notify-template/send-notify",
+            "/system/notify-template/send-notify",
             aide::axum::routing::post(super::notify::send_notify),
         )
         .api_route(
-"/system/notify-message/page",
+            "/system/notify-message/page",
             aide::axum::routing::get(generic_page_notify_message),
         )
         .api_route(
-"/system/notify-message/my-page",
+            "/system/notify-message/my-page",
             aide::axum::routing::get(super::notify::my_page),
         )
         .api_route(
-"/system/notify-message/my-list",
+            "/system/notify-message/my-list",
             aide::axum::routing::get(super::notify::my_list),
         )
         .api_route(
-"/system/notify-message/get-unread-list",
+            "/system/notify-message/get-unread-list",
             aide::axum::routing::get(super::notify::unread_list),
         )
         .api_route(
-"/system/notify-message/get-unread-count",
+            "/system/notify-message/get-unread-count",
             aide::axum::routing::get(super::notify::unread_count),
         )
         .api_route(
-"/system/notify-message/update-read",
+            "/system/notify-message/update-read",
             aide::axum::routing::put(super::notify::update_read),
         )
         .api_route(
-"/system/notify-message/update-all-read",
+            "/system/notify-message/update-all-read",
             aide::axum::routing::put(super::notify::update_all_read),
         )
         .api_route(
-"/system/mail-account/page",
+            "/system/mail-account/page",
             aide::axum::routing::get(generic_page_mail_account),
         )
         .api_route(
-"/system/mail-account/simple-list",
+            "/system/mail-account/simple-list",
             aide::axum::routing::get(generic_list_mail_account),
         )
         .api_route(
-"/system/mail-account/get",
+            "/system/mail-account/get",
             aide::axum::routing::get(generic_get_mail_account),
         )
         .api_route(
-"/system/mail-account/create",
+            "/system/mail-account/create",
             aide::axum::routing::post(generic_create_mail_account),
         )
         .api_route(
-"/system/mail-account/update",
+            "/system/mail-account/update",
             aide::axum::routing::put(generic_update_mail_account),
         )
         .api_route(
-"/system/mail-account/delete",
+            "/system/mail-account/delete",
             aide::axum::routing::delete(generic_delete_mail_account),
         )
         .api_route(
-"/system/mail-account/delete-list",
+            "/system/mail-account/delete-list",
             aide::axum::routing::delete(generic_delete_list_mail_account),
         )
         .api_route(
-"/system/mail-template/page",
+            "/system/mail-template/page",
             aide::axum::routing::get(generic_page_mail_template),
         )
         .api_route(
-"/system/mail-template/simple-list",
+            "/system/mail-template/simple-list",
             aide::axum::routing::get(generic_list_mail_template),
         )
         .api_route(
-"/system/mail-template/get",
+            "/system/mail-template/get",
             aide::axum::routing::get(generic_get_mail_template),
         )
         .api_route(
-"/system/mail-template/create",
+            "/system/mail-template/create",
             aide::axum::routing::post(generic_create_mail_template),
         )
         .api_route(
-"/system/mail-template/update",
+            "/system/mail-template/update",
             aide::axum::routing::put(generic_update_mail_template),
         )
         .api_route(
-"/system/mail-template/delete",
+            "/system/mail-template/delete",
             aide::axum::routing::delete(generic_delete_mail_template),
         )
         .api_route(
-"/system/mail-template/delete-list",
+            "/system/mail-template/delete-list",
             aide::axum::routing::delete(generic_delete_list_mail_template),
         )
         .api_route(
-"/system/mail-template/send-mail",
+            "/system/mail-template/send-mail",
             aide::axum::routing::post(super::messaging::mail_template_send),
         )
         .api_route(
-"/system/mail-log/page",
+            "/system/mail-log/page",
             aide::axum::routing::get(generic_page_mail_log),
         )
         .api_route(
-"/system/mail-log/export-excel",
+            "/system/mail-log/export-excel",
             aide::axum::routing::get(super::excel::mail_log_export),
         )
         .api_route(
-"/system/sms-channel/page",
+            "/system/sms-channel/page",
             aide::axum::routing::get(generic_page_sms_channel),
         )
         .api_route(
-"/system/sms-channel/simple-list",
+            "/system/sms-channel/simple-list",
             aide::axum::routing::get(generic_list_sms_channel),
         )
         .api_route(
-"/system/sms-channel/get",
+            "/system/sms-channel/get",
             aide::axum::routing::get(generic_get_sms_channel),
         )
         .api_route(
-"/system/sms-channel/create",
+            "/system/sms-channel/create",
             aide::axum::routing::post(generic_create_sms_channel),
         )
         .api_route(
-"/system/sms-channel/update",
+            "/system/sms-channel/update",
             aide::axum::routing::put(generic_update_sms_channel),
         )
         .api_route(
-"/system/sms-channel/delete",
+            "/system/sms-channel/delete",
             aide::axum::routing::delete(generic_delete_sms_channel),
         )
         .api_route(
-"/system/sms-channel/delete-list",
+            "/system/sms-channel/delete-list",
             aide::axum::routing::delete(generic_delete_list_sms_channel),
         )
         .api_route(
-"/system/sms-channel/export-excel",
+            "/system/sms-channel/export-excel",
             aide::axum::routing::get(super::excel::sms_channel_export),
         )
         .api_route(
-"/system/sms-template/page",
+            "/system/sms-template/page",
             aide::axum::routing::get(generic_page_sms_template),
         )
         .api_route(
-"/system/sms-template/simple-list",
+            "/system/sms-template/simple-list",
             aide::axum::routing::get(generic_list_sms_template),
         )
         .api_route(
-"/system/sms-template/get",
+            "/system/sms-template/get",
             aide::axum::routing::get(generic_get_sms_template),
         )
         .api_route(
-"/system/sms-template/create",
+            "/system/sms-template/create",
             aide::axum::routing::post(generic_create_sms_template),
         )
         .api_route(
-"/system/sms-template/update",
+            "/system/sms-template/update",
             aide::axum::routing::put(generic_update_sms_template),
         )
         .api_route(
-"/system/sms-template/delete",
+            "/system/sms-template/delete",
             aide::axum::routing::delete(generic_delete_sms_template),
         )
         .api_route(
-"/system/sms-template/delete-list",
+            "/system/sms-template/delete-list",
             aide::axum::routing::delete(generic_delete_list_sms_template),
         )
         .api_route(
-"/system/sms-template/export-excel",
+            "/system/sms-template/export-excel",
             aide::axum::routing::get(super::excel::sms_template_export),
         )
         .api_route(
-"/system/sms-template/send-sms",
+            "/system/sms-template/send-sms",
             aide::axum::routing::post(super::messaging::sms_template_send),
         )
         .api_route(
-"/system/sms-log/page",
+            "/system/sms-log/page",
             aide::axum::routing::get(generic_page_sms_log),
         )
         .api_route(
-"/system/sms-log/export-excel",
+            "/system/sms-log/export-excel",
             aide::axum::routing::get(super::excel::sms_log_export),
         )
         .api_route(
-"/system/oauth2/authorize",
+            "/system/oauth2/authorize",
             aide::axum::routing::get(oauth2_authorize_get).post(oauth2_authorize_post),
         )
 }

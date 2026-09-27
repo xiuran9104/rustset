@@ -1,14 +1,15 @@
 use crate::{AiState, require};
-use schemars::JsonSchema;
-use aide::axum::routing::{delete, get, post, put};
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     extract::{Query, State},
 };
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -31,6 +32,7 @@ pub(crate) async fn load_definitions(
 }
 pub(crate) async fn execute(
     pool: &sqlx::PgPool,
+    user: &CurrentUser,
     name: &str,
     args: &Value,
 ) -> Result<String, String> {
@@ -71,12 +73,16 @@ pub(crate) async fn execute(
         }
         // ---- 运维 Agent 工具集（docs/cmdb-roadmap.md）----
         "cmdb_model_list" => {
+            require(user, "cmdb:model:query").map_err(|error| error.message().to_owned())?;
+            let tenant =
+                TenantContext::from_user(user).map_err(|error| error.message().to_owned())?;
             let rows = sqlx::query(
                 "SELECT m.id, m.name, m.code, m.description,
                         (SELECT count(*) FROM cmdb_attribute a WHERE a.model_id=m.id AND a.deleted=0) AS attrs,
-                        (SELECT count(*) FROM cmdb_instance i WHERE i.model_id=m.id AND i.deleted=0) AS instances
+                        (SELECT count(*) FROM cmdb_instance i WHERE i.model_id=m.id AND i.tenant_id=$1 AND i.deleted=0) AS instances
                  FROM cmdb_model m WHERE m.deleted=0 AND m.status=0 ORDER BY m.sort, m.id",
             )
+            .bind(tenant.id())
             .fetch_all(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -89,6 +95,9 @@ pub(crate) async fn execute(
             Ok(serde_json::to_string(&json!({"models": list})).unwrap())
         }
         "cmdb_instance_query" => {
+            require(user, "cmdb:instance:query").map_err(|error| error.message().to_owned())?;
+            let tenant =
+                TenantContext::from_user(user).map_err(|error| error.message().to_owned())?;
             let model_code = args
                 .get("model_code")
                 .and_then(Value::as_str)
@@ -110,13 +119,14 @@ pub(crate) async fn execute(
             };
             let rows = sqlx::query(
                 "SELECT attributes, update_time FROM cmdb_instance
-                 WHERE model_id=$1 AND deleted=0
+                 WHERE model_id=$1 AND tenant_id=$4 AND deleted=0
                    AND ($2::text = '' OR attributes::text ILIKE '%'||$2||'%')
                  ORDER BY id DESC LIMIT $3",
             )
             .bind(model_id)
             .bind(keyword)
             .bind(limit)
+            .bind(tenant.id())
             .fetch_all(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -127,6 +137,9 @@ pub(crate) async fn execute(
             Ok(serde_json::to_string(&json!({"instances": list})).unwrap())
         }
         "asset_query" => {
+            require(user, "infra:asset:query").map_err(|error| error.message().to_owned())?;
+            let tenant =
+                TenantContext::from_user(user).map_err(|error| error.message().to_owned())?;
             let keyword = args.get("keyword").and_then(Value::as_str).unwrap_or("");
             let limit = args
                 .get("limit")
@@ -137,13 +150,14 @@ pub(crate) async fn execute(
                 "SELECT name, ip, zone, device_type, os, owner, organization_name,
                         application_name, classified_protection_level, status
                  FROM infra_asset
-                 WHERE deleted=0 AND ($1::text = '' OR name ILIKE '%'||$1||'%' OR ip ILIKE '%'||$1||'%'
+                 WHERE tenant_id=$3 AND deleted=0 AND ($1::text = '' OR name ILIKE '%'||$1||'%' OR ip ILIKE '%'||$1||'%'
                                       OR coalesce(organization_name,'') ILIKE '%'||$1||'%'
                                       OR coalesce(application_name,'') ILIKE '%'||$1||'%')
                  ORDER BY id DESC LIMIT $2",
             )
             .bind(keyword)
             .bind(limit)
+            .bind(tenant.id())
             .fetch_all(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -162,6 +176,10 @@ pub(crate) async fn execute(
             Ok(serde_json::to_string(&json!({"assets": list})).unwrap())
         }
         "ticket_query" => {
+            require(user, "infra:resource-ticket:query")
+                .map_err(|error| error.message().to_owned())?;
+            let tenant =
+                TenantContext::from_user(user).map_err(|error| error.message().to_owned())?;
             let status = args.get("status").and_then(Value::as_str).unwrap_or("");
             let keyword = args.get("keyword").and_then(Value::as_str).unwrap_or("");
             let limit = args
@@ -174,7 +192,7 @@ pub(crate) async fn execute(
                         cloud_platform_name, cloud_region, ticket_status, apply_status,
                         applicant_name, create_time
                  FROM infra_resource_ticket
-                 WHERE deleted=0
+                 WHERE tenant_id=$4 AND deleted=0
                    AND ($1::text = '' OR ticket_status=$1)
                    AND ($2::text = '' OR coalesce(ecs_name,'') ILIKE '%'||$2||'%'
                         OR coalesce(application_name,'') ILIKE '%'||$2||'%')
@@ -183,6 +201,7 @@ pub(crate) async fn execute(
             .bind(status)
             .bind(keyword)
             .bind(limit)
+            .bind(tenant.id())
             .fetch_all(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -204,6 +223,10 @@ pub(crate) async fn execute(
             Ok(serde_json::to_string(&json!({"tickets": list})).unwrap())
         }
         "ticket_create" => {
+            require(user, "infra:resource-ticket:create")
+                .map_err(|error| error.message().to_owned())?;
+            let tenant =
+                TenantContext::from_user(user).map_err(|error| error.message().to_owned())?;
             let ecs_name = args
                 .get("ecs_name")
                 .and_then(Value::as_str)
@@ -220,10 +243,10 @@ pub(crate) async fn execute(
                       resource_count, cpu_cores, memory_gb, application_name,
                       ticket_status, ticket_type, approval_stage, approval_total,
                       current_approval_role, delivery_status, created_by, applicant_name,
-                      create_time, update_time)
+                      create_time, update_time, tenant_id)
                  VALUES ('ecs', $1, $2, $3, $4, $5, $6, $7, $8, $9,
                          'pending_approval', 'create', 1, 1, '资源管理员', '未交付', $10, $10,
-                         date_trunc('second', now()), date_trunc('second', now()))
+                         date_trunc('second', now()), date_trunc('second', now()), $11)
                  RETURNING id",
             )
             .bind(ecs_name)
@@ -235,11 +258,8 @@ pub(crate) async fn execute(
             .bind(cpu as i32)
             .bind(memory as i32)
             .bind(args.get("application_name").and_then(Value::as_str))
-            .bind(
-                args.get("applicant")
-                    .and_then(Value::as_str)
-                    .unwrap_or("agent"),
-            )
+            .bind(&user.username)
+            .bind(tenant.id())
             .fetch_one(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -263,11 +283,12 @@ pub(crate) async fn execute(
                     sqlx::query(
                         "UPDATE infra_resource_ticket SET ticket_status='pending_provision',
                                 approver=$2, approve_comment=$3, update_time=now()
-                         WHERE id=$1",
+                         WHERE id=$1 AND tenant_id=$4",
                     )
                     .bind(id)
                     .bind(format!("auto:{rule_name}"))
                     .bind(format!("Agent 建单命中自动审批规则 {rule_name}"))
+                    .bind(tenant.id())
                     .execute(pool)
                     .await
                     .map_err(|e| e.to_string())?;
@@ -308,18 +329,12 @@ mod tests {
 
 pub fn routes() -> ApiRouter<AiState> {
     ApiRouter::new()
-        .api_route(
-"/ai/tool/page", get(page))
-        .api_route(
-"/ai/tool/simple-list", get(simple_list))
-        .api_route(
-"/ai/tool/get", get(get_one))
-        .api_route(
-"/ai/tool/create", post(create))
-        .api_route(
-"/ai/tool/update", put(update))
-        .api_route(
-"/ai/tool/delete", delete(remove))
+        .api_route("/ai/tool/page", get(page))
+        .api_route("/ai/tool/simple-list", get(simple_list))
+        .api_route("/ai/tool/get", get(get_one))
+        .api_route("/ai/tool/create", post(create))
+        .api_route("/ai/tool/update", put(update))
+        .api_route("/ai/tool/delete", delete(remove))
 }
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -446,3 +461,6 @@ async fn remove(
         .map_err(|_| AppError::internal("删除工具失败"))?;
     Ok(Json(ApiResponse::new(r.rows_affected() > 0)))
 }
+
+#[cfg(test)]
+mod tenant_tests;

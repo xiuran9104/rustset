@@ -7,3 +7,5 @@ repository.workspace = true
 
 [dependencies]
 serde.workspace = true
+rustset-framework-security.workspace = true
+rustset-framework-web.workspace = true

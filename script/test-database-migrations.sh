@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Supply an empty disposable database when Docker is unavailable. The script
+# never drops or recreates a caller-provided database.
+if [[ -n "${TEST_DATABASE_URL:-}" ]]; then
+  cargo test -p rustset-framework-database --test migrations -- --ignored --nocapture
+  exit 0
+fi
+
 container="rustset-migration-test"
 port="${TEST_POSTGRES_PORT:-55432}"
 cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }

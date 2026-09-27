@@ -20,6 +20,45 @@ pub struct UpdateInstanceRequest {
     pub attributes: serde_json::Map<String, Value>,
 }
 
+/// Stable response fields; timestamps preserve the existing local SQL format.
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct InstanceResponse {
+    pub id: i64,
+    pub model_id: i64,
+    pub attributes: Value,
+    pub create_time: String,
+    pub update_time: String,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct InstancePageResponse {
+    pub list: Vec<InstanceResponse>,
+    pub total: i64,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct InstancePageParams {
+    pub model_id: i64,
+    pub page_no: Option<i64>,
+    pub page_size: Option<i64>,
+    pub keyword: Option<String>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct InstanceImportError {
+    pub row: usize,
+    pub error: String,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+pub struct InstanceImportResponse {
+    pub created: i64,
+    pub failed: usize,
+    pub errors: Vec<InstanceImportError>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AttrType {

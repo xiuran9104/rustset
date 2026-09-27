@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { Page } from '@vben/common-ui';
+import { downloadFileFromBlobPart } from '@vben/utils';
 import { message } from 'ant-design-vue';
 import { requestClient } from '#/api/request';
 import {
@@ -163,26 +164,33 @@ async function submit() {
   }
 }
 
-async function exportExcel() {
+async function exportCsv() {
   if (!currentModelId.value) return;
   try {
     const blob = (await requestClient.download('/cmdb/instance/export', {
       params: { modelId: currentModelId.value },
     })) as any;
-    const url = URL.createObjectURL(
-      blob instanceof Blob ? blob : new Blob([blob]),
-    );
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `cmdb_instances_model_${currentModelId.value}.xlsx`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadFileFromBlobPart({
+      fileName: `cmdb_instances_model_${currentModelId.value}.csv`,
+      source: blob,
+    });
   } catch {
     message.error('导出失败');
   }
 }
 
-async function importExcel(file: File) {
+async function downloadTemplate() {
+  if (!currentModelId.value) return;
+  const blob = await requestClient.download('/cmdb/instance/import-template', {
+    params: { modelId: currentModelId.value },
+  });
+  downloadFileFromBlobPart({
+    fileName: `cmdb_instances_model_${currentModelId.value}_template.csv`,
+    source: blob,
+  });
+}
+
+async function importCsv(file: File) {
   if (!currentModelId.value) return false;
   const form_data = new FormData();
   form_data.append('modelId', String(currentModelId.value));
@@ -260,14 +268,15 @@ function controlFor(attr: CmdbAttribute) {
           @search="() => { pageNo = 1; fetchRows(); }"
         />
         <a-button @click="fetchRows">刷新</a-button>
-        <a-button :disabled="!currentModelId || !rows.length" @click="exportExcel">导出 Excel</a-button>
+        <a-button :disabled="!currentModelId || !rows.length" @click="exportCsv">导出 CSV</a-button>
+        <a-button v-access:code="['cmdb:instance:create']" :disabled="!currentModelId || !attributes.length" @click="downloadTemplate">下载模板</a-button>
         <a-upload
           :show-upload-list="false"
-          :before-upload="importExcel"
-          accept=".xlsx"
+          :before-upload="importCsv"
+          accept=".csv,text/csv"
           :disabled="!currentModelId || !attributes.length"
         >
-          <a-button v-access:code="['cmdb:instance:create']" :disabled="!currentModelId || !attributes.length">导入 Excel</a-button>
+          <a-button v-access:code="['cmdb:instance:create']" :disabled="!currentModelId || !attributes.length">导入 CSV</a-button>
         </a-upload>
         <a-button
           v-access:code="['cmdb:instance:create']"

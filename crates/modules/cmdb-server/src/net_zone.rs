@@ -3,9 +3,8 @@
 //! specific segment (longest prefix) to auto-fill ownership, and asset
 //! pages can jump to the network policies covering the asset's IPs.
 
-use aide::axum::routing::{delete, get, post, put};
-use schemars::JsonSchema;
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     extract::{Query, State},
@@ -13,6 +12,7 @@ use axum::{
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -22,24 +22,15 @@ use crate::{CmdbState, require};
 
 pub fn routes() -> ApiRouter<CmdbState> {
     ApiRouter::new()
-        .api_route(
-"/cmdb/net-zone/tree", get(net_zone_tree))
-        .api_route(
-"/cmdb/net-zone/list", get(net_zone_list))
-        .api_route(
-"/cmdb/net-zone/get", get(net_zone_get))
-        .api_route(
-"/cmdb/net-zone/create", post(net_zone_create))
-        .api_route(
-"/cmdb/net-zone/update", put(net_zone_update))
-        .api_route(
-"/cmdb/net-zone/delete", delete(net_zone_delete))
-        .api_route(
-"/cmdb/net-zone/resolve", post(net_zone_resolve))
-        .api_route(
-"/cmdb/net-zone/identify-assets", post(identify_assets))
-        .api_route(
-"/cmdb/net-zone/policies-by-ip", get(policies_by_ip))
+        .api_route("/cmdb/net-zone/tree", get(net_zone_tree))
+        .api_route("/cmdb/net-zone/list", get(net_zone_list))
+        .api_route("/cmdb/net-zone/get", get(net_zone_get))
+        .api_route("/cmdb/net-zone/create", post(net_zone_create))
+        .api_route("/cmdb/net-zone/update", put(net_zone_update))
+        .api_route("/cmdb/net-zone/delete", delete(net_zone_delete))
+        .api_route("/cmdb/net-zone/resolve", post(net_zone_resolve))
+        .api_route("/cmdb/net-zone/identify-assets", post(identify_assets))
+        .api_route("/cmdb/net-zone/policies-by-ip", get(policies_by_ip))
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -512,13 +503,23 @@ async fn identify_assets(
     Json(_payload): Json<Value>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     require(&user, "cmdb:net-zone:update")?;
-    let tenant_id = tenant_id_for(&user, _payload.get("tenantId").and_then(Value::as_i64))?;
+    let tenant_id = rustset_framework_tenant::TenantContext::from_user(&user)?.id();
+    if _payload
+        .get("tenantId")
+        .and_then(Value::as_i64)
+        .is_some_and(|id| id != tenant_id)
+    {
+        return Err(AppError::forbidden(
+            "cannot reattribute another tenant's assets",
+        ));
+    }
     let assets = sqlx::query(
         "SELECT id, ip FROM infra_asset
-         WHERE deleted = 0
+         WHERE deleted = 0 AND tenant_id = $1
            AND NOT (ownership_source = 'manual'
                     AND organization_name IS NOT NULL AND organization_name <> '')",
     )
+    .bind(tenant_id)
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to read assets"))?;
@@ -533,11 +534,12 @@ async fn identify_assets(
                 let _ = sqlx::query(
                     "UPDATE infra_asset SET net_zone_id = $2, organization_name = $3,
                             ownership_source = 'segment', update_time = now()
-                     WHERE id = $1",
+                     WHERE id = $1 AND tenant_id = $4",
                 )
                 .bind(id)
                 .bind(zone_id)
                 .bind(organization)
+                .bind(tenant_id)
                 .execute(&state.pool)
                 .await;
                 matched += 1;
@@ -546,9 +548,10 @@ async fn identify_assets(
                 let _ = sqlx::query(
                     "UPDATE infra_asset SET net_zone_id = NULL, ownership_source = 'segment',
                             update_time = now()
-                     WHERE id = $1",
+                     WHERE id = $1 AND tenant_id = $2",
                 )
                 .bind(id)
+                .bind(tenant_id)
                 .execute(&state.pool)
                 .await;
                 unmatched += 1;
@@ -575,6 +578,7 @@ async fn policies_by_ip(
     Query(params): Query<PoliciesByIpParams>,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     require(&user, "cmdb:net-zone:query")?;
+    let tenant = rustset_framework_tenant::TenantContext::from_user(&user)?;
     let ip = params.ip.trim();
     if ip.is_empty() {
         return Err(AppError::bad_request("ip is required"));
@@ -588,18 +592,19 @@ async fn policies_by_ip(
                     traffic_direction, action, applicant, application_date,
                     'source'::text AS relation
              FROM infra_network_policy
-             WHERE deleted = 0 AND source_ip ILIKE $1
+             WHERE deleted = 0 AND tenant_id = $3 AND source_ip ILIKE $1
              UNION ALL
              SELECT id, firewall_name, source_ip, destination_ip, service_port,
                     traffic_direction, action, applicant, application_date,
                     'destination'::text
              FROM infra_network_policy
-             WHERE deleted = 0 AND destination_ip ILIKE $1
+             WHERE deleted = 0 AND tenant_id = $3 AND destination_ip ILIKE $1
          ) matched
          ORDER BY id LIMIT $2",
     )
     .bind(format!("%{ip}%"))
     .bind(limit)
+    .bind(tenant.id())
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to search policies"))?;

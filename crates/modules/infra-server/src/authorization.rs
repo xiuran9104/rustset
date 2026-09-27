@@ -271,7 +271,13 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         "/infra/approval-rule/page",
         Some("infra:approval-rule:query"),
     ),
+    ("GET", "/infra/asset/export-csv", Some("infra:asset:query")),
     ("GET", "/infra/asset/get", Some("infra:asset:query")),
+    (
+        "GET",
+        "/infra/asset/import-template",
+        Some("infra:asset:create"),
+    ),
     ("GET", "/infra/asset/list", Some("infra:asset:query")),
     ("GET", "/infra/asset/page", Some("infra:asset:query")),
     (
@@ -437,11 +443,7 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         Some("infra:asset:query"),
     ),
     ("GET", "/infra/inspection/list", Some("infra:task:query")),
-    (
-        "GET",
-        "/infra/inspection/results",
-        Some("infra:task:query"),
-    ),
+    ("GET", "/infra/inspection/results", Some("infra:task:query")),
     (
         "GET",
         "/infra/job-log/export-excel",
@@ -473,8 +475,18 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ("GET", "/infra/monitor/traces", None),
     (
         "GET",
+        "/infra/network-policy/export-csv",
+        Some("infra:network-policy:query"),
+    ),
+    (
+        "GET",
         "/infra/network-policy/get",
         Some("infra:network-policy:query"),
+    ),
+    (
+        "GET",
+        "/infra/network-policy/import-template",
+        Some("infra:network-policy:create"),
     ),
     (
         "GET",
@@ -581,6 +593,11 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ("POST", "/infra/asset/create", Some("infra:asset:create")),
     (
         "POST",
+        "/infra/asset/import-csv",
+        Some("infra:asset:create"),
+    ),
+    (
+        "POST",
         "/infra/asset/{id}/port/add",
         Some("infra:asset:update"),
     ),
@@ -649,6 +666,16 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         "POST",
         "/infra/network-policy/create",
         Some("infra:network-policy:create"),
+    ),
+    (
+        "POST",
+        "/infra/network-policy/import-csv",
+        Some("infra:network-policy:create"),
+    ),
+    (
+        "POST",
+        "/infra/network-policy/recheck-risks",
+        Some("infra:network-policy:update"),
     ),
     (
         "POST",
@@ -876,7 +903,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 198);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 205);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

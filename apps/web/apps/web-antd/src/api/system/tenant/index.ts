@@ -70,7 +70,15 @@ export function deleteTenantList(ids: number[]) {
 
 /** 导出租户 */
 export function exportTenant(params: any) {
-  return requestClient.download('/system/tenant/export-excel', {
+  return requestClient.download('/system/tenant/export-csv', {
     params,
   });
+}
+
+export function tenantImportTemplate() {
+  return requestClient.download('/system/tenant/import-template');
+}
+
+export function importTenantCsv(file: File) {
+  return requestClient.upload('/system/tenant/import-csv', { file });
 }

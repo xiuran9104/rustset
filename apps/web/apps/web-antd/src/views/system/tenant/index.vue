@@ -7,7 +7,7 @@ import { ref } from 'vue';
 import { confirm, DocAlert, Page, useVbenModal } from '@vben/common-ui';
 import { downloadFileFromBlobPart, isEmpty } from '@vben/utils';
 
-import { message } from 'ant-design-vue';
+import { Button, message, Space, Upload } from 'ant-design-vue';
 
 import { ACTION_ICON, TableAction, useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
@@ -15,6 +15,8 @@ import {
   deleteTenantList,
   exportTenant,
   getTenantPage,
+  importTenantCsv,
+  tenantImportTemplate,
 } from '#/api/system/tenant';
 import { $t } from '#/locales';
 
@@ -40,7 +42,21 @@ function handleRefresh() {
 /** 导出表格 */
 async function handleExport() {
   const data = await exportTenant(await gridApi.formApi.getValues());
-  downloadFileFromBlobPart({ fileName: '租户.xls', source: data });
+  downloadFileFromBlobPart({ fileName: '租户.csv', source: data });
+}
+
+async function handleTemplate() {
+  const data = await tenantImportTemplate();
+  downloadFileFromBlobPart({ fileName: '租户导入模板.csv', source: data });
+}
+
+async function handleImport(file: File) {
+  const result: any = await importTenantCsv(file);
+  message.success(
+    `导入完成：成功 ${result.created || 0} 条，失败 ${result.failed || 0} 条`,
+  );
+  handleRefresh();
+  return false;
 }
 
 /** 创建租户 */
@@ -142,8 +158,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
     <NetZoneModal />
     <Grid table-title="租户列表">
       <template #toolbar-tools>
-        <TableAction
-          :actions="[
+        <Space>
+          <TableAction
+            :actions="[
             {
               label: $t('ui.actionTitle.create', ['租户']),
               type: 'primary',
@@ -167,8 +184,19 @@ const [Grid, gridApi] = useVbenVxeGrid({
               auth: ['system:tenant:delete'],
               onClick: handleDeleteBatch,
             },
-          ]"
-        />
+            ]"
+          />
+          <Button v-access:code="['system:tenant:create']" @click="handleTemplate">
+            下载 CSV 模板
+          </Button>
+          <Upload
+            :show-upload-list="false"
+            accept=".csv,text/csv"
+            :before-upload="handleImport"
+          >
+            <Button v-access:code="['system:tenant:create']">导入 CSV</Button>
+          </Upload>
+        </Space>
       </template>
       <template #actions="{ row }">
         <TableAction

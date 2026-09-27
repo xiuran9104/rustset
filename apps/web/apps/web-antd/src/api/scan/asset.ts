@@ -1,3 +1,5 @@
+import { requestClient } from '#/api/request';
+
 import { infraCreate, infraDelete, infraGet, infraList, infraUpdate } from './compat';
 
 export namespace ScanAssetApi {
@@ -92,3 +94,6 @@ export async function getAsset(id: number) {
 export function createAsset(data: ScanAssetApi.Asset) { return infraCreate('asset', serializeCollections(data)); }
 export function updateAsset(id: number, data: ScanAssetApi.Asset) { return infraUpdate('asset', id, serializeCollections(data)); }
 export function deleteAsset(id: number) { return infraDelete('asset', id); }
+export function exportAssetCsv() { return requestClient.download('/infra/asset/export-csv'); }
+export function downloadAssetImportTemplate() { return requestClient.download('/infra/asset/import-template'); }
+export function importAssetCsv(file: File) { return requestClient.upload('/infra/asset/import-csv', { file }); }

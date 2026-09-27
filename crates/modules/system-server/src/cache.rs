@@ -20,8 +20,8 @@ pub async fn load_current_user(
     };
     let key = cache.key(CURRENT_USER_CACHE_NAMESPACE, account.id.to_string());
     match cache.get_json::<CurrentUser>(&key).await {
-        Ok(Some(user)) => return Ok(user),
-        Ok(None) => {}
+        Ok(Some(user)) if user.tenant_id == account.tenant_id => return Ok(user),
+        Ok(_) => {}
         Err(error) => warn!(%error, "failed to read current user cache"),
     }
 

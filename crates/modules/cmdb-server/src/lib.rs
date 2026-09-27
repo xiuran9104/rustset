@@ -15,6 +15,7 @@ use axum::{
 use rustset_framework_common::ApiResponse;
 use rustset_framework_database::PgPool;
 use rustset_framework_security::{CurrentUser, Permission};
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -119,11 +120,12 @@ async fn load_model_row(pool: &PgPool, id: i64) -> Result<Value, AppError> {
     }))
 }
 
-async fn model_count(pool: &PgPool, model_id: i64) -> i64 {
+async fn model_count(pool: &PgPool, tenant: &TenantContext, model_id: i64) -> i64 {
     sqlx::query_scalar::<_, i64>(
-        "SELECT count(*) FROM cmdb_instance WHERE model_id = $1 AND deleted = 0",
+        "SELECT count(*) FROM cmdb_instance WHERE model_id = $1 AND tenant_id = $2 AND deleted = 0",
     )
     .bind(model_id)
+    .bind(tenant.id())
     .fetch_one(pool)
     .await
     .unwrap_or(0)
@@ -154,6 +156,7 @@ async fn model_list(
     user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     require(&user, "cmdb:model:query")?;
+    let tenant = TenantContext::from_user(&user)?;
     let rows = sqlx::query(
         "SELECT id, name, code, description, icon, unique_key, sort, status
          FROM cmdb_model WHERE deleted = 0 AND status = 0
@@ -173,7 +176,7 @@ async fn model_list(
             "uniqueKey": row.get::<Option<String>, _>("unique_key"),
             "sort": row.get::<i32, _>("sort"),
             "status": row.get::<i16, _>("status"),
-            "instanceCount": model_count(&state.pool, row.get::<i64, _>("id")).await,
+            "instanceCount": model_count(&state.pool, &tenant, row.get::<i64, _>("id")).await,
             "attributeCount": attribute_count(&state.pool, row.get::<i64, _>("id")).await,
         }));
     }
@@ -346,7 +349,7 @@ async fn model_update(
     .bind(&user.username)
     .execute(&mut *tx)
     .await
-    .map_err(|_| AppError::internal("failed to update model"))?;
+    .map_err(|error| instance_service::mutation_error(error, "failed to update model"))?;
     if result.rows_affected() == 0 {
         return Err(AppError::not_found("model not found"));
     }
@@ -376,9 +379,9 @@ async fn model_delete(
     .await
     .map_err(|_| AppError::internal("failed to count instances"))?;
     if instances > 0 {
-        return Err(AppError::bad_request(format!(
-            "model still has {instances} instances; delete them first"
-        )));
+        return Err(AppError::bad_request(
+            "model still has instances; delete them first",
+        ));
     }
     let result = sqlx::query(
         "UPDATE cmdb_model SET deleted = 1, updater = $2, update_time = now()
@@ -610,3 +613,6 @@ async fn attribute_delete(
     }
     Ok(Json(ApiResponse::new(())))
 }
+
+#[cfg(test)]
+mod tenant_tests;

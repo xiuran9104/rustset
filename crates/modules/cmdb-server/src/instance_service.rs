@@ -1,13 +1,23 @@
 //! Transaction boundary for instance mutations. All API writers (including
 //! imports) lock the model first, then the instance, and use one connection.
-//! Model key changes must take the same lock. Direct SQL writers must follow
-//! this protocol too; this is not a replacement for a database unique index.
+//! Model key changes take the same lock. Migration 0025 also maintains a
+//! database unique-value registry for writers outside this service.
 
 use rustset_cmdb_api::AttrType;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use serde_json::{Map, Value};
 use sqlx::{PgPool, Row};
 use std::collections::BTreeMap;
+
+pub(crate) fn mutation_error(error: sqlx::Error, fallback: &str) -> AppError {
+    if error.as_database_error().is_some_and(|error| {
+        error.is_unique_violation() && error.constraint() == Some("cmdb_instance_unique_value_key")
+    }) {
+        return AppError::bad_request("unique key already has an instance with this value");
+    }
+    AppError::internal(fallback)
+}
 
 pub(crate) struct AttributeDef {
     pub(crate) code: String,
@@ -162,6 +172,7 @@ fn validate_payload(
 async fn enforce_unique_key(
     connection: &mut sqlx::PgConnection,
     model: &ModelHeader,
+    tenant: &TenantContext,
     data: &Map<String, Value>,
     instance_id: Option<i64>,
 ) -> Result<(), AppError> {
@@ -173,12 +184,13 @@ async fn enforce_unique_key(
     };
     let duplicate: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM cmdb_instance
-         WHERE model_id = $1 AND deleted = 0 AND id <> $2 AND attributes->$3 = $4::jsonb",
+         WHERE model_id = $1 AND deleted = 0 AND id <> $2 AND attributes->$3 = $4::jsonb AND tenant_id = $5",
     )
     .bind(model.id)
     .bind(instance_id.unwrap_or(0))
     .bind(key)
     .bind(value)
+    .bind(tenant.id())
     .fetch_one(connection)
     .await
     .map_err(|_| AppError::internal("failed to check unique key"))?;
@@ -212,6 +224,7 @@ pub(crate) async fn lock_model(
 
 pub(crate) async fn create(
     pool: &PgPool,
+    tenant: &TenantContext,
     model_id: i64,
     attributes: Map<String, Value>,
     actor: &str,
@@ -226,11 +239,11 @@ pub(crate) async fn create(
     let model = lock_model(&mut tx, model_id).await?;
     let definitions = load_attributes(&mut *tx, model_id).await?;
     let data = validate_payload(&definitions, &Value::Object(attributes), true)?;
-    enforce_unique_key(&mut tx, &model, &data, None).await?;
+    enforce_unique_key(&mut tx, &model, tenant, &data, None).await?;
     let id = sqlx::query_scalar(
-        "INSERT INTO cmdb_instance (model_id, attributes, creator, updater) VALUES ($1, $2, $3, $3) RETURNING id"
-    ).bind(model_id).bind(Value::Object(data)).bind(actor)
-        .fetch_one(&mut *tx).await.map_err(|_| AppError::internal("failed to create instance"))?;
+        "INSERT INTO cmdb_instance (model_id, attributes, creator, updater, tenant_id) VALUES ($1, $2, $3, $3, $4) RETURNING id"
+    ).bind(model_id).bind(Value::Object(data)).bind(actor).bind(tenant.id())
+        .fetch_one(&mut *tx).await.map_err(|error| mutation_error(error, "failed to create instance"))?;
     tx.commit()
         .await
         .map_err(|_| AppError::internal("failed to commit create"))?;
@@ -239,6 +252,7 @@ pub(crate) async fn create(
 
 pub(crate) async fn update(
     pool: &PgPool,
+    tenant: &TenantContext,
     id: i64,
     attributes: Map<String, Value>,
     actor: &str,
@@ -247,31 +261,33 @@ pub(crate) async fn update(
         return Err(AppError::bad_request("id is required"));
     }
     // model_id is immutable through the instance API. Recheck it after locking.
-    let model_id: i64 =
-        sqlx::query_scalar("SELECT model_id FROM cmdb_instance WHERE id = $1 AND deleted = 0")
-            .bind(id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|_| AppError::internal("failed to read instance"))?
-            .ok_or_else(|| AppError::not_found("instance not found"))?;
+    let model_id: i64 = sqlx::query_scalar(
+        "SELECT model_id FROM cmdb_instance WHERE id = $1 AND tenant_id = $2 AND deleted = 0",
+    )
+    .bind(id)
+    .bind(tenant.id())
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| AppError::internal("failed to read instance"))?
+    .ok_or_else(|| AppError::not_found("instance not found"))?;
     let mut tx = pool
         .begin()
         .await
         .map_err(|_| AppError::internal("failed to start update"))?;
     let model = lock_model(&mut tx, model_id).await?;
     let existing: Value = sqlx::query_scalar(
-        "SELECT attributes FROM cmdb_instance WHERE id = $1 AND model_id = $2 AND deleted = 0 FOR UPDATE"
-    ).bind(id).bind(model_id).fetch_optional(&mut *tx).await
+        "SELECT attributes FROM cmdb_instance WHERE id = $1 AND model_id = $2 AND tenant_id = $3 AND deleted = 0 FOR UPDATE"
+    ).bind(id).bind(model_id).bind(tenant.id()).fetch_optional(&mut *tx).await
         .map_err(|_| AppError::internal("failed to lock instance"))?
         .ok_or_else(|| AppError::not_found("instance not found"))?;
     let definitions = load_attributes(&mut *tx, model_id).await?;
     let patch = validate_payload(&definitions, &Value::Object(attributes), false)?;
     let mut merged = existing.as_object().cloned().unwrap_or_default();
     merged.extend(patch);
-    enforce_unique_key(&mut tx, &model, &merged, Some(id)).await?;
-    sqlx::query("UPDATE cmdb_instance SET attributes = $2, updater = $3, update_time = now() WHERE id = $1 AND deleted = 0")
-        .bind(id).bind(Value::Object(merged)).bind(actor).execute(&mut *tx).await
-        .map_err(|_| AppError::internal("failed to update instance"))?;
+    enforce_unique_key(&mut tx, &model, tenant, &merged, Some(id)).await?;
+    sqlx::query("UPDATE cmdb_instance SET attributes = $2, updater = $3, update_time = now() WHERE id = $1 AND tenant_id = $4 AND deleted = 0")
+        .bind(id).bind(Value::Object(merged)).bind(actor).bind(tenant.id()).execute(&mut *tx).await
+        .map_err(|error| mutation_error(error, "failed to update instance"))?;
     tx.commit()
         .await
         .map_err(|_| AppError::internal("failed to commit update"))?;
@@ -294,6 +310,7 @@ pub(crate) fn parse_ids(raw: &str) -> Result<Vec<i64>, AppError> {
 
 pub(crate) async fn delete(
     pool: &PgPool,
+    tenant: &TenantContext,
     ids: &[i64],
     actor: &str,
     require_existing: bool,
@@ -305,21 +322,31 @@ pub(crate) async fn delete(
         .begin()
         .await
         .map_err(|_| AppError::internal("failed to start delete"))?;
-    // Lock in ID order so overlapping bulk requests cannot reverse lock order.
+    // Match create/update ordering and the database registry triggers.
     sqlx::query(
-        "SELECT id FROM cmdb_instance WHERE id = ANY($1) AND deleted = 0 ORDER BY id FOR UPDATE",
+        "SELECT id FROM cmdb_model WHERE id IN (SELECT model_id FROM cmdb_instance WHERE id = ANY($1) AND tenant_id = $2 AND deleted = 0) ORDER BY id FOR UPDATE",
     )
     .bind(ids)
+    .bind(tenant.id())
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::internal("failed to lock models"))?;
+    // Lock in ID order so overlapping bulk requests cannot reverse lock order.
+    sqlx::query(
+        "SELECT id FROM cmdb_instance WHERE id = ANY($1) AND tenant_id = $2 AND deleted = 0 ORDER BY id FOR UPDATE",
+    )
+    .bind(ids)
+    .bind(tenant.id())
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to lock instances"))?;
-    let result = sqlx::query("UPDATE cmdb_instance SET deleted = 1, updater = $2, update_time = now() WHERE id = ANY($1) AND deleted = 0")
-        .bind(ids).bind(actor).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to delete instances"))?;
+    let result = sqlx::query("UPDATE cmdb_instance SET deleted = 1, updater = $2, update_time = now() WHERE id = ANY($1) AND tenant_id = $3 AND deleted = 0")
+        .bind(ids).bind(actor).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to delete instances"))?;
     if require_existing && result.rows_affected() == 0 {
         return Err(AppError::not_found("instance not found"));
     }
-    sqlx::query("UPDATE cmdb_relation SET deleted = 1, updater = $2 WHERE deleted = 0 AND (source_id = ANY($1) OR target_id = ANY($1))")
-        .bind(ids).bind(actor).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to detach relations"))?;
+    sqlx::query("UPDATE cmdb_relation SET deleted = 1, updater = $2 WHERE deleted = 0 AND tenant_id = $3 AND (source_id = ANY($1) OR target_id = ANY($1))")
+        .bind(ids).bind(actor).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to detach relations"))?;
     tx.commit()
         .await
         .map_err(|_| AppError::internal("failed to commit delete"))?;
@@ -336,7 +363,7 @@ pub(crate) async fn validate_unique_key_change(
         return Ok(());
     };
     let values: Vec<Value> = sqlx::query_scalar(
-        "SELECT attributes->$2 FROM cmdb_instance WHERE model_id = $1 AND deleted = 0 AND attributes ? $2 GROUP BY attributes->$2 HAVING count(*) > 1"
+        "SELECT attributes->$2 FROM cmdb_instance WHERE model_id = $1 AND deleted = 0 AND attributes ? $2 GROUP BY tenant_id, attributes->$2 HAVING count(*) > 1"
     ).bind(model_id).bind(key).fetch_all(connection).await
         .map_err(|_| AppError::internal("failed to validate unique key"))?;
     if values.iter().any(|value| !is_empty_value(value)) {

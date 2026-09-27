@@ -15,7 +15,42 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 24);
+    assert_eq!(applied, 28);
+    let high_risk_rules: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read high-risk port baseline");
+    assert!(high_risk_rules >= 18);
+    let risk_source_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_risk'
+           AND column_name IN ('source_type','source_id','rule_id')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect network-policy risk linkage");
+    assert_eq!(risk_source_columns, 3);
+    let unique_constraint: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'cmdb_instance_unique_value'::regclass AND conname = 'cmdb_instance_unique_value_key' AND contype = 'u')"
+    ).fetch_one(&pool).await.expect("CMDB unique-value constraint");
+    assert!(unique_constraint);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0026_cmdb_tenant_isolation.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun tenant isolation migration");
+
+    for table in ["cmdb_instance", "cmdb_relation", "infra_resource_ticket"] {
+        let nullable: String = sqlx::query_scalar("SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='tenant_id'")
+            .bind(table).fetch_one(&pool).await.unwrap();
+        assert_eq!(nullable, "YES", "historical ownership must not be guessed");
+    }
+    let definition: String = sqlx::query_scalar("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='cmdb_instance_unique_value'::regclass AND conname='cmdb_instance_unique_value_key'")
+        .fetch_one(&pool).await.unwrap();
+    assert!(definition.contains("tenant_id, model_id, value"));
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

@@ -1,13 +1,20 @@
 <script lang="ts" setup>
 import { Page } from '@vben/common-ui';
+import { downloadFileFromBlobPart } from '@vben/utils';
 import {
   createNetworkPolicy,
   deleteNetworkPolicy,
+  downloadNetworkPolicyImportTemplate,
+  exportNetworkPolicyCsv,
   getNetworkPolicyList,
+  importNetworkPolicyCsv,
+  recheckNetworkPolicyRisks,
   updateNetworkPolicy,
 } from '#/api/scan/network-policy';
 import type { NetworkPolicy } from '#/api/scan/network-policy';
 import { useCrudList } from '../composables/useCrudList';
+import { message } from 'ant-design-vue';
+import { ref } from 'vue';
 
 const {
   loading, modalVisible, editingId, searchText, form,
@@ -37,6 +44,7 @@ const columns = [
   { title: '目的IP', dataIndex: 'destination_ip', key: 'destination_ip', width: 130 },
   { title: '目的单位', dataIndex: 'destination_organization', key: 'destination_organization', width: 140, ellipsis: true },
   { title: '服务端口', dataIndex: 'service_port', key: 'service_port', width: 100 },
+  { title: '高风险预警', dataIndex: 'high_risk_count', key: 'high_risk_count', width: 105 },
   { title: '流量方向', dataIndex: 'traffic_direction', key: 'traffic_direction', width: 85 },
   { title: '动作', key: 'action', width: 75 },
   { title: '申请人', dataIndex: 'applicant', key: 'applicant', width: 85 },
@@ -51,6 +59,34 @@ const actionMap: Record<string, { color: string; label: string }> = {
   allow: { color: 'green', label: '允许' },
   deny: { color: 'red', label: '拒绝' },
 };
+
+const riskChecking = ref(false);
+async function handleRiskRecheck() {
+  riskChecking.value = true;
+  try {
+    const result = await recheckNetworkPolicyRisks();
+    message.success(
+      `已检查 ${result.policiesChecked} 条策略，匹配 ${result.warningsMatched} 条高风险端口预警`,
+    );
+    await fetchData();
+  } finally {
+    riskChecking.value = false;
+  }
+}
+async function handleExportCsv() {
+  const data = await exportNetworkPolicyCsv();
+  downloadFileFromBlobPart({ fileName: 'network-policies.csv', source: data });
+}
+async function handleTemplate() {
+  const data = await downloadNetworkPolicyImportTemplate();
+  downloadFileFromBlobPart({ fileName: 'network-policies-import-template.csv', source: data });
+}
+async function handleImportCsv(file: File) {
+  const result: any = await importNetworkPolicyCsv(file);
+  message.success(`导入完成：成功 ${result.created || 0} 条，失败 ${result.failed || 0} 条`);
+  await fetchData();
+  return false;
+}
 </script>
 
 <template>
@@ -59,6 +95,12 @@ const actionMap: Record<string, { color: string; label: string }> = {
       <a-page-header title="网络策略台账" sub-title="防火墙开通与交付记录（来源：资产采集表·网络策略排查整改表）" style="margin-bottom:16px;padding:0" />
       <a-space :size="24" style="margin-bottom:20px">
         <a-button v-access:code="['infra:network-policy:create']" type="primary" @click="openCreate">新增策略</a-button>
+        <a-button v-access:code="['infra:network-policy:update']" :loading="riskChecking" @click="handleRiskRecheck">重新匹配风险</a-button>
+        <a-button v-access:code="['infra:network-policy:query']" @click="handleExportCsv">导出 CSV</a-button>
+        <a-button v-access:code="['infra:network-policy:create']" @click="handleTemplate">下载模板</a-button>
+        <a-upload :show-upload-list="false" accept=".csv,text/csv" :before-upload="handleImportCsv">
+          <a-button v-access:code="['infra:network-policy:create']">导入 CSV</a-button>
+        </a-upload>
         <a-button @click="fetchData">刷新</a-button>
         <a-input-search v-model:value="searchText" placeholder="搜索防火墙/IP/单位/申请人" style="width:280px" allow-clear />
       </a-space>
@@ -69,6 +111,14 @@ const actionMap: Record<string, { color: string; label: string }> = {
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'action'">
             <a-tag :color="actionMap[record.action]?.color || 'default'">{{ actionMap[record.action]?.label || record.action }}</a-tag>
+          </template>
+          <template v-if="column.key === 'high_risk_count'">
+            <a-badge
+              v-if="record.high_risk_count"
+              :count="record.high_risk_count"
+              :overflow-count="99"
+            />
+            <span v-else style="color:var(--ant-color-text-tertiary)">无</span>
           </template>
           <template v-if="column.key === 'source_ip'">
             <div style="font-size:12px;color:var(--ant-color-text-secondary)">{{ record.source_security_zone }}</div>
@@ -98,7 +148,7 @@ const actionMap: Record<string, { color: string; label: string }> = {
             <a-col :span="8"><a-form-item label="目的安全域名" required><a-input v-model:value="form.destination_security_zone" placeholder="例如：服务器域" /></a-form-item></a-col>
             <a-col :span="8"><a-form-item label="源IP" required><a-input v-model:value="form.source_ip" placeholder="支持网段，如 10.0.0.0/24" /></a-form-item></a-col>
             <a-col :span="8"><a-form-item label="目的IP" required><a-input v-model:value="form.destination_ip" /></a-form-item></a-col>
-            <a-col :span="8"><a-form-item label="服务端口" required><a-input v-model:value="form.service_port" placeholder="例如：443 或 8080-8090" /></a-form-item></a-col>
+            <a-col :span="8"><a-form-item label="服务端口" required extra="保存后自动匹配高风险端口并生成租户风险预警"><a-input v-model:value="form.service_port" placeholder="如 22,443、8080-8090、tcp/3389" /></a-form-item></a-col>
             <a-col :span="12"><a-form-item label="源端IP所属单位" required><a-input v-model:value="form.source_organization" /></a-form-item></a-col>
             <a-col :span="12"><a-form-item label="源端IP所属项目" required><a-input v-model:value="form.source_project" /></a-form-item></a-col>
             <a-col :span="12"><a-form-item label="目的IP所属单位" required><a-input v-model:value="form.destination_organization" /></a-form-item></a-col>
