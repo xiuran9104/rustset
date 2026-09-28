@@ -1,7 +1,6 @@
 use crate::{AiState, require, vector};
-use schemars::JsonSchema;
-use aide::axum::routing::{delete, get, post, put};
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     extract::{Query, State},
@@ -10,53 +9,33 @@ use rustset_ai_api::EmbeddingRequest;
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
 pub fn routes() -> ApiRouter<AiState> {
     ApiRouter::new()
-        .api_route(
-"/ai/knowledge/page", get(k_page))
-        .api_route(
-"/ai/knowledge/simple-list", get(k_simple))
-        .api_route(
-"/ai/knowledge/get", get(k_get))
-        .api_route(
-"/ai/knowledge/create", post(k_create))
-        .api_route(
-"/ai/knowledge/update", put(k_update))
-        .api_route(
-"/ai/knowledge/delete", delete(k_delete))
-        .api_route(
-"/ai/knowledge/document/page", get(d_page))
-        .api_route(
-"/ai/knowledge/document/get", get(d_get))
-        .api_route(
-"/ai/knowledge/document/create-list", post(d_create_list))
-        .api_route(
-"/ai/knowledge/document/update", put(d_update))
-        .api_route(
-"/ai/knowledge/document/update-status", put(d_status))
-        .api_route(
-"/ai/knowledge/document/delete", delete(d_delete))
-        .api_route(
-"/ai/knowledge/segment/page", get(s_page))
-        .api_route(
-"/ai/knowledge/segment/get", get(s_get))
-        .api_route(
-"/ai/knowledge/segment/create", post(s_create))
-        .api_route(
-"/ai/knowledge/segment/update", put(s_update))
-        .api_route(
-"/ai/knowledge/segment/update-status", put(s_status))
-        .api_route(
-"/ai/knowledge/segment/delete", delete(s_delete))
-        .api_route(
-"/ai/knowledge/segment/split", get(s_split))
-        .api_route(
-"/ai/knowledge/segment/get-process-list", get(s_process))
-        .api_route(
-"/ai/knowledge/segment/search", get(s_search))
+        .api_route("/ai/knowledge/page", get(k_page))
+        .api_route("/ai/knowledge/simple-list", get(k_simple))
+        .api_route("/ai/knowledge/get", get(k_get))
+        .api_route("/ai/knowledge/create", post(k_create))
+        .api_route("/ai/knowledge/update", put(k_update))
+        .api_route("/ai/knowledge/delete", delete(k_delete))
+        .api_route("/ai/knowledge/document/page", get(d_page))
+        .api_route("/ai/knowledge/document/get", get(d_get))
+        .api_route("/ai/knowledge/document/create-list", post(d_create_list))
+        .api_route("/ai/knowledge/document/update", put(d_update))
+        .api_route("/ai/knowledge/document/update-status", put(d_status))
+        .api_route("/ai/knowledge/document/delete", delete(d_delete))
+        .api_route("/ai/knowledge/segment/page", get(s_page))
+        .api_route("/ai/knowledge/segment/get", get(s_get))
+        .api_route("/ai/knowledge/segment/create", post(s_create))
+        .api_route("/ai/knowledge/segment/update", put(s_update))
+        .api_route("/ai/knowledge/segment/update-status", put(s_status))
+        .api_route("/ai/knowledge/segment/delete", delete(s_delete))
+        .api_route("/ai/knowledge/segment/split", get(s_split))
+        .api_route("/ai/knowledge/segment/get-process-list", get(s_process))
+        .api_route("/ai/knowledge/segment/search", get(s_search))
 }
 fn id() -> i64 {
     chrono::Utc::now().timestamp_micros()

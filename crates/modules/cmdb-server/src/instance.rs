@@ -10,7 +10,7 @@ use axum::{
     Json,
     extract::{Query, State},
 };
-use rustset_cmdb_api::{CreateInstanceRequest, UpdateInstanceRequest};
+use rustset_cmdb_api::{BatchUpdateInstanceRequest, CreateInstanceRequest, UpdateInstanceRequest};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
@@ -30,6 +30,7 @@ pub fn routes() -> ApiRouter<CmdbState> {
         .api_route("/cmdb/instance/get", get(instance_get))
         .api_route("/cmdb/instance/create", post(instance_create))
         .api_route("/cmdb/instance/update", put(instance_update))
+        .api_route("/cmdb/instance/update-list", put(instance_update_list))
         .api_route("/cmdb/instance/delete", delete(instance_delete))
         .api_route("/cmdb/instance/delete-list", delete(instance_delete_list))
         .api_route("/cmdb/instance/export", get(instance_export))
@@ -158,6 +159,25 @@ async fn instance_update(
     Ok(Json(ApiResponse::new(())))
 }
 
+async fn instance_update_list(
+    State(state): State<CmdbState>,
+    user: CurrentUser,
+    Json(payload): Json<BatchUpdateInstanceRequest>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    require(&user, "cmdb:instance:update")?;
+    let result = instance_service::batch_update(
+        &state.pool,
+        &payload.ids,
+        payload.attributes,
+        &user.username,
+    )
+    .await?;
+    Ok(Json(ApiResponse::new(json!({
+        "updated": result.updated,
+        "unchanged": result.unchanged,
+    }))))
+}
+
 async fn instance_delete(
     State(state): State<CmdbState>,
     user: CurrentUser,
@@ -266,6 +286,7 @@ async fn instance_import(
 
     require(&user, "cmdb:instance:create")?;
     let mut model_id = 0;
+    let mut atomic = false;
     let mut file_bytes: Option<Vec<u8>> = None;
     while let Some(field) = multipart
         .next_field()
@@ -287,6 +308,23 @@ async fn instance_import(
                         .await
                         .map_err(|_| AppError::bad_request("invalid file"))?
                         .to_vec(),
+                );
+            }
+            Some("mode") => {
+                let mode = field
+                    .text()
+                    .await
+                    .map_err(|_| AppError::bad_request("invalid import mode"))?;
+                atomic = mode.trim().eq_ignore_ascii_case("atomic");
+            }
+            Some("atomic") => {
+                let value = field
+                    .text()
+                    .await
+                    .map_err(|_| AppError::bad_request("invalid atomic flag"))?;
+                atomic = matches!(
+                    value.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes"
                 );
             }
             _ => {}
@@ -313,6 +351,7 @@ async fn instance_import(
         .map_err(|_| AppError::bad_request("无法读取工作表"))?;
 
     let mut created = 0i64;
+    let mut atomic_rows = Vec::new();
     let mut errors: Vec<Value> = Vec::new();
     for (row_index, row) in range.rows().enumerate() {
         if row_index == 0 {
@@ -350,12 +389,13 @@ async fn instance_import(
             let raw = match cell {
                 Data::Empty => continue,
                 Data::String(text) => Value::String(text.clone()),
-                Data::Float(number) => def
-                    .attr_type
-                    .code()
-                    .contains("float")
-                    .then(|| json!(number))
-                    .unwrap_or_else(|| json!(*number as i64)),
+                Data::Float(number) => {
+                    if def.attr_type.code().contains("float") {
+                        json!(number)
+                    } else {
+                        json!(*number as i64)
+                    }
+                }
                 Data::Int(number) => json!(number),
                 Data::Bool(flag) => json!(flag),
                 Data::DateTime(excel) => json!(excel.to_string()),
@@ -367,15 +407,33 @@ async fn instance_import(
             continue;
         }
         let row_no = row_index + 1;
+        if atomic {
+            atomic_rows.push((row_no, payload));
+            continue;
+        }
         match instance_service::create(&state.pool, model_id, payload, &user.username).await {
             Ok(_) => created += 1,
             Err(error) => errors.push(json!({"row": row_no, "error": error.message()})),
         }
     }
 
+    if atomic {
+        created = instance_service::create_many(&state.pool, model_id, atomic_rows, &user.username)
+            .await?
+            .try_into()
+            .map_err(|_| AppError::internal("atomic import row count overflow"))?;
+        return Ok(Json(ApiResponse::new(json!({
+            "created": created,
+            "failed": 0,
+            "atomic": true,
+            "errors": [],
+        }))));
+    }
+
     Ok(Json(ApiResponse::new(json!({
         "created": created,
         "failed": errors.len(),
+        "atomic": false,
         "errors": errors.into_iter().take(50).collect::<Vec<_>>(),
     }))))
 }

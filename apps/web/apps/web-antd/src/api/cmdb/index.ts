@@ -7,8 +7,11 @@ export interface CmdbAttribute {
   code: string;
   attrType: string;
   required: boolean;
-  choices?: { label: string; value: string }[] | null;
+  choices?: null | { label: string; value: string }[];
   defaultValue?: any;
+  expression?: string;
+  isComputed?: boolean;
+  color?: string;
   showInList: boolean;
   sort: number;
 }
@@ -34,6 +37,32 @@ export interface CmdbInstance {
   updateTime?: string;
 }
 
+export interface CmdbTopologyNode {
+  depth: number;
+  id: number;
+  label: string;
+  modelCode: string;
+  modelId: number;
+  modelName: string;
+  root: boolean;
+}
+
+export interface CmdbTopologyEdge {
+  id: number;
+  relation: string;
+  sourceId: number;
+  targetId: number;
+}
+
+export interface CmdbTopology {
+  depth: number;
+  edges: CmdbTopologyEdge[];
+  limit: number;
+  nodes: CmdbTopologyNode[];
+  rootId: number;
+  truncated: boolean;
+}
+
 export const ATTR_TYPES = [
   { value: 'text', label: '文本' },
   { value: 'textarea', label: '长文本' },
@@ -53,7 +82,7 @@ export const ATTR_TYPES = [
 export function getModelList() {
   return requestClient.get<CmdbModel[]>('/cmdb/model/list');
 }
-export function getModelPage(params: { pageNo?: number; pageSize?: number; keyword?: string }) {
+export function getModelPage(params: { keyword?: string; pageNo?: number; pageSize?: number; }) {
   return requestClient.get<{ list: CmdbModel[]; total: number }>('/cmdb/model/page', { params });
 }
 export function getModel(id: number) {
@@ -85,12 +114,29 @@ export function deleteAttribute(id: number) {
   return requestClient.delete('/cmdb/attribute/delete', { params: { id } });
 }
 
+export interface CmdbAttributeTrigger {
+  id?: number; modelId: number; name: string; conditionCode: string;
+  conditionValue: any; actionCode: string; actionValue: any; enabled: boolean;
+}
+export function getAttributeTriggers(modelId: number) {
+  return requestClient.get<CmdbAttributeTrigger[]>(`/cmdb/trigger/list/${modelId}`);
+}
+export function createAttributeTrigger(data: CmdbAttributeTrigger) {
+  return requestClient.post('/cmdb/trigger/create', data);
+}
+export function updateAttributeTrigger(data: CmdbAttributeTrigger & { id: number }) {
+  return requestClient.put('/cmdb/trigger/update', data);
+}
+export function deleteAttributeTrigger(id: number) {
+  return requestClient.delete(`/cmdb/trigger/delete/${id}`);
+}
+
 // ---------- instance ----------
 export function getInstancePage(params: {
+  keyword?: string;
   modelId: number;
   pageNo?: number;
   pageSize?: number;
-  keyword?: string;
 }) {
   return requestClient.get<{ list: CmdbInstance[]; total: number }>('/cmdb/instance/page', {
     params,
@@ -102,6 +148,12 @@ export function createInstance(modelId: number, attributes: Record<string, any>)
 export function updateInstance(id: number, attributes: Record<string, any>) {
   return requestClient.put('/cmdb/instance/update', { id, attributes });
 }
+export function updateInstances(ids: number[], attributes: Record<string, any>) {
+  return requestClient.put<{ unchanged: number; updated: number }>(
+    '/cmdb/instance/update-list',
+    { ids, attributes },
+  );
+}
 export function deleteInstance(id: number) {
   return requestClient.delete('/cmdb/instance/delete', { params: { id } });
 }
@@ -112,8 +164,13 @@ export function deleteInstances(ids: number[]) {
 // ---------- relation ----------
 export function getRelationsByInstance(instanceId: number) {
   return requestClient.get<
-    { id: number; sourceId: number; targetId: number; relation: string }[]
+    { id: number; relation: string; sourceId: number; targetId: number; }[]
   >('/cmdb/relation/list-by-instance', { params: { instanceId } });
+}
+export function getRelationTopology(instanceId: number, depth = 2, limit = 80) {
+  return requestClient.get<CmdbTopology>('/cmdb/relation/topology', {
+    params: { depth, instanceId, limit },
+  });
 }
 export function bindRelation(sourceId: number, targetId: number, relation?: string) {
   return requestClient.post('/cmdb/relation/bind', { sourceId, targetId, relation });

@@ -21,6 +21,36 @@
 | `BOOTSTRAP_ADMIN_PASSWORD`         | 否   | 无            | 不配置时跳过管理员初始化                               |
 | `RUST_LOG`                         | 否   | 框架默认      | tracing 日志过滤规则                                   |
 
+## RustFS 对象存储
+
+网关使用 AWS S3 SDK 访问 RustFS，Compose 环境下 S3 API 默认监听
+`http://127.0.0.1:9000`，控制台为 `http://127.0.0.1:9001/rustfs/console/`。
+网关支持以下变量：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `RUSTFS_ENDPOINT` | `http://127.0.0.1:9000` | S3 API 地址；网关与 RustFS 在同一 Compose 网络时可设为 `http://rustfs:9000` |
+| `RUSTFS_ACCESS_KEY` | `rustset` | S3 access key |
+| `RUSTFS_SECRET_KEY` | `rustset_password` | S3 secret key |
+| `RUSTFS_REGION` | `us-east-1` | S3 签名区域 |
+| `RUSTFS_BUCKET` | `rustset` | 文件 bucket；网关启动时自动检查并创建 |
+| `INFRA_UPLOAD_MAX_BYTES` | `52428800` | 单文件大小上限（字节），服务端上传和预签名直传均校验 |
+
+部署时设置独立凭据，例如：
+
+```bash
+export RUSTFS_ENDPOINT='http://127.0.0.1:9000'
+export RUSTFS_ACCESS_KEY='rustset-local'
+export RUSTFS_SECRET_KEY='replace-with-a-long-random-secret'
+export RUSTFS_BUCKET='rustset'
+docker compose -f script/docker/docker-compose.yml up -d
+cargo run -p rustset-gateway
+```
+
+服务端上传将文件存入 RustFS，数据库保存文件元数据；下载由网关从 RustFS 读取后返回。前端直传模式会获取有效期 15 分钟的 S3 预签名 PUT URL，再将元数据登记到网关。启用 `VITE_UPLOAD_TYPE=client` 时，`RUSTFS_ENDPOINT` 必须能被浏览器访问；服务端上传模式只要求网关能访问该地址。生产环境应使用独立凭据并限制 API/控制台的网络访问。已有数据库中的本地磁盘文件不会自动搬迁到 RustFS，需要单独迁移旧文件及其对象键。
+
+迁移本地旧文件可在维护窗口运行 `bash script/migrate-local-uploads-to-rustfs.sh`。脚本依赖 `psql` 和 AWS CLI v2；它会迁移所有有效 `/upload/` 文件记录，逐个比对对象大小，并且只在全部对象校验成功后删除对应本地副本。设置 `DATABASE_URL`、`RUSTFS_ENDPOINT`、`RUSTFS_ACCESS_KEY`、`RUSTFS_SECRET_KEY`，可选设置 `RUSTFS_BUCKET`、`RUSTFS_REGION` 和 `INFRA_UPLOAD_DIR`。
+
 ## 前端环境变量
 
 开发配置位于 `apps/web/apps/web-antd/.env.development`：

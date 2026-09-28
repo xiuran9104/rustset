@@ -38,94 +38,68 @@ const NETWORK_POLICY: TableSpec = TableSpec {
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
+        .api_route("/infra/asset/page", get(asset_page))
+        .api_route("/infra/asset/list", get(asset_list))
+        .api_route("/infra/asset/get", get(asset_get))
+        .api_route("/infra/asset/create", post(asset_create))
+        .api_route("/infra/asset/sync-cmdb", post(asset_sync_cmdb))
+        .api_route("/infra/asset/discover", post(asset_discover))
+        .api_route("/infra/asset/update", put(asset_update))
+        .api_route("/infra/asset/delete", delete(asset_delete))
+        .api_route("/infra/asset/delete-list", delete(asset_delete_list))
+        .api_route("/infra/asset/{id}/port/add", post(asset_add_port))
+        .api_route("/infra/asset/{id}/port/{port}", put(asset_update_port))
+        .api_route("/infra/asset/{id}/port/{port}", delete(asset_delete_port))
+        .api_route("/infra/network-policy/page", get(network_policy_page))
+        .api_route("/infra/network-policy/list", get(network_policy_list))
+        .api_route("/infra/network-policy/get", get(network_policy_get))
+        .api_route("/infra/network-policy/create", post(network_policy_create))
+        .api_route("/infra/network-policy/update", put(network_policy_update))
         .api_route(
-"/infra/asset/page", get(asset_page))
-        .api_route(
-"/infra/asset/list", get(asset_list))
-        .api_route(
-"/infra/asset/get", get(asset_get))
-        .api_route(
-"/infra/asset/create", post(asset_create))
-        .api_route(
-"/infra/asset/update", put(asset_update))
-        .api_route(
-"/infra/asset/delete", delete(asset_delete))
-        .api_route(
-"/infra/asset/delete-list", delete(asset_delete_list))
-        .api_route(
-"/infra/asset/{id}/port/add", post(asset_add_port))
-        .api_route(
-"/infra/asset/{id}/port/{port}", put(asset_update_port))
-        .api_route(
-"/infra/asset/{id}/port/{port}", delete(asset_delete_port))
-        .api_route(
-"/infra/network-policy/page", get(network_policy_page))
-        .api_route(
-"/infra/network-policy/list", get(network_policy_list))
-        .api_route(
-"/infra/network-policy/get", get(network_policy_get))
-        .api_route(
-"/infra/network-policy/create", post(network_policy_create))
-        .api_route(
-"/infra/network-policy/update", put(network_policy_update))
-        .api_route(
-"/infra/network-policy/delete",
+            "/infra/network-policy/delete",
             delete(network_policy_delete),
         )
         .api_route(
-"/infra/network-policy/delete-list",
+            "/infra/network-policy/delete-list",
             delete(network_policy_delete_list),
         )
+        .api_route("/infra/cloud-asset/page", get(cloud_asset_page))
+        .api_route("/infra/cloud-asset/list", get(cloud_asset_list))
+        .api_route("/infra/cloud-asset/discover", post(cloud_asset_discover))
+        .api_route("/infra/cloud-asset/get", get(cloud_asset_get))
+        .api_route("/infra/cloud-asset/create", post(cloud_asset_create))
+        .api_route("/infra/cloud-asset/update", put(cloud_asset_update))
+        .api_route("/infra/cloud-asset/delete", delete(cloud_asset_delete))
+        .api_route("/infra/cloud-resource/page", get(cloud_resource_page))
+        .api_route("/infra/cloud-resource/list", get(cloud_resource_list))
+        .api_route("/infra/cloud-resource/get", get(cloud_resource_get))
+        .api_route("/infra/cloud-resource/create", post(cloud_resource_create))
+        .api_route("/infra/cloud-resource/update", put(cloud_resource_update))
         .api_route(
-"/infra/cloud-asset/page", get(cloud_asset_page))
-        .api_route(
-"/infra/cloud-asset/list", get(cloud_asset_list))
-        .api_route(
-"/infra/cloud-asset/get", get(cloud_asset_get))
-        .api_route(
-"/infra/cloud-asset/create", post(cloud_asset_create))
-        .api_route(
-"/infra/cloud-asset/update", put(cloud_asset_update))
-        .api_route(
-"/infra/cloud-asset/delete", delete(cloud_asset_delete))
-        .api_route(
-"/infra/cloud-resource/page", get(cloud_resource_page))
-        .api_route(
-"/infra/cloud-resource/list", get(cloud_resource_list))
-        .api_route(
-"/infra/cloud-resource/get", get(cloud_resource_get))
-        .api_route(
-"/infra/cloud-resource/create", post(cloud_resource_create))
-        .api_route(
-"/infra/cloud-resource/update", put(cloud_resource_update))
-        .api_route(
-"/infra/cloud-resource/delete",
+            "/infra/cloud-resource/delete",
             delete(cloud_resource_delete),
         )
         .api_route(
-"/infra/cloud-resource/delete-list",
+            "/infra/cloud-resource/delete-list",
             delete(cloud_resource_delete_list),
         )
+        .api_route("/infra/physical-resource/page", get(physical_resource_page))
+        .api_route("/infra/physical-resource/list", get(physical_resource_list))
+        .api_route("/infra/physical-resource/get", get(physical_resource_get))
         .api_route(
-"/infra/physical-resource/page", get(physical_resource_page))
-        .api_route(
-"/infra/physical-resource/list", get(physical_resource_list))
-        .api_route(
-"/infra/physical-resource/get", get(physical_resource_get))
-        .api_route(
-"/infra/physical-resource/create",
+            "/infra/physical-resource/create",
             post(physical_resource_create),
         )
         .api_route(
-"/infra/physical-resource/update",
+            "/infra/physical-resource/update",
             put(physical_resource_update),
         )
         .api_route(
-"/infra/physical-resource/delete",
+            "/infra/physical-resource/delete",
             delete(physical_resource_delete),
         )
         .api_route(
-"/infra/physical-resource/delete-list",
+            "/infra/physical-resource/delete-list",
             delete(physical_resource_delete_list),
         )
 }
@@ -188,6 +162,77 @@ async fn asset_get(
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     table_get(&state.pool, ASSET, id_param(&p)?).await
+}
+async fn asset_sync_cmdb(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<crate::asset_cmdb_sync::SyncSummary>>, AppError> {
+    let summary = crate::asset_cmdb_sync::sync_assets(&state.pool, &user.username).await?;
+    Ok(Json(ApiResponse::new(summary)))
+}
+
+async fn asset_discover(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Json(payload): Json<Value>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let ips: Vec<String> = payload
+        .get("ips")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::trim)
+        .filter(|ip| !ip.is_empty())
+        .map(str::to_string)
+        .collect();
+    if ips.is_empty() || ips.len() > 256 {
+        return Err(AppError::bad_request("ips must contain 1 to 256 addresses"));
+    }
+    let targets: Vec<std::net::IpAddr> = ips
+        .iter()
+        .map(|ip| {
+            ip.parse()
+                .map_err(|_| AppError::bad_request(format!("invalid IP address: {ip}")))
+        })
+        .collect::<Result<_, _>>()?;
+    let ports: Vec<u16> = payload
+        .get("ports")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(Value::as_u64)
+        .filter(|port| (1..=65535).contains(port))
+        .map(|port| port as u16)
+        .collect();
+    if ports.is_empty() || ports.len() > 64 {
+        return Err(AppError::bad_request(
+            "ports must contain 1 to 64 valid ports",
+        ));
+    }
+    let pool = state.pool.clone();
+    let actor = user.username.clone();
+    let count = targets.len();
+    let scan_ports = ports.clone();
+    tokio::spawn(async move {
+        for ip in targets {
+            let open = scan_ports.iter().any(|port| {
+                std::net::TcpStream::connect_timeout(
+                    &std::net::SocketAddr::new(ip, *port),
+                    std::time::Duration::from_millis(350),
+                )
+                .is_ok()
+            });
+            let ip_text = ip.to_string();
+            let _ = sqlx::query("INSERT INTO infra_asset (name, ip, zone, ports, last_scanned, created_by, updated_by, creator, updater) VALUES ($1,$2,'discovered','[]',to_char(now(),'YYYY-MM-DD HH24:MI:SS'),$3,$3,$3,$3) ON CONFLICT (ip) WHERE deleted = 0 DO UPDATE SET last_scanned=excluded.last_scanned, updated_by=excluded.updated_by, updater=excluded.updater, update_time=now(), device_type=CASE WHEN infra_asset.device_type IS NULL OR infra_asset.device_type='' THEN 'network' ELSE infra_asset.device_type END")
+                .bind(if open { format!("Discovered {ip_text}") } else { format!("Host {ip_text}") }).bind(&ip_text).bind(&actor).execute(&pool).await;
+        }
+    });
+    Ok(Json(ApiResponse::new(
+        json!({"queued": true, "targets": count, "ports": ports}),
+    )))
 }
 async fn asset_create(
     State(state): State<InfraState>,
@@ -396,6 +441,42 @@ async fn cloud_asset_list(
     State(state): State<InfraState>,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     table_list(&state.pool, CLOUD_ASSET).await
+}
+
+async fn cloud_asset_discover(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let rows = sqlx::query("SELECT id, ecs_name, ecs_status, resource_id, cloud_region, cloud_category, cloud_provider_config_id, platform_name, instance_id, ecs_type, ecs_os, cpu_cores, memory_gb, ip_address, remarks FROM infra_cloud_resource WHERE deleted = 0 ORDER BY id")
+        .fetch_all(&state.pool).await.map_err(|_| AppError::internal("failed to read cloud resources"))?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to start cloud discovery"))?;
+    let mut created = 0_i64;
+    let mut updated = 0_i64;
+    for source in rows {
+        let instance_id: String = source.get("instance_id");
+        let config_id: Option<i64> = source.get("cloud_provider_config_id");
+        let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM infra_cloud_asset WHERE instance_id = $1 AND cloud_provider_config_id IS NOT DISTINCT FROM $2 AND deleted = 0 FOR UPDATE")
+            .bind(&instance_id).bind(config_id).fetch_optional(&mut *tx).await.map_err(|_| AppError::internal("failed to match cloud asset"))?;
+        if let Some(id) = existing {
+            sqlx::query("UPDATE infra_cloud_asset SET provider_type=$2, platform_name=$3, region_id=$4, name=$5, status=$6, private_ip=$7, cpu_cores=$8, memory_gb=$9, instance_type=$10, os_name=$11, raw_payload=$12, synced_at=to_char(now(),'YYYY-MM-DD HH24:MI:SS'), updater=$13, update_time=now() WHERE id=$1")
+                .bind(id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to update discovered cloud asset"))?;
+            updated += 1;
+        } else {
+            sqlx::query("INSERT INTO infra_cloud_asset (cloud_provider_config_id, provider_type, platform_name, region_id, instance_id, name, status, private_ip, cpu_cores, memory_gb, instance_type, os_name, raw_payload, synced_at, creator, updater) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,to_char(now(),'YYYY-MM-DD HH24:MI:SS'),$14,$14)")
+                .bind(config_id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(&instance_id).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to create discovered cloud asset"))?;
+            created += 1;
+        }
+    }
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit cloud discovery"))?;
+    Ok(Json(ApiResponse::new(
+        json!({"source": "infra_cloud_resource", "created": created, "updated": updated, "total": created + updated}),
+    )))
 }
 async fn cloud_asset_get(
     State(state): State<InfraState>,

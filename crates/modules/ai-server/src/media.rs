@@ -1,7 +1,6 @@
 use crate::{AiModelFactory, AiState, require};
-use schemars::JsonSchema;
-use aide::axum::routing::{delete, get, post, put};
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     extract::{Query, State},
@@ -10,37 +9,25 @@ use rustset_ai_api::ImageRequest;
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
 pub fn routes() -> ApiRouter<AiState> {
     ApiRouter::new()
-        .api_route(
-"/ai/image/draw", post(draw))
-        .api_route(
-"/ai/image/my-page", get(image_my_page))
-        .api_route(
-"/ai/image/get-my", get(image_my))
-        .api_route(
-"/ai/image/my-list-by-ids", get(image_ids))
-        .api_route(
-"/ai/image/delete-my", delete(image_delete_my))
-        .api_route(
-"/ai/image/page", get(image_page))
-        .api_route(
-"/ai/image/update", put(image_update))
-        .api_route(
-"/ai/image/delete", delete(image_delete))
-        .api_route(
-"/ai/music/generate", post(music_generate))
-        .api_route(
-"/ai/music/poll", post(music_poll))
-        .api_route(
-"/ai/music/page", get(music_page))
-        .api_route(
-"/ai/music/update", put(music_update))
-        .api_route(
-"/ai/music/delete", delete(music_delete))
+        .api_route("/ai/image/draw", post(draw))
+        .api_route("/ai/image/my-page", get(image_my_page))
+        .api_route("/ai/image/get-my", get(image_my))
+        .api_route("/ai/image/my-list-by-ids", get(image_ids))
+        .api_route("/ai/image/delete-my", delete(image_delete_my))
+        .api_route("/ai/image/page", get(image_page))
+        .api_route("/ai/image/update", put(image_update))
+        .api_route("/ai/image/delete", delete(image_delete))
+        .api_route("/ai/music/generate", post(music_generate))
+        .api_route("/ai/music/poll", post(music_poll))
+        .api_route("/ai/music/page", get(music_page))
+        .api_route("/ai/music/update", put(music_update))
+        .api_route("/ai/music/delete", delete(music_delete))
 }
 pub(crate) fn spawn_music_sync(pool: sqlx::PgPool, factory: AiModelFactory) {
     let Ok(handle) = tokio::runtime::Handle::try_current() else {

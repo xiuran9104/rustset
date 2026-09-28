@@ -58,7 +58,13 @@ async fn main() -> anyhow::Result<()> {
         tokens.clone(),
         redis.clone(),
     );
-    let infra_state = rustset_infra_server::InfraState::new(database.clone());
+    let object_storage = rustset_infra_server::object_storage::ObjectStorage::from_env()
+        .map_err(anyhow::Error::msg)?;
+    object_storage
+        .ensure_bucket()
+        .await
+        .map_err(anyhow::Error::msg)?;
+    let infra_state = rustset_infra_server::InfraState::new(database.clone(), object_storage);
     let ai_state = rustset_ai_server::AiState::new(database.clone(), tokens);
     let cmdb_state = rustset_cmdb_server::CmdbState {
         pool: database.clone(),
@@ -113,7 +119,9 @@ async fn main() -> anyhow::Result<()> {
     // finish 之后统一补标签： aide 只登记方法与结构，不含业务分组。
     if let Some(paths) = api_doc.paths.as_mut() {
         for (route, reference) in paths.paths.iter_mut() {
-            let ReferenceOr::Item(item) = reference else { continue };
+            let ReferenceOr::Item(item) = reference else {
+                continue;
+            };
             let tag = tag_for(route);
             for operation in [
                 &mut item.get,

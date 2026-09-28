@@ -6,6 +6,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+aws-sdk-s3.workspace = true
 axum.workspace = true
 aide.workspace = true
 schemars.workspace = true
@@ -19,6 +20,7 @@ rustset-framework-gm.workspace = true
 tracing.workspace = true
 rustset-framework-web.workspace = true
 rustset-infra-api.workspace = true
+rustset-cmdb-api.workspace = true
 rust_xlsxwriter.workspace = true
 redis.workspace = true
 serde.workspace = true

@@ -1,3 +1,5 @@
+import { requestClient } from '#/api/request';
+
 import { infraCreate, infraDelete, infraGet, infraList, infraUpdate } from './compat';
 
 export namespace ScanAssetApi {
@@ -32,6 +34,16 @@ export namespace ScanAssetApi {
     cryptography_assessment_level?: string;
     cryptography_assessment_date?: string;
     cryptography_assessment_number?: string;
+  }
+
+  export interface CmdbSyncSummary {
+    modelId: number;
+    modelCreated: boolean;
+    total: number;
+    created: number;
+    updated: number;
+    unchanged: number;
+    stale: number;
   }
 }
 
@@ -92,3 +104,9 @@ export async function getAsset(id: number) {
 export function createAsset(data: ScanAssetApi.Asset) { return infraCreate('asset', serializeCollections(data)); }
 export function updateAsset(id: number, data: ScanAssetApi.Asset) { return infraUpdate('asset', id, serializeCollections(data)); }
 export function deleteAsset(id: number) { return infraDelete('asset', id); }
+export function syncAssetInventoryToCmdb() {
+  return requestClient.post<ScanAssetApi.CmdbSyncSummary>('/infra/asset/sync-cmdb');
+}
+export function discoverAssets(data: { ips: string[]; ports: number[] }) {
+  return requestClient.post('/infra/asset/discover', data);
+}

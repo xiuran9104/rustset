@@ -1,6 +1,5 @@
-use aide::axum::routing::{delete, get, post, put};
-use schemars::JsonSchema;
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     body::Body,
@@ -12,6 +11,7 @@ use rustset_ai_api::{ChatMessage, ChatRequest, ChatResponse};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -21,44 +21,34 @@ use crate::{AiState, require};
 
 pub fn routes() -> ApiRouter<AiState> {
     ApiRouter::new()
+        .api_route("/ai/chat/conversation/create-my", post(create_conversation))
+        .api_route("/ai/chat/conversation/update-my", put(update_conversation))
+        .api_route("/ai/chat/conversation/my-list", get(my_conversations))
+        .api_route("/ai/chat/conversation/get-my", get(get_conversation))
         .api_route(
-"/ai/chat/conversation/create-my", post(create_conversation))
-        .api_route(
-"/ai/chat/conversation/update-my", put(update_conversation))
-        .api_route(
-"/ai/chat/conversation/my-list", get(my_conversations))
-        .api_route(
-"/ai/chat/conversation/get-my", get(get_conversation))
-        .api_route(
-"/ai/chat/conversation/delete-my",
+            "/ai/chat/conversation/delete-my",
             delete(delete_conversation),
         )
         .api_route(
-"/ai/chat/conversation/delete-by-unpinned",
+            "/ai/chat/conversation/delete-by-unpinned",
             delete(delete_unpinned),
         )
+        .api_route("/ai/chat/conversation/page", get(conversation_page))
         .api_route(
-"/ai/chat/conversation/page", get(conversation_page))
-        .api_route(
-"/ai/chat/conversation/delete-by-admin",
+            "/ai/chat/conversation/delete-by-admin",
             delete(delete_conversation_admin),
         )
+        .api_route("/ai/chat/message/list-by-conversation-id", get(messages))
+        .api_route("/ai/chat/message/send", post(send))
+        .api_route("/ai/chat/message/send-stream", post(send_stream))
+        .api_route("/ai/chat/message/delete", delete(delete_message))
         .api_route(
-"/ai/chat/message/list-by-conversation-id", get(messages))
-        .api_route(
-"/ai/chat/message/send", post(send))
-        .api_route(
-"/ai/chat/message/send-stream", post(send_stream))
-        .api_route(
-"/ai/chat/message/delete", delete(delete_message))
-        .api_route(
-"/ai/chat/message/delete-by-conversation-id",
+            "/ai/chat/message/delete-by-conversation-id",
             delete(delete_messages),
         )
+        .api_route("/ai/chat/message/page", get(message_page))
         .api_route(
-"/ai/chat/message/page", get(message_page))
-        .api_route(
-"/ai/chat/message/delete-by-admin",
+            "/ai/chat/message/delete-by-admin",
             delete(delete_message_admin),
         )
 }

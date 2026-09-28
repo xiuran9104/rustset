@@ -28,58 +28,39 @@ const CLOUD_PROVIDER_CONFIG: TableSpec = TableSpec {
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
+        .api_route("/infra/cloud-zone/page", get(zone_page))
+        .api_route("/infra/cloud-zone/list", get(zone_list))
+        .api_route("/infra/cloud-zone/get", get(zone_get))
+        .api_route("/infra/cloud-zone/create", post(zone_create))
+        .api_route("/infra/cloud-zone/update", put(zone_update))
+        .api_route("/infra/cloud-zone/delete", delete(zone_delete))
+        .api_route("/infra/cloud-zone/delete-list", delete(zone_delete_list))
+        .api_route("/infra/cloud-platform/page", get(platform_page))
+        .api_route("/infra/cloud-platform/list", get(platform_list))
         .api_route(
-"/infra/cloud-zone/page", get(zone_page))
-        .api_route(
-"/infra/cloud-zone/list", get(zone_list))
-        .api_route(
-"/infra/cloud-zone/get", get(zone_get))
-        .api_route(
-"/infra/cloud-zone/create", post(zone_create))
-        .api_route(
-"/infra/cloud-zone/update", put(zone_update))
-        .api_route(
-"/infra/cloud-zone/delete", delete(zone_delete))
-        .api_route(
-"/infra/cloud-zone/delete-list", delete(zone_delete_list))
-        .api_route(
-"/infra/cloud-platform/page", get(platform_page))
-        .api_route(
-"/infra/cloud-platform/list", get(platform_list))
-        .api_route(
-"/infra/cloud-platform/list-by-zone",
+            "/infra/cloud-platform/list-by-zone",
             get(platform_list_by_zone),
         )
+        .api_route("/infra/cloud-platform/get", get(platform_get))
+        .api_route("/infra/cloud-platform/create", post(platform_create))
+        .api_route("/infra/cloud-platform/update", put(platform_update))
+        .api_route("/infra/cloud-platform/delete", delete(platform_delete))
         .api_route(
-"/infra/cloud-platform/get", get(platform_get))
-        .api_route(
-"/infra/cloud-platform/create", post(platform_create))
-        .api_route(
-"/infra/cloud-platform/update", put(platform_update))
-        .api_route(
-"/infra/cloud-platform/delete", delete(platform_delete))
-        .api_route(
-"/infra/cloud-platform/delete-list",
+            "/infra/cloud-platform/delete-list",
             delete(platform_delete_list),
         )
+        .api_route("/infra/cloud-provider-config/page", get(config_page))
+        .api_route("/infra/cloud-provider-config/list", get(config_list))
+        .api_route("/infra/cloud-provider-config/get", get(config_get))
+        .api_route("/infra/cloud-provider-config/create", post(config_create))
+        .api_route("/infra/cloud-provider-config/update", put(config_update))
+        .api_route("/infra/cloud-provider-config/delete", delete(config_delete))
         .api_route(
-"/infra/cloud-provider-config/page", get(config_page))
-        .api_route(
-"/infra/cloud-provider-config/list", get(config_list))
-        .api_route(
-"/infra/cloud-provider-config/get", get(config_get))
-        .api_route(
-"/infra/cloud-provider-config/create", post(config_create))
-        .api_route(
-"/infra/cloud-provider-config/update", put(config_update))
-        .api_route(
-"/infra/cloud-provider-config/delete", delete(config_delete))
-        .api_route(
-"/infra/cloud-provider-config/delete-list",
+            "/infra/cloud-provider-config/delete-list",
             delete(config_delete_list),
         )
         .api_route(
-"/infra/cloud-provider-config/test-connection",
+            "/infra/cloud-provider-config/test-connection",
             post(config_test_connection),
         )
 }

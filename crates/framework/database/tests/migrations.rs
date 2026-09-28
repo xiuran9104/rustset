@@ -15,7 +15,19 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 24);
+    assert_eq!(applied, 27);
+
+    let computed_expression_column: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+           SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'cmdb_attribute'
+             AND column_name = 'expression' AND data_type = 'text'
+         )",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect computed attribute expression column");
+    assert!(computed_expression_column);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

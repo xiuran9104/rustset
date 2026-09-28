@@ -14,6 +14,14 @@ fn bulk_ids_reject_partial_input_and_deduplicate() {
 }
 
 #[test]
+fn batch_update_ids_are_bounded_and_deduplicated() {
+    assert_eq!(normalize_batch_ids(&[3, 1, 3]).unwrap(), vec![1, 3]);
+    assert!(normalize_batch_ids(&[]).is_err());
+    assert!(normalize_batch_ids(&[0, 1]).is_err());
+    assert!(normalize_batch_ids(&(1..=501).collect::<Vec<_>>()).is_err());
+}
+
+#[test]
 fn request_envelopes_require_object_attributes_and_integer_ids() {
     use rustset_cmdb_api::{CreateInstanceRequest, UpdateInstanceRequest};
     assert!(
@@ -42,6 +50,7 @@ fn validation_preserves_patch_semantics_and_rejects_unknown_fields() {
             required: true,
             choices: None,
             default_value: None,
+            expression: None,
         },
         AttributeDef {
             code: "count".into(),
@@ -49,6 +58,7 @@ fn validation_preserves_patch_semantics_and_rejects_unknown_fields() {
             required: false,
             choices: None,
             default_value: Some(json!(0)),
+            expression: None,
         },
     ];
     assert!(validate_payload(&definitions, &json!({"count": 2}), true).is_err());
@@ -57,6 +67,32 @@ fn validation_preserves_patch_semantics_and_rejects_unknown_fields() {
     assert_eq!(created["count"], 0);
     let patch = validate_payload(&definitions, &json!({"count": 2}), false).unwrap();
     assert!(!patch.contains_key("name"));
+    let clear = validate_payload(&definitions, &json!({"count": null}), false).unwrap();
+    assert_eq!(clear["count"], Value::Null);
+    assert!(validate_payload(&definitions, &json!({"name": ""}), false).is_err());
+}
+
+#[test]
+fn validation_rejects_invalid_or_empty_required_defaults() {
+    let invalid = vec![AttributeDef {
+        code: "count".into(),
+        attr_type: AttrType::Number,
+        required: false,
+        choices: None,
+        default_value: Some(json!("not-a-number")),
+        expression: None,
+    }];
+    assert!(validate_payload(&invalid, &json!({}), true).is_err());
+
+    let empty_required = vec![AttributeDef {
+        code: "name".into(),
+        attr_type: AttrType::Text,
+        required: true,
+        choices: None,
+        default_value: Some(json!("  ")),
+        expression: None,
+    }];
+    assert!(validate_payload(&empty_required, &json!({}), true).is_err());
 }
 
 /// Uses a fresh schema, never the caller's business tables. No global migration
@@ -146,6 +182,56 @@ async fn concurrent_writes_and_delete_rollback() {
     )
     .await
     .unwrap();
+    let summary = batch_update(&pool, &[id, other], object(json!({"right": 9})), "batch")
+        .await
+        .unwrap();
+    assert_eq!(summary.updated, 2);
+    assert_eq!(summary.unchanged, 0);
+    assert!(
+        batch_update(
+            &pool,
+            &[id, other],
+            object(json!({"name": "duplicate"})),
+            "batch"
+        )
+        .await
+        .is_err()
+    );
+    let names: Vec<String> = sqlx::query_scalar(
+        "SELECT attributes->>'name' FROM cmdb_instance WHERE id = ANY($1) ORDER BY id",
+    )
+    .bind(vec![id, other])
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(names, vec!["same", "other"]);
+    let before_atomic: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM cmdb_instance WHERE deleted = 0")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(
+        create_many(
+            &pool,
+            model_id,
+            vec![
+                (2, object(json!({"name": "atomic-good"}))),
+                (3, object(json!({"name": "same"}))),
+            ],
+            "atomic",
+        )
+        .await
+        .is_err()
+    );
+    let after_atomic: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM cmdb_instance WHERE deleted = 0")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        before_atomic, after_atomic,
+        "atomic import must roll back all rows"
+    );
     assert!(
         update(&pool, other, object(json!({"name": "same"})), "test")
             .await

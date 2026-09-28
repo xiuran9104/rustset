@@ -13,16 +13,11 @@ use std::collections::HashMap;
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
-        .api_route(
-"/infra/risk/page", get(page))
-        .api_route(
-"/infra/risk/list", get(list))
-        .api_route(
-"/infra/risk/get", get(get_one))
-        .api_route(
-"/infra/risk/{id}/status/{status}", put(update_status))
-        .api_route(
-"/infra/risk/{id}/resolve", put(resolve))
+        .api_route("/infra/risk/page", get(page))
+        .api_route("/infra/risk/list", get(list))
+        .api_route("/infra/risk/get", get(get_one))
+        .api_route("/infra/risk/{id}/status/{status}", put(update_status))
+        .api_route("/infra/risk/{id}/resolve", put(resolve))
 }
 
 async fn page(
@@ -86,13 +81,15 @@ async fn update_status(
         return Err(AppError::bad_request("Invalid status"));
     }
     let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    sqlx::query("UPDATE infra_risk SET status=$2, update_time=$3::timestamp WHERE id=$1 AND deleted=0")
-        .bind(&id)
-        .bind(&status)
-        .bind(&now)
-        .execute(&s.pool)
-        .await
-        .map_err(|_| AppError::internal("failed"))?;
+    sqlx::query(
+        "UPDATE infra_risk SET status=$2, update_time=$3::timestamp WHERE id=$1 AND deleted=0",
+    )
+    .bind(&id)
+    .bind(&status)
+    .bind(&now)
+    .execute(&s.pool)
+    .await
+    .map_err(|_| AppError::internal("failed"))?;
     Ok(Json(ApiResponse::new("Updated".to_string())))
 }
 

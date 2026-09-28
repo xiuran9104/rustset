@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use schemars::JsonSchema;
+use std::collections::HashMap;
 
 use axum::{
     Json,

@@ -24,36 +24,24 @@ const ENDPOINT: TableSpec = TableSpec {
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
+        .api_route("/infra/business-application/page", get(app_page))
+        .api_route("/infra/business-application/list", get(app_list))
+        .api_route("/infra/business-application/get", get(app_get))
+        .api_route("/infra/business-application/create", post(app_create))
+        .api_route("/infra/business-application/update", put(app_update))
+        .api_route("/infra/business-application/delete", delete(app_delete))
+        .api_route("/infra/application-endpoint/page", get(ep_page))
+        .api_route("/infra/application-endpoint/list", get(ep_list))
         .api_route(
-"/infra/business-application/page", get(app_page))
-        .api_route(
-"/infra/business-application/list", get(app_list))
-        .api_route(
-"/infra/business-application/get", get(app_get))
-        .api_route(
-"/infra/business-application/create", post(app_create))
-        .api_route(
-"/infra/business-application/update", put(app_update))
-        .api_route(
-"/infra/business-application/delete", delete(app_delete))
-        .api_route(
-"/infra/application-endpoint/page", get(ep_page))
-        .api_route(
-"/infra/application-endpoint/list", get(ep_list))
-        .api_route(
-"/infra/application-endpoint/list-by-app",
+            "/infra/application-endpoint/list-by-app",
             get(ep_list_by_app),
         )
+        .api_route("/infra/application-endpoint/get", get(ep_get))
+        .api_route("/infra/application-endpoint/create", post(ep_create))
+        .api_route("/infra/application-endpoint/update", put(ep_update))
+        .api_route("/infra/application-endpoint/delete", delete(ep_delete))
         .api_route(
-"/infra/application-endpoint/get", get(ep_get))
-        .api_route(
-"/infra/application-endpoint/create", post(ep_create))
-        .api_route(
-"/infra/application-endpoint/update", put(ep_update))
-        .api_route(
-"/infra/application-endpoint/delete", delete(ep_delete))
-        .api_route(
-"/infra/application-endpoint/delete-list",
+            "/infra/application-endpoint/delete-list",
             delete(ep_delete_list),
         )
 }

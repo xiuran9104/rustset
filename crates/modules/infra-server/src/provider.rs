@@ -19,20 +19,13 @@ const PROVIDER: TableSpec = TableSpec {
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
-        .api_route(
-"/infra/service-provider/page", get(page))
-        .api_route(
-"/infra/service-provider/list", get(list))
-        .api_route(
-"/infra/service-provider/get", get(get_one))
-        .api_route(
-"/infra/service-provider/create", post(create))
-        .api_route(
-"/infra/service-provider/update", put(update))
-        .api_route(
-"/infra/service-provider/delete", delete(delete_one))
-        .api_route(
-"/infra/service-provider/delete-list", delete(delete_list))
+        .api_route("/infra/service-provider/page", get(page))
+        .api_route("/infra/service-provider/list", get(list))
+        .api_route("/infra/service-provider/get", get(get_one))
+        .api_route("/infra/service-provider/create", post(create))
+        .api_route("/infra/service-provider/update", put(update))
+        .api_route("/infra/service-provider/delete", delete(delete_one))
+        .api_route("/infra/service-provider/delete-list", delete(delete_list))
 }
 
 async fn page(

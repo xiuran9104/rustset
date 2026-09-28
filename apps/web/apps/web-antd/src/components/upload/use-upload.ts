@@ -107,7 +107,11 @@ export function useUpload(directory?: string) {
       // 1.1 生成文件名称
       const fileName = await generateFileName(file);
       // 1.2 获取文件预签名地址
-      const presignedInfo = await getFilePresignedUrl(fileName, directory);
+      const presignedInfo = await getFilePresignedUrl(
+        fileName,
+        directory,
+        file.size,
+      );
       // 1.3 上传文件
       return baseRequestClient
         .put(presignedInfo.uploadUrl, file, {

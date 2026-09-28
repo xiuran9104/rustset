@@ -1,7 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 echo "=== RustSet ==="
-# Infrastructure (PostgreSQL/Redis/NATS/MinIO) should already be running:
+# Infrastructure (PostgreSQL/Redis/NATS/RustFS) should already be running:
 #   docker compose -f script/docker/docker-compose.yml up -d
 export DATABASE_URL="postgres://rustset:rustset@127.0.0.1:5432/rustset"
 export REDIS_URL="redis://127.0.0.1:6379"

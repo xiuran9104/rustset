@@ -1,7 +1,6 @@
 use crate::{AiState, require};
-use schemars::JsonSchema;
-use aide::axum::routing::{delete, get, post};
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post};
 use axum::{
     Json,
     body::Body,
@@ -13,18 +12,16 @@ use rustset_ai_api::{ChatMessage, ChatRequest};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
 use tokio::sync::mpsc;
 pub fn routes() -> ApiRouter<AiState> {
     ApiRouter::new()
-        .api_route(
-"/ai/write/generate-stream", post(generate_stream))
-        .api_route(
-"/ai/write/page", get(page))
-        .api_route(
-"/ai/write/delete", delete(remove))
+        .api_route("/ai/write/generate-stream", post(generate_stream))
+        .api_route("/ai/write/page", get(page))
+        .api_route("/ai/write/delete", delete(remove))
 }
 #[derive(Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]

@@ -19,20 +19,13 @@ const ROOM: TableSpec = TableSpec {
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
-        .api_route(
-"/infra/machine-room/page", get(page))
-        .api_route(
-"/infra/machine-room/list", get(list))
-        .api_route(
-"/infra/machine-room/get", get(get_one))
-        .api_route(
-"/infra/machine-room/create", post(create))
-        .api_route(
-"/infra/machine-room/update", put(update))
-        .api_route(
-"/infra/machine-room/delete", delete(delete_one))
-        .api_route(
-"/infra/machine-room/delete-list", delete(delete_list))
+        .api_route("/infra/machine-room/page", get(page))
+        .api_route("/infra/machine-room/list", get(list))
+        .api_route("/infra/machine-room/get", get(get_one))
+        .api_route("/infra/machine-room/create", post(create))
+        .api_route("/infra/machine-room/update", put(update))
+        .api_route("/infra/machine-room/delete", delete(delete_one))
+        .api_route("/infra/machine-room/delete-list", delete(delete_list))
 }
 
 async fn page(

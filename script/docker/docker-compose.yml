@@ -24,20 +24,35 @@ services:
       - "4222:4222"
       - "8222:8222"
 
-  minio:
-    # minio/minio was removed from Docker Hub (2026-09); bitnamilegacy keeps the
-    # last free images. Data dir is /bitnami/minio/data and ports default to 9000/9001.
-    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
-    container_name: rustset-minio
+  rustfs:
+    # MinIO is unmaintained; RustFS is the S3-compatible replacement.
+    # S3 API on 9000, web console on 9001, data dir /data. The server runs as
+    # uid 10001, so the named volume must be chown'ed before first start.
+    image: rustfs/rustfs:1.0.0
+    container_name: rustset-rustfs
+    depends_on:
+      rustfs-volume-permissions:
+        condition: service_completed_successfully
     environment:
-      MINIO_ROOT_USER: rustset
-      MINIO_ROOT_PASSWORD: rustset_password
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustset}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustset_password}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
-      - rustset-minio:/bitnami/minio/data
+      - rustset-rustfs:/data
+
+  rustfs-volume-permissions:
+    image: alpine
+    volumes:
+      - rustset-rustfs:/data
+    command: chown -R 10001:10001 /data
+    restart: "no"
 
 volumes:
   rustset-postgres:
-  rustset-minio:
+  rustset-rustfs:

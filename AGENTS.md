@@ -8,7 +8,7 @@ This file is the handoff guide for AI coding agents working in this repository. 
 - Frontend: Vue 3 / Vben Admin (Ant Design Vue) monorepo at `apps/web`, managed with bun.
 - Database migrations: `sql/postgresql`, executed automatically by the Rust gateway on startup. `0001_initial.sql` is the consolidated schema and baseline data.
 - Bootstrap reference: `sql/bootstrap/current.sql` is a reference-only `pg_dump` snapshot and is never loaded by the application. The migration chain is sufficient to initialize a new server without `current.sql`.
-- Local infrastructure: PostgreSQL, Redis, NATS, and MinIO via `script/docker/docker-compose.yml`.
+- Local infrastructure: PostgreSQL, Redis, NATS, and RustFS via `script/docker/docker-compose.yml`.
 
 Do not mount `sql/postgresql` into PostgreSQL init scripts. The gateway owns database initialization through SQLx, and PostgreSQL should start as an empty database.
 
@@ -55,7 +55,9 @@ Open:
 - Frontend (dev): `http://127.0.0.1:5666`
 - Backend health: `http://127.0.0.1:8080/health`
 - OpenAPI: `http://127.0.0.1:8080/openapi.json`
-- MinIO console: `http://127.0.0.1:9001`
+- RustFS console: `http://127.0.0.1:9001/rustfs/console/`
+
+The compose file exposes the RustFS S3 API at `http://127.0.0.1:9000`. Local credentials default to `rustset` / `rustset_password`; override them with `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` before starting Compose. The gateway uses these variables plus `RUSTFS_ENDPOINT`, `RUSTFS_REGION`, and `RUSTFS_BUCKET` to configure S3-compatible object storage. It creates the bucket at startup when missing. These defaults are for local development only; non-local endpoints require explicit credentials. Browser direct-upload mode also needs an `RUSTFS_ENDPOINT` reachable from the browser. Single-file uploads default to a 50 MiB cap controlled by `INFRA_UPLOAD_MAX_BYTES`. Migrate legacy local files with `bash script/migrate-local-uploads-to-rustfs.sh`; it deletes local copies only after validating all matching RustFS objects.
 
 Default local bootstrap account (seeded by the RustSet migration baseline):
 

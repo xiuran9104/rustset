@@ -30,6 +30,7 @@ repository = "https://example.com/rustset"
 
 [workspace.dependencies]
 anyhow = "1.0"
+aws-sdk-s3 = "1"
 async-trait = "0.1"
 base64 = "0.22"
 axum = { version = "0.8", features = ["multipart"] }

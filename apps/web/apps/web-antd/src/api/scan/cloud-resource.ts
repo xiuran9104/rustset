@@ -1,3 +1,4 @@
+import { requestClient } from '#/api/request';
 import { infraCreate, infraDelete, infraGet, infraList, infraUpdate } from './compat';
 
 export namespace ScanCloudResourceApi {
@@ -49,4 +50,7 @@ export function updateCloudResource(
 }
 export function deleteCloudResource(id: number) {
   return infraDelete('cloud-resource', id);
+}
+export function discoverCloudAssets() {
+  return requestClient.post('/infra/cloud-asset/discover');
 }

@@ -5,6 +5,7 @@ mod instance;
 mod instance_service;
 mod net_zone;
 mod relation;
+mod trigger;
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -12,6 +13,7 @@ use axum::{
     Json,
     extract::{Query, State},
 };
+use rustset_cmdb_api::AttrType;
 use rustset_framework_common::ApiResponse;
 use rustset_framework_database::PgPool;
 use rustset_framework_security::{CurrentUser, Permission};
@@ -69,6 +71,7 @@ pub fn routes(state: CmdbState) -> ApiRouter {
         .merge(instance_routes())
         .merge(relation_routes())
         .merge(net_zone_routes())
+        .merge(trigger::routes())
         .with_state(state)
 }
 
@@ -95,58 +98,44 @@ fn page_bounds(page_no: Option<i64>, page_size: Option<i64>) -> (i64, i64) {
 
 async fn load_model_row(pool: &PgPool, id: i64) -> Result<Value, AppError> {
     let row = sqlx::query(
-        "SELECT id, name, code, description, icon, unique_key, sort, status, create_time, update_time
-         FROM cmdb_model WHERE id = $1 AND deleted = 0",
+        "SELECT m.id, m.name, m.code, m.description, m.icon, m.unique_key, m.sort, m.status,
+                m.create_time,
+                (SELECT count(*) FROM cmdb_instance i
+                 WHERE i.model_id = m.id AND i.deleted = 0) AS instance_count,
+                (SELECT count(*) FROM cmdb_attribute a
+                 WHERE a.model_id = m.id AND a.deleted = 0) AS attribute_count
+         FROM cmdb_model m WHERE m.id = $1 AND m.deleted = 0",
     )
     .bind(id)
     .fetch_optional(pool)
     .await
     .map_err(|_| AppError::internal("failed to read model"))?
     .ok_or_else(|| AppError::not_found("model not found"))?;
-    let unique_key: Option<String> = row.get("unique_key");
-    let description: Option<String> = row.get("description");
-    let icon: Option<String> = row.get("icon");
-    Ok(json!({
+    Ok(model_row(&row))
+}
+
+fn model_row(row: &sqlx::postgres::PgRow) -> Value {
+    json!({
         "id": row.get::<i64, _>("id"),
         "name": row.get::<String, _>("name"),
         "code": row.get::<String, _>("code"),
-        "description": description,
-        "icon": icon,
-        "uniqueKey": unique_key,
+        "description": row.get::<Option<String>, _>("description"),
+        "icon": row.get::<Option<String>, _>("icon"),
+        "uniqueKey": row.get::<Option<String>, _>("unique_key"),
         "sort": row.get::<i32, _>("sort"),
         "status": row.get::<i16, _>("status"),
         "createTime": row.get::<chrono::NaiveDateTime, _>("create_time").to_string(),
-    }))
+        "instanceCount": row.get::<i64, _>("instance_count"),
+        "attributeCount": row.get::<i64, _>("attribute_count"),
+    })
 }
 
-async fn model_count(pool: &PgPool, model_id: i64) -> i64 {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT count(*) FROM cmdb_instance WHERE model_id = $1 AND deleted = 0",
-    )
-    .bind(model_id)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0)
-}
-
-async fn attribute_count(pool: &PgPool, model_id: i64) -> i64 {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT count(*) FROM cmdb_attribute WHERE model_id = $1 AND deleted = 0",
-    )
-    .bind(model_id)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0)
-}
-
-fn model_keyword_clause(keyword: &Option<String>) -> (String, String) {
-    match keyword.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-        Some(keyword) => (
-            " AND (name ILIKE $2 OR code ILIKE $2)".into(),
-            format!("%{keyword}%"),
-        ),
-        None => (String::new(), String::new()),
-    }
+fn model_keyword_pattern(keyword: &Option<String>) -> Option<String> {
+    keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|keyword| !keyword.is_empty())
+        .map(|keyword| format!("%{keyword}%"))
 }
 
 async fn model_list(
@@ -155,29 +144,19 @@ async fn model_list(
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     require(&user, "cmdb:model:query")?;
     let rows = sqlx::query(
-        "SELECT id, name, code, description, icon, unique_key, sort, status
-         FROM cmdb_model WHERE deleted = 0 AND status = 0
-         ORDER BY sort, id",
+        "SELECT m.id, m.name, m.code, m.description, m.icon, m.unique_key, m.sort, m.status,
+                m.create_time,
+                (SELECT count(*) FROM cmdb_instance i
+                 WHERE i.model_id = m.id AND i.deleted = 0) AS instance_count,
+                (SELECT count(*) FROM cmdb_attribute a
+                 WHERE a.model_id = m.id AND a.deleted = 0) AS attribute_count
+         FROM cmdb_model m WHERE m.deleted = 0 AND m.status = 0
+         ORDER BY m.sort, m.id",
     )
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to read models"))?;
-    let mut models = Vec::new();
-    for row in rows {
-        models.push(json!({
-            "id": row.get::<i64, _>("id"),
-            "name": row.get::<String, _>("name"),
-            "code": row.get::<String, _>("code"),
-            "description": row.get::<Option<String>, _>("description"),
-            "icon": row.get::<Option<String>, _>("icon"),
-            "uniqueKey": row.get::<Option<String>, _>("unique_key"),
-            "sort": row.get::<i32, _>("sort"),
-            "status": row.get::<i16, _>("status"),
-            "instanceCount": model_count(&state.pool, row.get::<i64, _>("id")).await,
-            "attributeCount": attribute_count(&state.pool, row.get::<i64, _>("id")).await,
-        }));
-    }
-    Ok(Json(ApiResponse::new(models)))
+    Ok(Json(ApiResponse::new(rows.iter().map(model_row).collect())))
 }
 
 async fn model_page(
@@ -187,25 +166,33 @@ async fn model_page(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     require(&user, "cmdb:model:query")?;
     let (size, offset) = page_bounds(params.page_no, params.page_size);
-    let (clause, pattern) = model_keyword_clause(&params.keyword);
-    let total: i64 = sqlx::query_scalar(&format!(
-        "SELECT count(*) FROM cmdb_model WHERE deleted = 0{clause}"
-    ))
+    let pattern = model_keyword_pattern(&params.keyword);
+    let total: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM cmdb_model m
+         WHERE m.deleted = 0 AND ($1::text IS NULL OR m.name ILIKE $1 OR m.code ILIKE $1)",
+    )
     .bind(&pattern)
     .fetch_one(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to count models"))?;
-    let rows = sqlx::query(&format!(
-        "SELECT id FROM cmdb_model WHERE deleted = 0{clause} ORDER BY sort, id LIMIT {size} OFFSET {offset}"
-    ))
+    let rows = sqlx::query(
+        "SELECT m.id, m.name, m.code, m.description, m.icon, m.unique_key, m.sort, m.status,
+                m.create_time,
+                (SELECT count(*) FROM cmdb_instance i
+                 WHERE i.model_id = m.id AND i.deleted = 0) AS instance_count,
+                (SELECT count(*) FROM cmdb_attribute a
+                 WHERE a.model_id = m.id AND a.deleted = 0) AS attribute_count
+         FROM cmdb_model m
+         WHERE m.deleted = 0 AND ($1::text IS NULL OR m.name ILIKE $1 OR m.code ILIKE $1)
+         ORDER BY m.sort, m.id LIMIT $2 OFFSET $3",
+    )
     .bind(&pattern)
+    .bind(size)
+    .bind(offset)
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to read models"))?;
-    let mut list = Vec::new();
-    for row in rows {
-        list.push(load_model_row(&state.pool, row.get::<i64, _>("id")).await?);
-    }
+    let list: Vec<_> = rows.iter().map(model_row).collect();
     Ok(Json(ApiResponse::new(
         json!({ "list": list, "total": total }),
     )))
@@ -250,12 +237,12 @@ async fn model_create(
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    if let Some(key) = &unique_key {
-        if !valid_code(key) {
-            return Err(AppError::bad_request(
-                "uniqueKey must be a valid attribute code",
-            ));
-        }
+    if let Some(key) = &unique_key
+        && !valid_code(key)
+    {
+        return Err(AppError::bad_request(
+            "uniqueKey must be a valid attribute code",
+        ));
     }
     let mut tx = state
         .pool
@@ -287,7 +274,7 @@ async fn model_create(
     .bind(&code)
     .bind(payload.get("description").and_then(Value::as_str))
     .bind(payload.get("icon").and_then(Value::as_str))
-    .bind(&unique_key)
+    .bind(unique_key)
     .bind(payload.get("sort").and_then(Value::as_i64).unwrap_or(0) as i32)
     .bind(&user.username)
     .fetch_one(&mut *tx)
@@ -316,12 +303,12 @@ async fn model_update(
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    if let Some(key) = &unique_key {
-        if !valid_code(key) {
-            return Err(AppError::bad_request(
-                "uniqueKey must be a valid attribute code",
-            ));
-        }
+    if let Some(key) = &unique_key
+        && !valid_code(key)
+    {
+        return Err(AppError::bad_request(
+            "uniqueKey must be a valid attribute code",
+        ));
     }
     let mut tx = state
         .pool
@@ -330,6 +317,22 @@ async fn model_update(
         .map_err(|_| AppError::internal("failed to start model update"))?;
     let model = instance_service::lock_model(&mut tx, id).await?;
     if model.unique_key.as_deref() != unique_key {
+        if let Some(key) = unique_key {
+            let attribute_exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM cmdb_attribute
+                 WHERE model_id = $1 AND code = $2 AND deleted = 0)",
+            )
+            .bind(id)
+            .bind(key)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::internal("failed to validate unique-key attribute"))?;
+            if !attribute_exists {
+                return Err(AppError::bad_request(
+                    "uniqueKey must reference an active model attribute",
+                ));
+            }
+        }
         instance_service::validate_unique_key_change(&mut tx, id, unique_key).await?;
     }
     let result = sqlx::query(
@@ -341,7 +344,7 @@ async fn model_update(
     .bind(&name)
     .bind(payload.get("description").and_then(Value::as_str))
     .bind(payload.get("icon").and_then(Value::as_str))
-    .bind(&unique_key)
+    .bind(unique_key)
     .bind(payload.get("sort").and_then(Value::as_i64).unwrap_or(0) as i32)
     .bind(&user.username)
     .execute(&mut *tx)
@@ -418,6 +421,8 @@ fn attribute_row(row: &sqlx::postgres::PgRow) -> Value {
         "required": row.get::<bool, _>("required"),
         "choices": choices,
         "defaultValue": default_value,
+        "expression": row.get::<Option<String>, _>("expression"),
+        "color": row.get::<Option<String>, _>("color"),
         "showInList": row.get::<bool, _>("show_in_list"),
         "sort": row.get::<i32, _>("sort"),
     })
@@ -434,7 +439,7 @@ async fn attribute_list(
         .and_then(|value| value.parse().ok())
         .ok_or_else(|| AppError::bad_request("modelId is required"))?;
     let rows = sqlx::query(
-        "SELECT id, model_id, name, code, attr_type, required, choices, default_value, show_in_list, sort
+        "SELECT id, model_id, name, code, attr_type, required, choices, default_value, expression, color, show_in_list, sort
          FROM cmdb_attribute WHERE model_id = $1 AND deleted = 0
          ORDER BY sort, id",
     )
@@ -445,6 +450,214 @@ async fn attribute_list(
     Ok(Json(ApiResponse::new(
         rows.iter().map(attribute_row).collect(),
     )))
+}
+
+#[derive(Clone)]
+struct AttributeSchema {
+    attr_type: AttrType,
+    required: bool,
+    choices: Option<Value>,
+    default_value: Option<Value>,
+    expression: Option<String>,
+    color: Option<String>,
+}
+
+fn attribute_schema(payload: &Value) -> Result<AttributeSchema, AppError> {
+    let attr_type = string_field(payload, "attrType")?;
+    let attr_type = AttrType::from_code(&attr_type)
+        .ok_or_else(|| AppError::bad_request(format!("unknown attrType {attr_type:?}")))?;
+    let required = payload
+        .get("required")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let expression = payload
+        .get("expression")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let color = payload
+        .get("color")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if let Some(color) = &color
+        && !(matches!(color.len(), 7 | 9)
+            && color.starts_with('#')
+            && color[1..].bytes().all(|byte| byte.is_ascii_hexdigit()))
+    {
+        return Err(AppError::bad_request(
+            "color must be a #RRGGBB or #RRGGBBAA value",
+        ));
+    }
+    if expression.is_some() && !matches!(attr_type, AttrType::Number | AttrType::Float) {
+        return Err(AppError::bad_request(
+            "computed attributes must use number or float type",
+        ));
+    }
+    if expression.is_some() && required {
+        return Err(AppError::bad_request(
+            "computed attributes cannot be marked required",
+        ));
+    }
+    let choices = match attr_type {
+        AttrType::Select | AttrType::MultiSelect => {
+            let items = payload
+                .get("choices")
+                .and_then(Value::as_array)
+                .filter(|items| !items.is_empty())
+                .ok_or_else(|| {
+                    AppError::bad_request("select attributes need a non-empty choices array")
+                })?;
+            let mut values = std::collections::BTreeSet::new();
+            let mut normalized = Vec::with_capacity(items.len());
+            for item in items {
+                let Some(label) = item
+                    .get("label")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                else {
+                    return Err(AppError::bad_request(
+                        "each choice needs non-empty label and value strings",
+                    ));
+                };
+                let Some(value) = item
+                    .get("value")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                else {
+                    return Err(AppError::bad_request(
+                        "each choice needs non-empty label and value strings",
+                    ));
+                };
+                if !values.insert(value.to_string()) {
+                    return Err(AppError::bad_request(
+                        "choice values must be unique within an attribute",
+                    ));
+                }
+                normalized.push(json!({"label": label, "value": value}));
+            }
+            Some(Value::Array(normalized))
+        }
+        _ => None,
+    };
+    let default_value = payload
+        .get("defaultValue")
+        .cloned()
+        .filter(|value| !value.is_null());
+    if expression.is_some() && default_value.is_some() {
+        return Err(AppError::bad_request(
+            "computed attributes cannot have a default value",
+        ));
+    }
+    if let Some(default) = &default_value {
+        if instance_service::is_empty_value(default) {
+            return Err(AppError::bad_request(
+                "defaultValue cannot be empty; omit it when no default is needed",
+            ));
+        }
+        attr_type
+            .validate(default, choices.as_ref())
+            .map_err(|reason| AppError::bad_request(format!("invalid defaultValue: {reason}")))?;
+    }
+    Ok(AttributeSchema {
+        attr_type,
+        required,
+        choices,
+        default_value,
+        expression,
+        color,
+    })
+}
+
+fn reconcile_attribute_map(
+    attributes: &mut serde_json::Map<String, Value>,
+    code: &str,
+    schema: &AttributeSchema,
+    backfill_optional: bool,
+) -> Result<bool, String> {
+    let current = attributes.get(code);
+    if current.is_none_or(instance_service::is_empty_value) {
+        if let Some(default) = &schema.default_value
+            && (schema.required || backfill_optional)
+        {
+            attributes.insert(code.to_string(), default.clone());
+            return Ok(true);
+        }
+        if schema.required {
+            return Err("required value is missing and no default is configured".into());
+        }
+        return Ok(false);
+    }
+    schema
+        .attr_type
+        .validate(current.unwrap_or(&Value::Null), schema.choices.as_ref())
+        .map_err(|reason| format!("existing value is invalid: {reason}"))?;
+    Ok(false)
+}
+
+async fn reconcile_attribute_instances(
+    connection: &mut sqlx::PgConnection,
+    model_id: i64,
+    code: &str,
+    schema: &AttributeSchema,
+    backfill_optional: bool,
+    actor: &str,
+) -> Result<(), AppError> {
+    let rows = sqlx::query(
+        "SELECT id, attributes FROM cmdb_instance
+         WHERE model_id = $1 AND deleted = 0 ORDER BY id FOR UPDATE",
+    )
+    .bind(model_id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|_| AppError::internal("failed to lock instances for attribute change"))?;
+    let mut updates = Vec::new();
+    let mut invalid = Vec::new();
+    for row in rows {
+        let id: i64 = row.get("id");
+        let value: Value = row.get("attributes");
+        let Some(mut attributes) = value.as_object().cloned() else {
+            invalid.push(format!(
+                "instance {id}: attributes payload is not an object"
+            ));
+            continue;
+        };
+        match reconcile_attribute_map(&mut attributes, code, schema, backfill_optional) {
+            Ok(true) => updates.push((id, Value::Object(attributes))),
+            Ok(false) => {}
+            Err(reason) => invalid.push(format!("instance {id}: {reason}")),
+        }
+    }
+    if !invalid.is_empty() {
+        let remaining = invalid.len().saturating_sub(5);
+        invalid.truncate(5);
+        let suffix = if remaining == 0 {
+            String::new()
+        } else {
+            format!("; and {remaining} more")
+        };
+        return Err(AppError::bad_request(format!(
+            "attribute change is incompatible with existing data: {}{suffix}",
+            invalid.join("; ")
+        )));
+    }
+    for (id, attributes) in updates {
+        sqlx::query(
+            "UPDATE cmdb_instance SET attributes = $2, updater = $3, update_time = now()
+             WHERE id = $1 AND deleted = 0",
+        )
+        .bind(id)
+        .bind(attributes)
+        .bind(actor)
+        .execute(&mut *connection)
+        .await
+        .map_err(|_| AppError::internal("failed to backfill attribute values"))?;
+    }
+    Ok(())
 }
 
 async fn attribute_create(
@@ -465,40 +678,23 @@ async fn attribute_create(
             "code must be lowercase letters, digits or underscores, starting with a letter",
         ));
     }
-    let attr_type = string_field(&payload, "attrType")?;
-    let attr_type = rustset_cmdb_api::AttrType::from_code(&attr_type)
-        .ok_or_else(|| AppError::bad_request(format!("unknown attrType {attr_type:?}")))?;
-    let required = payload
-        .get("required")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+    let schema = attribute_schema(&payload)?;
     let show_in_list = payload
         .get("showInList")
         .and_then(Value::as_bool)
         .unwrap_or(true);
-    let choices = match attr_type {
-        rustset_cmdb_api::AttrType::Select | rustset_cmdb_api::AttrType::MultiSelect => {
-            let choices = payload
-                .get("choices")
-                .and_then(Value::as_array)
-                .filter(|items| !items.is_empty())
-                .ok_or_else(|| {
-                    AppError::bad_request("select attributes need a non-empty choices array")
-                })?;
-            Value::Array(choices.clone())
-        }
-        _ => Value::Null,
-    };
-    let default_value = payload
-        .get("defaultValue")
-        .cloned()
-        .filter(|v| !v.is_null());
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to start attribute create"))?;
+    let model = instance_service::lock_model(&mut tx, model_id).await?;
     let exists: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM cmdb_attribute WHERE model_id = $1 AND code = $2 AND deleted = 0",
     )
     .bind(model_id)
     .bind(&code)
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to check attribute code"))?;
     if exists > 0 {
@@ -506,24 +702,34 @@ async fn attribute_create(
             "attribute code {code:?} already exists on this model"
         )));
     }
+    reconcile_attribute_instances(&mut tx, model_id, &code, &schema, true, &user.username).await?;
+    if model.unique_key.as_deref() == Some(code.as_str()) {
+        instance_service::validate_unique_key_change(&mut tx, model_id, Some(&code)).await?;
+    }
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO cmdb_attribute
-             (model_id, name, code, attr_type, required, choices, default_value, show_in_list, sort, creator, updater)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10) RETURNING id",
+             (model_id, name, code, attr_type, required, choices, default_value, expression, color, show_in_list, sort, creator, updater)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12) RETURNING id",
     )
     .bind(model_id)
     .bind(&name)
     .bind(&code)
-    .bind(attr_type.code())
-    .bind(required)
-    .bind(choices)
-    .bind(&default_value)
+    .bind(schema.attr_type.code())
+    .bind(schema.required)
+    .bind(&schema.choices)
+    .bind(&schema.default_value)
+    .bind(&schema.expression)
+    .bind(&schema.color)
     .bind(show_in_list)
     .bind(payload.get("sort").and_then(Value::as_i64).unwrap_or(0) as i32)
     .bind(&user.username)
-    .fetch_one(&state.pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to create attribute"))?;
+    instance_service::recompute_model_instances(&mut tx, model_id, &user.username).await?;
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit attribute create"))?;
     Ok(Json(ApiResponse::new(id.to_string())))
 }
 
@@ -539,54 +745,65 @@ async fn attribute_update(
         .filter(|id| *id > 0)
         .ok_or_else(|| AppError::bad_request("id is required"))?;
     let name = string_field(&payload, "name")?;
-    let attr_type = string_field(&payload, "attrType")?;
-    let attr_type = rustset_cmdb_api::AttrType::from_code(&attr_type)
-        .ok_or_else(|| AppError::bad_request(format!("unknown attrType {attr_type:?}")))?;
-    let required = payload
-        .get("required")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+    let schema = attribute_schema(&payload)?;
     let show_in_list = payload
         .get("showInList")
         .and_then(Value::as_bool)
         .unwrap_or(true);
-    let choices = match attr_type {
-        rustset_cmdb_api::AttrType::Select | rustset_cmdb_api::AttrType::MultiSelect => {
-            let choices = payload
-                .get("choices")
-                .and_then(Value::as_array)
-                .filter(|items| !items.is_empty())
-                .ok_or_else(|| {
-                    AppError::bad_request("select attributes need a non-empty choices array")
-                })?;
-            Value::Array(choices.clone())
-        }
-        _ => Value::Null,
-    };
-    let default_value = payload
-        .get("defaultValue")
-        .cloned()
-        .filter(|v| !v.is_null());
+    let model_id: i64 =
+        sqlx::query_scalar("SELECT model_id FROM cmdb_attribute WHERE id = $1 AND deleted = 0")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| AppError::internal("failed to read attribute"))?
+            .ok_or_else(|| AppError::not_found("attribute not found"))?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to start attribute update"))?;
+    let model = instance_service::lock_model(&mut tx, model_id).await?;
+    let row = sqlx::query(
+        "SELECT model_id, code FROM cmdb_attribute
+         WHERE id = $1 AND model_id = $2 AND deleted = 0 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(model_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::internal("failed to lock attribute"))?
+    .ok_or_else(|| AppError::not_found("attribute not found"))?;
+    let code: String = row.get("code");
+    reconcile_attribute_instances(&mut tx, model_id, &code, &schema, false, &user.username).await?;
+    if model.unique_key.as_deref() == Some(code.as_str()) {
+        instance_service::validate_unique_key_change(&mut tx, model_id, Some(&code)).await?;
+    }
     let result = sqlx::query(
         "UPDATE cmdb_attribute SET name = $2, attr_type = $3, required = $4, choices = $5,
-                default_value = $6, show_in_list = $7, sort = $8, updater = $9, update_time = now()
+                default_value = $6, expression = $7, color = $8, show_in_list = $9, sort = $10, updater = $11, update_time = now()
          WHERE id = $1 AND deleted = 0",
     )
     .bind(id)
     .bind(&name)
-    .bind(attr_type.code())
-    .bind(required)
-    .bind(choices)
-    .bind(&default_value)
+    .bind(schema.attr_type.code())
+    .bind(schema.required)
+    .bind(&schema.choices)
+    .bind(&schema.default_value)
+    .bind(&schema.expression)
+    .bind(&schema.color)
     .bind(show_in_list)
     .bind(payload.get("sort").and_then(Value::as_i64).unwrap_or(0) as i32)
     .bind(&user.username)
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to update attribute"))?;
     if result.rows_affected() == 0 {
         return Err(AppError::not_found("attribute not found"));
     }
+    instance_service::recompute_model_instances(&mut tx, model_id, &user.username).await?;
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit attribute update"))?;
     Ok(Json(ApiResponse::new(())))
 }
 
@@ -596,17 +813,289 @@ async fn attribute_delete(
     Query(params): Query<IdParams>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     require(&user, "cmdb:attribute:delete")?;
+    let model_id: i64 =
+        sqlx::query_scalar("SELECT model_id FROM cmdb_attribute WHERE id = $1 AND deleted = 0")
+            .bind(params.id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| AppError::internal("failed to read attribute"))?
+            .ok_or_else(|| AppError::not_found("attribute not found"))?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to start attribute delete"))?;
+    let model = instance_service::lock_model(&mut tx, model_id).await?;
+    let code: String = sqlx::query_scalar(
+        "SELECT code FROM cmdb_attribute
+         WHERE id = $1 AND model_id = $2 AND deleted = 0 FOR UPDATE",
+    )
+    .bind(params.id)
+    .bind(model_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::internal("failed to lock attribute"))?
+    .ok_or_else(|| AppError::not_found("attribute not found"))?;
+    if model.unique_key.as_deref() == Some(code.as_str()) {
+        return Err(AppError::bad_request(
+            "the model unique key uses this attribute; change the unique key first",
+        ));
+    }
     let result = sqlx::query(
         "UPDATE cmdb_attribute SET deleted = 1, updater = $2, update_time = now()
          WHERE id = $1 AND deleted = 0",
     )
     .bind(params.id)
     .bind(&user.username)
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to delete attribute"))?;
     if result.rows_affected() == 0 {
         return Err(AppError::not_found("attribute not found"));
     }
+    sqlx::query(
+        "UPDATE cmdb_instance
+         SET attributes = attributes - $2, updater = $3, update_time = now()
+         WHERE model_id = $1 AND deleted = 0 AND attributes ? $2",
+    )
+    .bind(model_id)
+    .bind(&code)
+    .bind(&user.username)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::internal("failed to remove deleted attribute values"))?;
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit attribute delete"))?;
     Ok(Json(ApiResponse::new(())))
+}
+
+#[cfg(test)]
+mod model_query_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn model_keyword_is_optional_and_trimmed() {
+        assert_eq!(model_keyword_pattern(&None), None);
+        assert_eq!(model_keyword_pattern(&Some("  ".into())), None);
+        assert_eq!(
+            model_keyword_pattern(&Some(" server ".into())),
+            Some("%server%".into())
+        );
+    }
+
+    #[test]
+    fn model_page_bounds_are_safe() {
+        assert_eq!(page_bounds(None, None), (20, 0));
+        assert_eq!(page_bounds(Some(0), Some(0)), (1, 0));
+        assert_eq!(page_bounds(Some(3), Some(500)), (200, 400));
+    }
+
+    #[test]
+    fn attribute_schema_validates_defaults_choices_and_backfills() {
+        assert!(
+            attribute_schema(&json!({
+                "attrType": "select",
+                "choices": [
+                    {"label": "One", "value": "same"},
+                    {"label": "Two", "value": "same"}
+                ]
+            }))
+            .is_err()
+        );
+        assert!(attribute_schema(&json!({"attrType": "number", "defaultValue": "one"})).is_err());
+
+        let required =
+            attribute_schema(&json!({"attrType": "number", "required": true, "defaultValue": 2}))
+                .unwrap();
+        let mut attributes = serde_json::Map::new();
+        assert!(reconcile_attribute_map(&mut attributes, "count", &required, false).unwrap());
+        assert_eq!(attributes["count"], 2);
+        attributes.insert("count".into(), json!("wrong"));
+        assert!(reconcile_attribute_map(&mut attributes, "count", &required, false).is_err());
+
+        let optional = attribute_schema(
+            &json!({"attrType": "text", "required": false, "defaultValue": "new"}),
+        )
+        .unwrap();
+        let mut old_instance = serde_json::Map::new();
+        assert!(!reconcile_attribute_map(&mut old_instance, "note", &optional, false).unwrap());
+        assert!(!old_instance.contains_key("note"));
+        assert!(reconcile_attribute_map(&mut old_instance, "note", &optional, true).unwrap());
+        assert_eq!(old_instance["note"], "new");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
+    async fn attribute_changes_lock_validate_backfill_and_clean_instances() {
+        use rustset_framework_security::{DataScope, PermissionSet};
+        use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+        use std::{
+            str::FromStr,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
+        let admin = PgPool::connect(&url).await.unwrap();
+        let schema_name = format!(
+            "cmdb_attribute_test_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        sqlx::query(&format!("CREATE SCHEMA {schema_name}"))
+            .execute(&admin)
+            .await
+            .unwrap();
+        let options = PgConnectOptions::from_str(&url)
+            .unwrap()
+            .options([("search_path", schema_name.as_str())]);
+        let pool = PgPoolOptions::new()
+            .max_connections(8)
+            .connect_with(options)
+            .await
+            .unwrap();
+        let ddl = include_str!("../../../../sql/postgresql/0009_cmdb_core.sql")
+            .split("-- Menus:")
+            .next()
+            .unwrap()
+            .replace("public.", "");
+        sqlx::raw_sql(&ddl).execute(&pool).await.unwrap();
+        let model_id: i64 = sqlx::query_scalar(
+            "INSERT INTO cmdb_model(name, code, unique_key) VALUES ('Test', 'test', 'name') RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO cmdb_attribute(model_id, name, code, attr_type, required) VALUES ($1, 'Name', 'name', 'text', true)")
+            .bind(model_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO cmdb_instance(model_id, attributes) VALUES ($1, $2)")
+            .bind(model_id)
+            .bind(json!({"name": "server-1"}))
+            .execute(&pool)
+            .await
+            .unwrap();
+        let state = CmdbState { pool: pool.clone() };
+        let user = CurrentUser {
+            user_id: "1".into(),
+            username: "test".into(),
+            tenant_id: None,
+            role_codes: vec!["super_admin".into()],
+            permissions: PermissionSet::default(),
+            data_scope: DataScope::All,
+        };
+
+        assert!(
+            attribute_create(
+                State(state.clone()),
+                user.clone(),
+                Json(json!({
+                    "modelId": model_id,
+                    "name": "Required",
+                    "code": "required_without_default",
+                    "attrType": "number",
+                    "required": true
+                }))
+            )
+            .await
+            .is_err()
+        );
+        let _ = attribute_create(
+            State(state.clone()),
+            user.clone(),
+            Json(json!({
+                "modelId": model_id,
+                "name": "Count",
+                "code": "count",
+                "attrType": "number",
+                "required": true,
+                "defaultValue": 1
+            })),
+        )
+        .await
+        .unwrap();
+        let attributes: Value = sqlx::query_scalar("SELECT attributes FROM cmdb_instance")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(attributes, json!({"name": "server-1", "count": 1}));
+
+        let count_id: i64 = sqlx::query_scalar(
+            "SELECT id FROM cmdb_attribute WHERE code = 'count' AND deleted = 0",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(
+            attribute_update(
+                State(state.clone()),
+                user.clone(),
+                Json(json!({
+                    "id": count_id,
+                    "name": "Count",
+                    "attrType": "select",
+                    "required": true,
+                    "choices": [{"label": "One", "value": "one"}],
+                    "defaultValue": "one"
+                }))
+            )
+            .await
+            .is_err()
+        );
+        let attr_type: String =
+            sqlx::query_scalar("SELECT attr_type FROM cmdb_attribute WHERE id = $1")
+                .bind(count_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(attr_type, "number");
+
+        let name_id: i64 =
+            sqlx::query_scalar("SELECT id FROM cmdb_attribute WHERE code = 'name' AND deleted = 0")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(
+            attribute_delete(
+                State(state.clone()),
+                user.clone(),
+                Query(IdParams { id: name_id })
+            )
+            .await
+            .is_err()
+        );
+        let _ = attribute_delete(
+            State(state.clone()),
+            user.clone(),
+            Query(IdParams { id: count_id }),
+        )
+        .await
+        .unwrap();
+        let attributes: Value = sqlx::query_scalar("SELECT attributes FROM cmdb_instance")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(attributes, json!({"name": "server-1"}));
+        assert!(
+            model_update(
+                State(state),
+                user,
+                Json(json!({"id": model_id, "name": "Test", "uniqueKey": "count"}))
+            )
+            .await
+            .is_err()
+        );
+
+        pool.close().await;
+        sqlx::query(&format!("DROP SCHEMA {schema_name} CASCADE"))
+            .execute(&admin)
+            .await
+            .unwrap();
+        admin.close().await;
+    }
 }

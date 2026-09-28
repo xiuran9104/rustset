@@ -32,11 +32,14 @@ cargo build --release -p rustset-gateway
 1. 安装 Rust stable、Docker Compose 和 bun `1.4+`（node 22/24 可选，供部分工具链使用）。
 2. 克隆代码到固定目录，例如 `/opt/rustset`。
 3. 启动基础设施：`docker compose -f script/docker/docker-compose.yml up -d`。使用托管 PostgreSQL/Redis 时，改为在环境变量中指向托管地址。
+   Compose 同时启动 RustFS：S3 API 为 `9000`，控制台为 `9001/rustfs/console/`，宿主机端口仅绑定 `127.0.0.1`。网关通过 `RUSTFS_ENDPOINT`、`RUSTFS_ACCESS_KEY`、`RUSTFS_SECRET_KEY`、`RUSTFS_REGION` 和 `RUSTFS_BUCKET` 连接对象存储；单机本地默认 endpoint 是 `http://127.0.0.1:9000`。远端 endpoint 必须显式设置独立凭据。网关启动时会确保 bucket 存在，上传写入 RustFS，下载由网关代理读取。单文件默认上限为 50 MiB，可通过 `INFRA_UPLOAD_MAX_BYTES` 调整。
 4. 创建 `/etc/rustset/gateway.env`，写入 `DATABASE_URL`、`REDIS_URL`、强随机 `JWT_SECRET`、`GATEWAY_HOST`、`GATEWAY_PORT`、`RUST_LOG` 和首次管理员变量。
 5. 执行 `cargo build --release -p rustset-gateway`。
 6. 手动加载环境变量运行一次 `target/release/rustset-gateway`，确认迁移成功和管理员可登录。
 7. 管理员创建后，从环境文件移除 `BOOTSTRAP_ADMIN_PASSWORD`。
 8. 使用 systemd、Docker 或 Kubernetes 托管网关进程。
+
+旧版本保存在 `storage/uploads` 的文件需迁移到 RustFS 后再清理。维护窗口设置数据库和 RustFS 环境变量后运行 `bash script/migrate-local-uploads-to-rustfs.sh`；脚本确认对象大小和数据库记录一致后才删除本地文件。
 
 systemd 示例：
 

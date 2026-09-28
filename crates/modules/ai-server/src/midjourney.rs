@@ -1,26 +1,20 @@
 use crate::{AiModelFactory, AiState};
-use schemars::JsonSchema;
-use aide::axum::routing::{post};
 use aide::axum::ApiRouter;
-use axum::{
-    Json,
-    extract::State,
-};
+use aide::axum::routing::post;
+use axum::{Json, extract::State};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
 
 pub(crate) fn routes() -> ApiRouter<AiState> {
     ApiRouter::new()
-        .api_route(
-"/ai/image/midjourney/imagine", post(imagine))
-        .api_route(
-"/ai/image/midjourney/action", post(action))
-        .api_route(
-"/ai/image/midjourney/poll", post(poll))
+        .api_route("/ai/image/midjourney/imagine", post(imagine))
+        .api_route("/ai/image/midjourney/action", post(action))
+        .api_route("/ai/image/midjourney/poll", post(poll))
 }
 
 pub(crate) fn spawn_sync(pool: sqlx::PgPool, factory: AiModelFactory) {

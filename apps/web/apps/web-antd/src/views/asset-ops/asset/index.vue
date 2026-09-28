@@ -1,15 +1,20 @@
 <script lang="ts" setup>
-import { ref, onMounted, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { Page } from '@vben/common-ui';
-import { message } from 'ant-design-vue';
-import { requestClient } from '#/api/request';
-import { createAsset, getAssetList, updateAsset } from '#/api/scan/asset';
 import type { ScanAssetApi } from '#/api/scan/asset';
 
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+
+import { Page } from '@vben/common-ui';
+
+import { message } from 'ant-design-vue';
+
+import { requestClient } from '#/api/request';
+import { createAsset, getAssetList, syncAssetInventoryToCmdb, updateAsset } from '#/api/scan/asset';
+
 type Asset = ScanAssetApi.Asset;
-type UnifiedAsset = Omit<Asset, 'id'> & { id:string;record_id:number;source_type:'scan'|'cloud_platform'|'physical_inventory';source_label:string;editable:boolean;status:string;deployment_type?:string };
+type UnifiedAsset = Omit<Asset, 'id'> & { deployment_type?:string;editable:boolean;id:string;record_id:number;source_label:string;source_type:'cloud_platform'|'physical_inventory'|'scan';status:string; };
 const data = ref<UnifiedAsset[]>([]); const loading = ref(false); const modalVisible = ref(false); const searchText = ref(''); const editingId = ref<number>();
+const cmdbSyncing = ref(false);
 const form = ref<Asset>({ name:'',ip:'',zone:'Intranet',ports:[],weight:50,labels:[] } as Asset);
 
 // 资产采集表（docs/资产采集表.xlsx·资产排查表）43 个台账字段的默认值。
@@ -38,7 +43,7 @@ const filtered = computed(() => {
   return kw ? data.value.filter(a=>a.name.toLowerCase().includes(kw)||a.ip.includes(kw)||(a.owner||'').toLowerCase().includes(kw)||(a.organization_name||'').toLowerCase().includes(kw)||(a.application_name||'').toLowerCase().includes(kw)) : data.value;
 });
 
-const zoneInfo:Record<string,{color:string;bg:string;label:string}> = { Internet:{color:'var(--ant-color-error)',bg:'#fff1f0',label:'外网'}, DMZ:{color:'var(--ant-color-warning)',bg:'#fff7e6',label:'DMZ'}, Intranet:{color:'var(--ant-color-success)',bg:'#f6ffed',label:'内网'} };
+const zoneInfo:Record<string,{bg:string;color:string;label:string}> = { Internet:{color:'var(--ant-color-error)',bg:'#fff1f0',label:'外网'}, DMZ:{color:'var(--ant-color-warning)',bg:'#fff7e6',label:'DMZ'}, Intranet:{color:'var(--ant-color-success)',bg:'#f6ffed',label:'内网'} };
 
 async function fetchData() { loading.value=true; try { data.value=(await getAssetList()) as any; } catch { message.error('加载失败'); } finally { loading.value=false; } }
 onMounted(fetchData);
@@ -49,11 +54,25 @@ async function handleSubmit() {
   modalVisible.value=false; fetchData();
 }
 
+async function handleSyncCmdb() {
+  cmdbSyncing.value = true;
+  try {
+    const result = await syncAssetInventoryToCmdb();
+    const action = result.modelCreated ? '已创建“资产台账”模型并完成同步' : 'CMDB 同步完成';
+    const stale = result.stale ? `，另有 ${result.stale} 条源资产已失效但未自动删除` : '';
+    message.success(`${action}：新增 ${result.created}，更新 ${result.updated}，未变化 ${result.unchanged}${stale}`);
+  } catch (error: any) {
+    message.error(error?.message || '同步 CMDB 失败');
+  } finally {
+    cmdbSyncing.value = false;
+  }
+}
+
 const viewMode = ref<'grid'|'table'>('grid');
 
 // 需求 D：查看该资产 IP 命中的网络策略（防火墙开通记录），支持跳转到网络策略页。
 const policyDrawerVisible = ref(false);
-const policyTarget = ref<UnifiedAsset | null>(null);
+const policyTarget = ref<null | UnifiedAsset>(null);
 const policyRows = ref<any[]>([]);
 const policyLoading = ref(false);
 const router = useRouter();
@@ -88,6 +107,7 @@ const statCards = [
           <a-space :size="16">
             <a-input-search v-model:value="searchText" placeholder="搜索资产名称/IP/负责人..." style="width:260px" allow-clear />
             <a-segmented v-model:value="viewMode" :options="[{value:'grid',label:'卡片'},{value:'table',label:'列表'}]" />
+            <a-button v-access:code="['infra:asset:update']" :loading="cmdbSyncing" @click="handleSyncCmdb"><Icon icon="lucide:database-zap" /> 同步 CMDB</a-button>
             <a-button @click="fetchData"><Icon icon="lucide:refresh-cw" /> 刷新</a-button>
             <a-button v-access:code="['infra:asset:create']" type="primary" @click="openCreate"><Icon icon="lucide:plus" /> 新建资产</a-button>
           </a-space>
@@ -103,7 +123,7 @@ const statCards = [
               </div>
               <div>
                 <div style="font-size:12px;color:var(--ant-color-text-tertiary)">{{ s.title }}</div>
-                <div style="font-size:22px;font-weight:700;color:var(--ant-color-text)">{{ typeof s.value==='function' ? s.value() : s.value }}</div>
+                <div style="font-size:22px;font-weight:700;color:var(--ant-color-text)">{{ typeof s.value === 'function' ? s.value() : s.value }}</div>
               </div>
             </div>
           </a-card>
@@ -111,14 +131,14 @@ const statCards = [
       </a-row>
 
       <!-- Grid View -->
-      <a-row :gutter="[16,16]" style="margin-top:16px" v-if="viewMode==='grid'">
+      <a-row :gutter="[16,16]" style="margin-top:16px" v-if="viewMode === 'grid'">
         <a-col :xs="24" :sm="12" :lg="8" :xl="6" v-for="item in filtered" :key="item.id">
           <a-card :hoverable="true" size="small" style="border-radius:10px;overflow:hidden">
             <template #title>
               <div style="display:flex;align-items:center;gap:6px">
-                <Icon icon="lucide:server" :style="{color:zoneInfo[item.zone]?.color||'#666'}" />
+                <Icon icon="lucide:server" :style="{color:zoneInfo[item.zone]?.color || '#666'}" />
                 <span style="font-weight:600">{{ item.name }}</span>
-                <a-tag :color="zoneInfo[item.zone]?.color" size="small" style="margin-left:auto">{{ zoneInfo[item.zone]?.label||item.zone }}</a-tag>
+                <a-tag :color="zoneInfo[item.zone]?.color" size="small" style="margin-left:auto">{{ zoneInfo[item.zone]?.label || item.zone }}</a-tag>
               </div>
             </template>
             <div style="margin-bottom:8px"><a-tag color="blue">{{ item.source_label }}</a-tag><a-tag>{{ item.device_type }}</a-tag><a-tag v-if="item.classified_protection_level" color="geekblue">等保{{ item.classified_protection_level }}</a-tag></div>
@@ -129,37 +149,37 @@ const statCards = [
               <span v-if="item.owner" style="margin-left:12px"><Icon icon="lucide:user" style="margin-right:4px" />{{ item.owner }}</span>
             </div>
             <div style="margin-bottom:8px">
-              <a-tag v-for="p in (item.ports||[]).slice(0,8)" :key="p.port" size="small" :color="p.is_open?'blue':'default'" style="margin:2px">
+              <a-tag v-for="p in (item.ports || []).slice(0,8)" :key="p.port" size="small" :color="p.is_open ? 'blue' : 'default'" style="margin:2px">
                 {{ p.port }}<span v-if="p.service" style="opacity:0.7">:{{ p.service }}</span>
               </a-tag>
-              <a-tag v-if="(item.ports||[]).length>8" size="small" style="margin:2px">+{{ item.ports.length-8 }}</a-tag>
+              <a-tag v-if="(item.ports || []).length > 8" size="small" style="margin:2px">+{{ item.ports.length - 8 }}</a-tag>
             </div>
             <a-row :gutter="8">
-              <a-col :span="5"><a-button v-access:code="['infra:asset:query']" type="link" size="small" @click="openPolicies(item)">策略</a-button></a-col><a-col :span="11"><a-progress :percent="item.weight" :size="20" :show-info="false" :stroke-color="item.weight>70?'var(--ant-color-error)':item.weight>40?'var(--ant-color-warning)':'var(--ant-color-success)'" /></a-col>
+              <a-col :span="5"><a-button v-access:code="['infra:asset:query']" type="link" size="small" @click="openPolicies(item)">策略</a-button></a-col><a-col :span="11"><a-progress :percent="item.weight" :size="20" :show-info="false" :stroke-color="item.weight > 70 ? 'var(--ant-color-error)' : item.weight > 40 ? 'var(--ant-color-warning)' : 'var(--ant-color-success)'" /></a-col>
               <a-col :span="8"><a-space size="0"><a-button v-if="item.editable" v-access:code="['infra:asset:update']" type="link" size="small" @click="openEdit(item)">编辑</a-button><a-tag v-else>来源只读</a-tag></a-space></a-col>
             </a-row>
           </a-card>
         </a-col>
       </a-row>
-      <a-empty v-if="viewMode==='grid' && !loading && !filtered.length" description="暂无资产数据" style="margin-top:60px"><a-button v-access:code="['infra:asset:create']" type="primary" @click="openCreate">创建第一个资产</a-button></a-empty>
+      <a-empty v-if="viewMode === 'grid' && !loading && !filtered.length" description="暂无资产数据" style="margin-top:60px"><a-button v-access:code="['infra:asset:create']" type="primary" @click="openCreate">创建第一个资产</a-button></a-empty>
 
       <!-- Table View -->
-      <a-card style="border-radius:10px;margin-top:16px" size="small" v-if="viewMode==='table'">
+      <a-card style="border-radius:10px;margin-top:16px" size="small" v-if="viewMode === 'table'">
         <a-table :columns="[{title:'名称',dataIndex:'name',width:150,fixed:'left'},{title:'所属单位',dataIndex:'organization_name',width:130,ellipsis:true},{title:'应用名称',dataIndex:'application_name',width:130,ellipsis:true},{title:'资产类型',dataIndex:'device_type',width:95},{title:'来源',dataIndex:'source_label',width:140},{title:'IP/URL',dataIndex:'ip',width:140},{title:'区域',key:'zone',width:85},{title:'等保',key:'mlps',width:70},{title:'语言/系统',key:'technology',width:130},{title:'端口指纹',key:'ports',width:85},{title:'漏洞',key:'findings',width:65},{title:'风险评分',key:'weight',width:105},{title:'操作',key:'actions',width:190}]" :data-source="filtered" :loading="loading" row-key="id" size="middle" :pagination="{pageSize:15,showTotal:(t:number)=>`共 ${t} 个`}" :scroll="{x:1600}">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key==='zone'"><a-tag :color="zoneInfo[record.zone]?.color">{{ zoneInfo[record.zone]?.label }}</a-tag></template>
-            <template v-if="column.key==='mlps'"><a-tag v-if="record.classified_protection_level" color="geekblue">{{ record.classified_protection_level }}</a-tag><span v-else>-</span></template>
-            <template v-if="column.key==='technology'">{{ record.language || record.os || '-' }}</template>
-            <template v-if="column.key==='ports'">{{ (record.ports||[]).length }}</template>
-            <template v-if="column.key==='findings'">{{ record.finding_count || 0 }}</template>
-            <template v-if="column.key==='weight'"><a-progress :percent="record.weight" :size="20" :show-info="false" :stroke-color="record.weight>70?'var(--ant-color-error)':record.weight>40?'var(--ant-color-warning)':'var(--ant-color-success)'" style="width:60px;display:inline-block" /><span style="font-size:11px;margin-left:4px">{{ record.weight }}</span></template>
-            <template v-if="column.key==='actions'"><a-space><a-button v-access:code="['infra:asset:query']" type="link" size="small" @click="openPolicies(record)">策略</a-button><a-button v-if="record.editable" v-access:code="['infra:asset:update']" type="link" size="small" @click="openEdit(record)">编辑</a-button><a-tag v-else>来源只读</a-tag></a-space></template>
+            <template v-if="column.key === 'zone'"><a-tag :color="zoneInfo[record.zone]?.color">{{ zoneInfo[record.zone]?.label }}</a-tag></template>
+            <template v-if="column.key === 'mlps'"><a-tag v-if="record.classified_protection_level" color="geekblue">{{ record.classified_protection_level }}</a-tag><span v-else>-</span></template>
+            <template v-if="column.key === 'technology'">{{ record.language || record.os || '-' }}</template>
+            <template v-if="column.key === 'ports'">{{ (record.ports || []).length }}</template>
+            <template v-if="column.key === 'findings'">{{ record.finding_count || 0 }}</template>
+            <template v-if="column.key === 'weight'"><a-progress :percent="record.weight" :size="20" :show-info="false" :stroke-color="record.weight > 70 ? 'var(--ant-color-error)' : record.weight > 40 ? 'var(--ant-color-warning)' : 'var(--ant-color-success)'" style="width:60px;display:inline-block" /><span style="font-size:11px;margin-left:4px">{{ record.weight }}</span></template>
+            <template v-if="column.key === 'actions'"><a-space><a-button v-access:code="['infra:asset:query']" type="link" size="small" @click="openPolicies(record)">策略</a-button><a-button v-if="record.editable" v-access:code="['infra:asset:update']" type="link" size="small" @click="openEdit(record)">编辑</a-button><a-tag v-else>来源只读</a-tag></a-space></template>
           </template>
         </a-table>
       </a-card>
 
       <!-- Create/Edit Drawer: 台账字段按采集表分组 -->
-      <a-drawer v-model:open="modalVisible" :title="editingId?'编辑资产台账':'新建资产'" width="780" @close="modalVisible=false">
+      <a-drawer v-model:open="modalVisible" :title="editingId ? '编辑资产台账' : '新建资产'" width="780" @close="modalVisible = false">
         <a-form v-if="form" layout="vertical">
           <a-tabs>
             <a-tab-pane key="basic" tab="基础与归属">
@@ -241,7 +261,7 @@ const statCards = [
         </a-form>
         <template #footer>
           <a-space>
-            <a-button @click="modalVisible=false">取消</a-button>
+            <a-button @click="modalVisible = false">取消</a-button>
             <a-button type="primary" @click="handleSubmit">保存</a-button>
           </a-space>
         </template>

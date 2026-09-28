@@ -234,7 +234,7 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
 fn pkcs7_pad(data: &[u8], block: usize) -> Vec<u8> {
     let padding = block - (data.len() % block);
     let mut padded = data.to_vec();
-    padded.extend(std::iter::repeat(padding as u8).take(padding));
+    padded.extend(std::iter::repeat_n(padding as u8, padding));
     padded
 }
 

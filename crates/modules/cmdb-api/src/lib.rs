@@ -20,6 +20,13 @@ pub struct UpdateInstanceRequest {
     pub attributes: serde_json::Map<String, Value>,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchUpdateInstanceRequest {
+    pub ids: Vec<i64>,
+    pub attributes: serde_json::Map<String, Value>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AttrType {
@@ -257,6 +264,28 @@ mod tests {
             AttrType::MultiSelect
                 .validate(&json!("core"), Some(&choices))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn batch_update_request_requires_an_id_array_and_attribute_object() {
+        assert!(
+            serde_json::from_value::<BatchUpdateInstanceRequest>(
+                serde_json::json!({"ids": [1, 2], "attributes": {"status": "online"}})
+            )
+            .is_ok()
+        );
+        assert!(
+            serde_json::from_value::<BatchUpdateInstanceRequest>(
+                serde_json::json!({"ids": "1,2", "attributes": {}})
+            )
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<BatchUpdateInstanceRequest>(
+                serde_json::json!({"ids": [1, 2], "attributes": []})
+            )
+            .is_err()
         );
     }
 }

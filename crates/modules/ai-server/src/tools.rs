@@ -1,7 +1,6 @@
 use crate::{AiState, require};
-use schemars::JsonSchema;
-use aide::axum::routing::{delete, get, post, put};
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     extract::{Query, State},
@@ -9,6 +8,7 @@ use axum::{
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -308,18 +308,12 @@ mod tests {
 
 pub fn routes() -> ApiRouter<AiState> {
     ApiRouter::new()
-        .api_route(
-"/ai/tool/page", get(page))
-        .api_route(
-"/ai/tool/simple-list", get(simple_list))
-        .api_route(
-"/ai/tool/get", get(get_one))
-        .api_route(
-"/ai/tool/create", post(create))
-        .api_route(
-"/ai/tool/update", put(update))
-        .api_route(
-"/ai/tool/delete", delete(remove))
+        .api_route("/ai/tool/page", get(page))
+        .api_route("/ai/tool/simple-list", get(simple_list))
+        .api_route("/ai/tool/get", get(get_one))
+        .api_route("/ai/tool/create", post(create))
+        .api_route("/ai/tool/update", put(update))
+        .api_route("/ai/tool/delete", delete(remove))
 }
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

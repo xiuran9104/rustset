@@ -13,20 +13,13 @@ use uuid::Uuid;
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
-        .api_route(
-"/infra/network-zone/page", get(page))
-        .api_route(
-"/infra/network-zone/list", get(list))
-        .api_route(
-"/infra/network-zone/get", get(get_one))
-        .api_route(
-"/infra/network-zone/create", post(create))
-        .api_route(
-"/infra/network-zone/update", put(update))
-        .api_route(
-"/infra/network-zone/delete", delete(delete_one))
-        .api_route(
-"/infra/network-zone/delete-list", delete(delete_list))
+        .api_route("/infra/network-zone/page", get(page))
+        .api_route("/infra/network-zone/list", get(list))
+        .api_route("/infra/network-zone/get", get(get_one))
+        .api_route("/infra/network-zone/create", post(create))
+        .api_route("/infra/network-zone/update", put(update))
+        .api_route("/infra/network-zone/delete", delete(delete_one))
+        .api_route("/infra/network-zone/delete-list", delete(delete_list))
 }
 
 async fn page(

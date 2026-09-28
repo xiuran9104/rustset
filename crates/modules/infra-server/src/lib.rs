@@ -1,13 +1,13 @@
-use std::{collections::HashMap, env, io::Write, time::Instant};
 use schemars::JsonSchema;
+use std::{collections::HashMap, env, io::Write, time::Instant};
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     body::{Body, Bytes},
-    extract::{Multipart, Path, Query, State},
-    http::header,
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
+    http::{StatusCode, header},
     middleware::from_fn,
     response::Response,
 };
@@ -18,10 +18,13 @@ use rustset_framework_web::AppError;
 use rustset_infra_api::InfraCapability;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tracing::warn;
 
+mod asset_cmdb_sync;
 mod authorization;
 mod excel;
 mod monitor;
+pub mod object_storage;
 
 mod asset;
 mod business;
@@ -38,13 +41,15 @@ mod zone;
 #[derive(Clone)]
 pub struct InfraState {
     pub(crate) pool: PgPool,
+    storage: object_storage::ObjectStorage,
     started_at: Instant,
 }
 
 impl InfraState {
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: PgPool, storage: object_storage::ObjectStorage) -> Self {
         Self {
             pool,
+            storage,
             started_at: Instant::now(),
         }
     }
@@ -72,146 +77,91 @@ pub(crate) struct TableSpec {
 
 pub fn routes(state: InfraState) -> ApiRouter {
     ApiRouter::new()
+        .layer(DefaultBodyLimit::max(
+            max_upload_bytes().saturating_add(64 * 1024),
+        ))
+        .api_route("/infra/capabilities", get(capabilities))
+        .api_route("/infra/config/page", get(config_page))
+        .api_route("/infra/config/get", get(config_get))
+        .api_route("/infra/config/get-value-by-key", get(config_value_by_key))
+        .api_route("/infra/config/create", post(config_create))
+        .api_route("/infra/config/update", put(config_update))
+        .api_route("/infra/config/delete", delete(config_delete))
+        .api_route("/infra/config/delete-list", delete(config_delete_list))
+        .api_route("/infra/config/export-excel", get(excel::config_export))
+        .api_route("/infra/data-source-config/list", get(data_source_list))
+        .api_route("/infra/data-source-config/get", get(data_source_get))
+        .api_route("/infra/data-source-config/create", post(data_source_create))
+        .api_route("/infra/data-source-config/update", put(data_source_update))
         .api_route(
-"/infra/capabilities", get(capabilities))
-        .api_route(
-"/infra/config/page", get(config_page))
-        .api_route(
-"/infra/config/get", get(config_get))
-        .api_route(
-"/infra/config/get-value-by-key", get(config_value_by_key))
-        .api_route(
-"/infra/config/create", post(config_create))
-        .api_route(
-"/infra/config/update", put(config_update))
-        .api_route(
-"/infra/config/delete", delete(config_delete))
-        .api_route(
-"/infra/config/delete-list", delete(config_delete_list))
-        .api_route(
-"/infra/config/export-excel", get(excel::config_export))
-        .api_route(
-"/infra/data-source-config/list", get(data_source_list))
-        .api_route(
-"/infra/data-source-config/get", get(data_source_get))
-        .api_route(
-"/infra/data-source-config/create", post(data_source_create))
-        .api_route(
-"/infra/data-source-config/update", put(data_source_update))
-        .api_route(
-"/infra/data-source-config/delete",
+            "/infra/data-source-config/delete",
             delete(data_source_delete),
         )
         .api_route(
-"/infra/data-source-config/delete-list",
+            "/infra/data-source-config/delete-list",
             delete(data_source_delete_list),
         )
+        .api_route("/infra/file-config/page", get(file_config_page))
+        .api_route("/infra/file-config/get", get(file_config_get))
+        .api_route("/infra/file-config/create", post(file_config_create))
+        .api_route("/infra/file-config/update", put(file_config_update))
+        .api_route("/infra/file-config/update-master", put(file_config_master))
+        .api_route("/infra/file-config/delete", delete(file_config_delete))
         .api_route(
-"/infra/file-config/page", get(file_config_page))
-        .api_route(
-"/infra/file-config/get", get(file_config_get))
-        .api_route(
-"/infra/file-config/create", post(file_config_create))
-        .api_route(
-"/infra/file-config/update", put(file_config_update))
-        .api_route(
-"/infra/file-config/update-master", put(file_config_master))
-        .api_route(
-"/infra/file-config/delete", delete(file_config_delete))
-        .api_route(
-"/infra/file-config/delete-list",
+            "/infra/file-config/delete-list",
             delete(file_config_delete_list),
         )
+        .api_route("/infra/file-config/test", get(ok_bool))
+        .api_route("/infra/file/page", get(file_page))
+        .api_route("/infra/file/create", post(file_create))
+        .api_route("/infra/file/upload", post(file_upload))
+        .api_route("/upload/{*path}", get(file_download))
+        .api_route("/infra/file/presigned-url", get(file_presigned_url))
+        .api_route("/infra/file/delete", delete(file_delete))
+        .api_route("/infra/file/delete-list", delete(file_delete_list))
+        .api_route("/infra/job/page", get(job_page))
+        .api_route("/infra/job/get", get(job_get))
+        .api_route("/infra/job/create", post(job_create))
+        .api_route("/infra/job/update", put(job_update))
+        .api_route("/infra/job/update-status", put(job_update_status))
+        .api_route("/infra/job/trigger", put(job_trigger))
+        .api_route("/infra/job/get_next_times", get(job_next_times))
+        .api_route("/infra/job/sync", post(job_sync))
+        .api_route("/infra/job/delete", delete(job_delete))
+        .api_route("/infra/job/delete-list", delete(job_delete_list))
+        .api_route("/infra/job/export-excel", get(excel::job_export))
+        .api_route("/infra/job-log/page", get(job_log_page))
+        .api_route("/infra/job-log/get", get(job_log_get))
+        .api_route("/infra/job-log/export-excel", get(excel::job_log_export))
+        .api_route("/infra/api-access-log/page", get(api_access_log_page))
         .api_route(
-"/infra/file-config/test", get(ok_bool))
-        .api_route(
-"/infra/file/page", get(file_page))
-        .api_route(
-"/infra/file/create", post(file_create))
-        .api_route(
-"/infra/file/upload", post(file_upload))
-        .api_route(
-"/upload/{*path}", get(file_download))
-        .api_route(
-"/infra/file/presigned-url", get(file_presigned_url))
-        .api_route(
-"/infra/file/delete", delete(file_delete))
-        .api_route(
-"/infra/file/delete-list", delete(file_delete_list))
-        .api_route(
-"/infra/job/page", get(job_page))
-        .api_route(
-"/infra/job/get", get(job_get))
-        .api_route(
-"/infra/job/create", post(job_create))
-        .api_route(
-"/infra/job/update", put(job_update))
-        .api_route(
-"/infra/job/update-status", put(job_update_status))
-        .api_route(
-"/infra/job/trigger", put(job_trigger))
-        .api_route(
-"/infra/job/get_next_times", get(job_next_times))
-        .api_route(
-"/infra/job/sync", post(job_sync))
-        .api_route(
-"/infra/job/delete", delete(job_delete))
-        .api_route(
-"/infra/job/delete-list", delete(job_delete_list))
-        .api_route(
-"/infra/job/export-excel", get(excel::job_export))
-        .api_route(
-"/infra/job-log/page", get(job_log_page))
-        .api_route(
-"/infra/job-log/get", get(job_log_get))
-        .api_route(
-"/infra/job-log/export-excel", get(excel::job_log_export))
-        .api_route(
-"/infra/api-access-log/page", get(api_access_log_page))
-        .api_route(
-"/infra/api-access-log/export-excel",
+            "/infra/api-access-log/export-excel",
             get(excel::api_access_log_export),
         )
+        .api_route("/infra/api-error-log/page", get(api_error_log_page))
         .api_route(
-"/infra/api-error-log/page", get(api_error_log_page))
-        .api_route(
-"/infra/api-error-log/update-status",
+            "/infra/api-error-log/update-status",
             put(api_error_log_update_status),
         )
         .api_route(
-"/infra/api-error-log/export-excel",
+            "/infra/api-error-log/export-excel",
             get(excel::api_error_log_export),
         )
-        .api_route(
-"/infra/redis/get-monitor-info", get(redis_monitor_info))
-        .api_route(
-"/infra/monitor/postgresql", get(monitor::postgresql))
-        .api_route(
-"/infra/monitor/rust", get(monitor::rust_service))
-        .api_route(
-"/infra/monitor/traces", get(monitor::traces))
-        .api_route(
-"/infra/codegen/table/list", get(codegen_table_list))
-        .api_route(
-"/infra/codegen/table/page", get(codegen_table_page))
-        .api_route(
-"/infra/codegen/detail", get(codegen_detail))
-        .api_route(
-"/infra/codegen/update", put(codegen_update))
-        .api_route(
-"/infra/codegen/sync-from-db", put(codegen_sync_from_db))
-        .api_route(
-"/infra/codegen/preview", get(codegen_preview))
-        .api_route(
-"/infra/codegen/download", get(codegen_download))
-        .api_route(
-"/infra/codegen/db/table/list", get(codegen_db_table_list))
-        .api_route(
-"/infra/codegen/create-list", post(codegen_create_list))
-        .api_route(
-"/infra/codegen/delete", delete(codegen_delete))
-        .api_route(
-"/infra/codegen/delete-list", delete(codegen_delete_list))
+        .api_route("/infra/redis/get-monitor-info", get(redis_monitor_info))
+        .api_route("/infra/monitor/postgresql", get(monitor::postgresql))
+        .api_route("/infra/monitor/rust", get(monitor::rust_service))
+        .api_route("/infra/monitor/traces", get(monitor::traces))
+        .api_route("/infra/codegen/table/list", get(codegen_table_list))
+        .api_route("/infra/codegen/table/page", get(codegen_table_page))
+        .api_route("/infra/codegen/detail", get(codegen_detail))
+        .api_route("/infra/codegen/update", put(codegen_update))
+        .api_route("/infra/codegen/sync-from-db", put(codegen_sync_from_db))
+        .api_route("/infra/codegen/preview", get(codegen_preview))
+        .api_route("/infra/codegen/download", get(codegen_download))
+        .api_route("/infra/codegen/db/table/list", get(codegen_db_table_list))
+        .api_route("/infra/codegen/create-list", post(codegen_create_list))
+        .api_route("/infra/codegen/delete", delete(codegen_delete))
+        .api_route("/infra/codegen/delete-list", delete(codegen_delete_list))
         .merge(provider::routes())
         .merge(room::routes())
         .merge(cloud_platform::routes())
@@ -472,6 +422,7 @@ async fn file_upload(
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let mut uploaded: Option<(String, String, Vec<u8>)> = None;
+    let max_bytes = max_upload_bytes();
     while let Some(field) = multipart
         .next_field()
         .await
@@ -486,11 +437,22 @@ async fn file_upload(
             .content_type()
             .map(ToString::to_string)
             .unwrap_or_else(|| "application/octet-stream".to_owned());
-        let bytes = field
-            .bytes()
+        let mut field = field;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = field
+            .chunk()
             .await
             .map_err(|_| AppError::bad_request("failed to read upload file"))?
-            .to_vec();
+        {
+            if bytes.len().saturating_add(chunk.len()) > max_bytes {
+                return Err(AppError::new(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    413,
+                    "file exceeds the upload size limit",
+                ));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
         uploaded = Some((file_name, content_type, bytes));
         break;
     }
@@ -500,33 +462,53 @@ async fn file_upload(
     let date = Utc::now().format("%Y%m%d").to_string();
     let object_name = format!("{}_{}", Utc::now().timestamp_millis(), name);
     let relative_path = format!("{date}/{object_name}");
-    let storage_path = upload_storage_dir().join(&relative_path);
-    if let Some(parent) = storage_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|_| AppError::internal("failed to prepare upload directory"))?;
-    }
-    tokio::fs::write(&storage_path, &bytes)
-        .await
-        .map_err(|_| AppError::internal("failed to save upload file"))?;
-    let path = format!("/upload/{relative_path}");
     let size = i32::try_from(bytes.len()).unwrap_or(i32::MAX);
-    let id = sqlx::query_scalar::<_, i64>("INSERT INTO infra_file (id, name, path, url, type, size) VALUES (nextval('infra_file_seq'),$1,$2,$3,$4,$5) RETURNING id")
+    if let Err(error) = state
+        .storage
+        .put(&relative_path, &content_type, bytes)
+        .await
+    {
+        warn!(%error, "failed to upload file to RustFS");
+        return Err(AppError::internal("failed to save file to object storage"));
+    }
+    let path = format!("/upload/{relative_path}");
+    let id = match sqlx::query_scalar::<_, i64>("INSERT INTO infra_file (id, name, path, url, type, size) VALUES (nextval('infra_file_seq'),$1,$2,$3,$4,$5) RETURNING id")
         .bind(&name).bind(&path).bind(&path).bind(&content_type).bind(size)
-        .fetch_one(&state.pool).await.map_err(|_| AppError::internal("failed to upload file"))?;
+        .fetch_one(&state.pool).await {
+        Ok(id) => id,
+        Err(error) => {
+            warn!(%error, object_key = %relative_path, "failed to save uploaded file metadata");
+            if let Err(storage_error) = state.storage.delete(&relative_path).await {
+                warn!(%storage_error, object_key = %relative_path, "failed to clean up orphaned RustFS object");
+            }
+            return Err(AppError::internal("failed to upload file"));
+        }
+    };
     Ok(Json(ApiResponse::new(
         json!({"id": id, "name": name, "path": path, "url": path, "type": content_type, "size": size}),
     )))
 }
 
-async fn file_download(Path(path): Path<String>) -> Result<Response, AppError> {
+async fn file_download(
+    State(state): State<InfraState>,
+    Path(path): Path<String>,
+) -> Result<Response, AppError> {
     if path.split('/').any(|part| part == ".." || part.is_empty()) {
         return Err(AppError::bad_request("invalid file path"));
     }
-    let storage_path = upload_storage_dir().join(&path);
-    let bytes = tokio::fs::read(&storage_path)
+    let bytes = state
+        .storage
+        .get(&path)
         .await
-        .map_err(|_| AppError::not_found("file not found"))?;
+        .map_err(|error| {
+            match error {
+                object_storage::ObjectReadError::NotFound => AppError::not_found("file not found"),
+                object_storage::ObjectReadError::Unavailable(error) => {
+                    warn!(%error, object_key = %path, "RustFS file download failed");
+                    AppError::internal("object storage is unavailable")
+                }
+            }
+        })?;
     let content_type = infer_content_type(&path);
     Response::builder()
         .header(header::CONTENT_TYPE, content_type)
@@ -534,10 +516,13 @@ async fn file_download(Path(path): Path<String>) -> Result<Response, AppError> {
         .map_err(|_| AppError::internal("failed to read file"))
 }
 
-fn upload_storage_dir() -> std::path::PathBuf {
-    env::var("INFRA_UPLOAD_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::PathBuf::from("storage/uploads"))
+fn max_upload_bytes() -> usize {
+    env::var("INFRA_UPLOAD_MAX_BYTES")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(50 * 1024 * 1024)
+        .min(i32::MAX as usize)
 }
 
 fn sanitize_file_name(value: &str) -> String {
@@ -572,31 +557,93 @@ fn infer_content_type(path: &str) -> &'static str {
 }
 
 async fn file_presigned_url(
+    State(state): State<InfraState>,
     Query(params): Query<HashMap<String, String>>,
-) -> Json<ApiResponse<Value>> {
-    let name = params.get("name").cloned().unwrap_or_else(|| "file".into());
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let size = params
+        .get("size")
+        .and_then(|size| size.parse::<usize>().ok())
+        .ok_or_else(|| AppError::bad_request("file size is required"))?;
+    if size > max_upload_bytes() {
+        return Err(AppError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            413,
+            "file exceeds the upload size limit",
+        ));
+    }
+    let name = params
+        .get("name")
+        .map(|name| sanitize_file_name(name))
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "file".into());
     let directory = params
         .get("directory")
-        .cloned()
+        .map(|value| sanitize_file_name(value))
+        .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "upload".into());
-    let path = format!("/{directory}/{name}");
-    Json(ApiResponse::new(
-        json!({"configId": 1, "uploadUrl": path, "url": path, "path": path}),
-    ))
+    let key = format!("{directory}/{}_{}_{}", Utc::now().format("%Y%m%d"), uuid::Uuid::new_v4(), name);
+    let upload_url = state
+        .storage
+        .presign_put(&key, size as i64)
+        .await
+        .map_err(|_| AppError::internal("failed to prepare RustFS upload URL"))?;
+    let path = format!("/upload/{key}");
+    Ok(Json(ApiResponse::new(json!({
+        "configId": 1,
+        "uploadUrl": upload_url,
+        "url": path,
+        "path": path
+    }))))
 }
 
 async fn file_delete(
     State(state): State<InfraState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, "infra_file", id_param(&params)?).await
+    delete_file_record(&state, id_param(&params)?).await?;
+    Ok(Json(ApiResponse::new(())))
 }
 
 async fn file_delete_list(
     State(state): State<InfraState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete_list(&state.pool, "infra_file", ids_param(&params)).await
+    for id in ids_param(&params) {
+        delete_file_record(&state, id).await?;
+    }
+    Ok(Json(ApiResponse::new(())))
+}
+
+async fn delete_file_record(state: &InfraState, id: i64) -> Result<(), AppError> {
+    let path = sqlx::query_scalar::<_, String>(
+        "SELECT path FROM infra_file WHERE id=$1 AND deleted=0",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to load file metadata"))?
+    .ok_or_else(|| AppError::not_found("file not found"))?;
+
+    if let Some(key) = object_key_from_upload_path(&path) {
+        state
+            .storage
+            .delete(key)
+            .await
+            .map_err(|error| {
+                warn!(%error, object_key = %key, "failed to delete file from RustFS");
+                AppError::internal("failed to delete file from object storage")
+            })?;
+    }
+    let _ = soft_delete(&state.pool, "infra_file", id).await?;
+    Ok(())
+}
+
+fn object_key_from_upload_path(path: &str) -> Option<&str> {
+    let key = path.strip_prefix("/upload/")?;
+    if key.is_empty() || key.split('/').any(|part| part.is_empty() || part == "." || part == "..") {
+        return None;
+    }
+    Some(key)
 }
 
 async fn job_page(
@@ -1188,37 +1235,6 @@ async fn insert_codegen_columns_in_tx(
     }
     Ok(())
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 pub(crate) async fn table_page(
     pool: &PgPool,

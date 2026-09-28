@@ -437,11 +437,7 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         Some("infra:asset:query"),
     ),
     ("GET", "/infra/inspection/list", Some("infra:task:query")),
-    (
-        "GET",
-        "/infra/inspection/results",
-        Some("infra:task:query"),
-    ),
+    ("GET", "/infra/inspection/results", Some("infra:task:query")),
     (
         "GET",
         "/infra/job-log/export-excel",
@@ -579,6 +575,8 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         Some("infra:approval-rule:create"),
     ),
     ("POST", "/infra/asset/create", Some("infra:asset:create")),
+    ("POST", "/infra/asset/discover", Some("infra:asset:update")),
+    ("POST", "/infra/asset/sync-cmdb", Some("infra:asset:update")),
     (
         "POST",
         "/infra/asset/{id}/port/add",
@@ -593,6 +591,11 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         "POST",
         "/infra/cloud-asset/create",
         Some("infra:cloud-asset:create"),
+    ),
+    (
+        "POST",
+        "/infra/cloud-asset/discover",
+        Some("infra:cloud-asset:update"),
     ),
     (
         "POST",
@@ -876,7 +879,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 198);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 201);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),
@@ -895,6 +898,10 @@ mod tests {
         );
         assert_eq!(
             required_permission("DELETE", "/infra/asset/{id}/port/{port}"),
+            Some(Some("infra:asset:update"))
+        );
+        assert_eq!(
+            required_permission("POST", "/infra/asset/sync-cmdb"),
             Some(Some("infra:asset:update"))
         );
         assert_eq!(

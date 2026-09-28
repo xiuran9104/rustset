@@ -51,11 +51,15 @@ export function deleteFileList(ids: number[]) {
 }
 
 /** 获取文件预签名地址 */
-export function getFilePresignedUrl(name: string, directory?: string) {
+export function getFilePresignedUrl(
+  name: string,
+  directory: string | undefined,
+  size: number,
+) {
   return requestClient.get<InfraFileApi.FilePresignedUrlRespVO>(
     '/infra/file/presigned-url',
     {
-      params: { name, directory },
+      params: { name, directory, size },
     },
   );
 }

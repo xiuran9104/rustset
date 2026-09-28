@@ -1,19 +1,25 @@
 <script lang="ts" setup>
+import type { CmdbAttribute, CmdbModel } from '#/api/cmdb';
+
 import { computed, onMounted, ref } from 'vue';
+
 import { Page } from '@vben/common-ui';
+
 import { message } from 'ant-design-vue';
+
 import {
   ATTR_TYPES,
   createAttribute,
+  createAttributeTrigger,
   createModel,
   deleteAttribute,
   deleteModel,
   getAttributesByModel,
+  getAttributeTriggers,
   getModelList,
   updateAttribute,
   updateModel,
 } from '#/api/cmdb';
-import type { CmdbAttribute, CmdbModel } from '#/api/cmdb';
 
 const models = ref<CmdbModel[]>([]);
 const loading = ref(false);
@@ -27,12 +33,23 @@ const attrDrawerVisible = ref(false);
 const currentModel = ref<CmdbModel | null>(null);
 const newAttr = ref<CmdbAttribute>(defaultAttr());
 const choicesText = ref('');
+const computedAttribute = ref(false);
+const triggers = ref<any[]>([]);
+const triggerForm = ref({ name: '', conditionCode: '', conditionValue: '', actionCode: '', actionValue: '', enabled: true });
 
 function defaultModel(): CmdbModel {
   return { name: '', code: '', description: '', icon: '', uniqueKey: '', sort: 0 };
 }
 function defaultAttr(): CmdbAttribute {
-  return { name: '', code: '', attrType: 'text', required: false, showInList: true, sort: 0 };
+  return {
+    name: '',
+    code: '',
+    attrType: 'text',
+    required: false,
+    defaultValue: undefined,
+    showInList: true,
+    sort: 0,
+  };
 }
 
 async function fetchModels() {
@@ -83,7 +100,7 @@ async function removeModel(row: CmdbModel) {
 }
 
 // ---------- 属性管理 ----------
-function parseChoices(text: string): { label: string; value: string }[] | null {
+function parseChoices(text: string): null | { label: string; value: string }[] {
   const items = text
     .split(/[\n,，]/)
     .map((item) => item.trim())
@@ -101,20 +118,89 @@ function choicesToText(choices: CmdbAttribute['choices']): string {
   return choices.map((item) => `${item.label}:${item.value}`).join('\n');
 }
 
+function defaultValueToText(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+function normalizeDefaultValue(attr: CmdbAttribute): unknown {
+  const value = attr.defaultValue;
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') return value;
+  const text = value.trim();
+  if (!text) return null;
+  if (attr.attrType === 'number') {
+    if (!/^-?\d+$/.test(text)) throw new Error('整数默认值格式不正确');
+    return Number(text);
+  }
+  if (attr.attrType === 'float') {
+    const parsed = Number(text);
+    if (!Number.isFinite(parsed)) throw new Error('浮点数默认值格式不正确');
+    return parsed;
+  }
+  if (attr.attrType === 'bool') {
+    if (text === 'true') return true;
+    if (text === 'false') return false;
+    throw new Error('布尔默认值只能填写 true 或 false');
+  }
+  if (attr.attrType === 'json' || attr.attrType === 'multi_select') {
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error('JSON 默认值格式不正确');
+    }
+  }
+  return text;
+}
+
 async function openAttributes(row: CmdbModel) {
   currentModel.value = row;
   attrDrawerVisible.value = true;
-  attributes.value = (await getAttributesByModel(row.id!)) as any;
+  attributes.value = ((await getAttributesByModel(row.id!)) as CmdbAttribute[]).map((attr) => ({
+    ...attr,
+    isComputed: Boolean(attr.expression),
+  }));
+  triggers.value = (await getAttributeTriggers(row.id!)) as any;
+}
+async function addTrigger() {
+  if (!currentModel.value?.id) return;
+  try {
+    await createAttributeTrigger({ modelId: currentModel.value.id, ...triggerForm.value, conditionValue: JSON.parse(triggerForm.value.conditionValue), actionValue: JSON.parse(triggerForm.value.actionValue) });
+    triggers.value = (await getAttributeTriggers(currentModel.value.id)) as any;
+    triggerForm.value = { name: '', conditionCode: '', conditionValue: '', actionCode: '', actionValue: '', enabled: true };
+    message.success('触发器已添加');
+  } catch (error: any) { message.error(error?.message || '触发器保存失败'); }
 }
 async function reloadAttributes() {
   if (currentModel.value?.id) {
-    attributes.value = (await getAttributesByModel(currentModel.value.id)) as any;
+    attributes.value = ((await getAttributesByModel(currentModel.value.id)) as CmdbAttribute[]).map((attr) => ({
+      ...attr,
+      isComputed: Boolean(attr.expression),
+    }));
   }
 }
 async function addAttribute() {
   if (!currentModel.value?.id) return;
   const attr = { ...newAttr.value, modelId: currentModel.value.id };
+  if (computedAttribute.value) {
+    if (!attr.expression?.trim()) {
+      message.warning('请输入计算表达式');
+      return;
+    }
+    if (!['float', 'number'].includes(attr.attrType)) {
+      message.warning('计算属性类型只支持整数或浮点数');
+      return;
+    }
+    attr.required = false;
+    attr.defaultValue = undefined;
+  } else {
+    attr.expression = undefined;
+  }
   if (attr.attrType === 'select' || attr.attrType === 'multi_select') {
+    if (computedAttribute.value) {
+      message.warning('计算属性只支持数值类型');
+      return;
+    }
     attr.choices = parseChoices(choicesText.value);
     if (!attr.choices) {
       message.warning('单选/多选属性需要至少一个选项（格式：标签:值，逗号或换行分隔）');
@@ -122,9 +208,10 @@ async function addAttribute() {
     }
   }
   try {
-    await createAttribute(attr);
+    await createAttribute({ ...attr, defaultValue: normalizeDefaultValue(attr) });
     message.success('属性已添加');
     newAttr.value = defaultAttr();
+    computedAttribute.value = false;
     choicesText.value = '';
     reloadAttributes();
     fetchModels();
@@ -134,7 +221,11 @@ async function addAttribute() {
 }
 async function saveAttribute(row: CmdbAttribute) {
   try {
-    await updateAttribute(row as any);
+    await updateAttribute({
+      ...row,
+      expression: row.isComputed ? row.expression : undefined,
+      defaultValue: normalizeDefaultValue(row),
+    } as CmdbAttribute & { id: number });
     message.success(`属性 ${row.name} 已保存`);
     fetchModels();
   } catch (error: any) {
@@ -285,7 +376,7 @@ const columns = [
       <a-drawer
         v-model:open="attrDrawerVisible"
         :title="`属性管理 · ${currentModel?.name ?? ''}`"
-        width="860"
+        width="980"
       >
         <a-alert
           type="info"
@@ -295,6 +386,7 @@ const columns = [
         />
         <a-card size="small" title="新增属性" style="margin-bottom: 16px">
           <a-row :gutter="12">
+            <a-input v-model:value="newAttr.color" type="color" style="width: 48px; padding: 2px; margin-bottom: 8px" />
             <a-col :span="5"><a-input v-model:value="newAttr.name" placeholder="属性名称" /></a-col>
             <a-col :span="5"><a-input v-model:value="newAttr.code" placeholder="属性编码" /></a-col>
             <a-col :span="4">
@@ -304,15 +396,31 @@ const columns = [
             <a-col :span="2" style="text-align: center"><a-checkbox v-model:checked="newAttr.showInList">列表</a-checkbox></a-col>
             <a-col :span="2"><a-input-number v-model:value="newAttr.sort" :min="0" style="width: 100%" placeholder="排序" /></a-col>
             <a-col :span="4">
-              <a-button v-access:code="['cmdb:attribute:create']" type="primary" @click="addAttribute">添加</a-button>
+              <a-space>
+                <a-checkbox v-model:checked="computedAttribute">计算属性</a-checkbox>
+                <a-button v-access:code="['cmdb:attribute:create']" type="primary" @click="addAttribute">添加</a-button>
+              </a-space>
             </a-col>
           </a-row>
           <a-textarea
-            v-if="needsChoices"
+            v-if="computedAttribute"
+            v-model:value="newAttr.expression"
+            :rows="2"
+            style="margin-top: 8px"
+            placeholder="公式示例：${cpu_count} * ${core_count} + 1"
+          />
+          <a-textarea
+            v-if="needsChoices && !computedAttribute"
             v-model:value="choicesText"
             :rows="2"
             style="margin-top: 8px"
             placeholder="选项（每行一个，格式 标签:值，例如 核心:core）"
+          />
+          <a-input
+            v-if="!computedAttribute"
+            v-model:value="newAttr.defaultValue"
+            style="margin-top: 8px"
+            placeholder="默认值（整数/浮点/布尔按原值填写，多选和 JSON 使用 JSON 格式，可留空）"
           />
         </a-card>
         <a-table
@@ -323,6 +431,10 @@ const columns = [
             { title: '必填', key: 'required', width: 70 },
             { title: '列表显示', key: 'showInList', width: 90 },
             { title: '选项', key: 'choices', ellipsis: true },
+            { title: '默认值', key: 'defaultValue', width: 150 },
+            { title: '计算', key: 'isComputed', width: 85 },
+            { title: '计算表达式', key: 'expression', width: 200 },
+            { title: '字体颜色', key: 'color', width: 130 },
             { title: '排序', key: 'sort', width: 70 },
             { title: '操作', key: 'actions', width: 130 },
           ]"
@@ -358,16 +470,51 @@ const columns = [
             <template v-if="column.key === 'sort'">
               <a-input-number v-model:value="record.sort" size="small" :min="0" style="width: 100%" />
             </template>
+            <template v-if="column.key === 'defaultValue'">
+              <a-input
+                :value="defaultValueToText(record.defaultValue)"
+                size="small"
+                placeholder="无默认值"
+                @change="(e: any) => (record.defaultValue = e.target.value || undefined)"
+              />
+            </template>
+            <template v-if="column.key === 'expression'">
+              <a-input
+                v-model:value="record.expression"
+                size="small"
+                :disabled="!record.isComputed"
+                placeholder="${a} * ${b}"
+              />
+            </template>
+            <template v-if="column.key === 'color'">
+              <a-input v-model:value="record.color" type="color" size="small" style="width: 72px; padding: 2px" />
+            </template>
+            <template v-if="column.key === 'isComputed'">
+              <a-switch v-model:checked="record.isComputed" size="small" />
+            </template>
             <template v-if="column.key === 'actions'">
               <a-space>
                 <a-button v-access:code="['cmdb:attribute:update']" type="link" size="small" @click="saveAttribute(record)">保存</a-button>
-                <a-popconfirm title="确认删除该属性？" @confirm="removeAttribute(record)">
+                <a-popconfirm title="确认删除该属性及所有实例中的对应字段值？" @confirm="removeAttribute(record)">
                   <a-button v-access:code="['cmdb:attribute:delete']" type="link" size="small" danger>删除</a-button>
                 </a-popconfirm>
               </a-space>
             </template>
           </template>
         </a-table>
+        <a-card size="small" title="属性触发器" style="margin-top: 16px">
+          <a-row :gutter="8">
+            <a-col :span="5"><a-input v-model:value="triggerForm.name" placeholder="规则名称" /></a-col>
+            <a-col :span="4"><a-input v-model:value="triggerForm.conditionCode" placeholder="条件字段" /></a-col>
+            <a-col :span="4"><a-input v-model:value="triggerForm.conditionValue" placeholder="条件值 JSON" /></a-col>
+            <a-col :span="4"><a-input v-model:value="triggerForm.actionCode" placeholder="目标字段" /></a-col>
+            <a-col :span="4"><a-input v-model:value="triggerForm.actionValue" placeholder="写入值 JSON" /></a-col>
+            <a-col :span="3"><a-button type="primary" @click="addTrigger">添加</a-button></a-col>
+          </a-row>
+          <a-list v-if="triggers.length" size="small" :data-source="triggers" style="margin-top: 8px">
+            <template #renderItem="{ item }"><a-list-item>{{ item.name }}：{{ item.conditionCode }} = {{ item.conditionValue }} → {{ item.actionCode }} = {{ item.actionValue }}</a-list-item></template>
+          </a-list>
+        </a-card>
       </a-drawer>
     </div>
   </Page>

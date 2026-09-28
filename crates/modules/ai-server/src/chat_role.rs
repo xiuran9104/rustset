@@ -1,7 +1,6 @@
 use crate::{AiState, require};
-use schemars::JsonSchema;
-use aide::axum::routing::{delete, get, post, put};
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     extract::{Query, State},
@@ -9,30 +8,22 @@ use axum::{
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
 
 pub(crate) fn routes() -> ApiRouter<AiState> {
     ApiRouter::new()
-        .api_route(
-"/ai/chat-role/page", get(page))
-        .api_route(
-"/ai/chat-role/my-page", get(my_page))
-        .api_route(
-"/ai/chat-role/get", get(get_one))
-        .api_route(
-"/ai/chat-role/category-list", get(categories))
-        .api_route(
-"/ai/chat-role/create", post(create_admin))
-        .api_route(
-"/ai/chat-role/create-my", post(create_my))
-        .api_route(
-"/ai/chat-role/update", put(update))
-        .api_route(
-"/ai/chat-role/delete", delete(remove_admin))
-        .api_route(
-"/ai/chat-role/delete-my", delete(remove_my))
+        .api_route("/ai/chat-role/page", get(page))
+        .api_route("/ai/chat-role/my-page", get(my_page))
+        .api_route("/ai/chat-role/get", get(get_one))
+        .api_route("/ai/chat-role/category-list", get(categories))
+        .api_route("/ai/chat-role/create", post(create_admin))
+        .api_route("/ai/chat-role/create-my", post(create_my))
+        .api_route("/ai/chat-role/update", put(update))
+        .api_route("/ai/chat-role/delete", delete(remove_admin))
+        .api_route("/ai/chat-role/delete-my", delete(remove_my))
 }
 fn now() -> i64 {
     chrono::Utc::now().timestamp_millis()

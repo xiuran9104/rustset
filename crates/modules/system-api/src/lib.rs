@@ -1,5 +1,5 @@
-use serde::{Deserialize, Deserializer, Serialize, de};
 use schemars::JsonSchema;
+use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::Value;
 
 #[derive(Debug, Serialize, JsonSchema)]

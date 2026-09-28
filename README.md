@@ -28,7 +28,7 @@ Rust Gateway (Axum)
   `-- ai           统一模型、对话、知识库与媒体生成
           |
           v
-PostgreSQL / Redis / NATS / MinIO
+PostgreSQL / Redis / NATS / RustFS
 ```
 
 数据库迁移由网关启动时的 SQLx Migrator 统一执行。`sql/bootstrap/current.sql` 仅供审查和比对，应用启动不依赖该快照。
@@ -43,11 +43,18 @@ PostgreSQL / Redis / NATS / MinIO
 
 ## 本地启动
 
-启动 PostgreSQL、Redis、NATS 和 MinIO：
+启动 PostgreSQL、Redis、NATS 和 RustFS：
 
 ```bash
 docker compose -f script/docker/docker-compose.yml up -d
 ```
+
+RustFS 的 S3 API 地址为 `http://127.0.0.1:9000`，控制台地址为
+`http://127.0.0.1:9001/rustfs/console/`。本地默认账号为 `rustset`，密码为
+`rustset_password`；部署前通过 `RUSTFS_ACCESS_KEY` 和 `RUSTFS_SECRET_KEY`
+覆盖默认值。网关启动时会确保 `rustset` bucket 存在；服务端上传、前端预签名直传和文件下载均通过 S3 API 读写 RustFS。已有本地上传文件需要另行迁移到 bucket。
+
+旧版本地文件迁移并清理：`bash script/migrate-local-uploads-to-rustfs.sh`。脚本会先校验全部对象大小，再删除对应本地文件。单文件上传默认限制为 50 MiB，可通过 `INFRA_UPLOAD_MAX_BYTES` 调整。
 
 启动网关：
 

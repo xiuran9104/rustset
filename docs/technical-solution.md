@@ -23,7 +23,7 @@ services/gateway                # Axum HTTP 网关、OpenAPI、迁移启动
   +-- PostgreSQL                 # 业务数据和 SQLx 迁移
   +-- Redis                      # 缓存、会话辅助与限流
   +-- NATS                       # 消息基础设施
-  `-- MinIO                      # 对象存储
+  `-- RustFS                      # 对象存储
 ```
 
 ## Rust 工作区边界

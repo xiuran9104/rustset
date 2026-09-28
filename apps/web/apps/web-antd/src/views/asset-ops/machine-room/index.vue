@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 import {
@@ -14,6 +14,7 @@ import { useCrudList } from '../composables/useCrudList';
 
 type MachineRoom = ScanMachineRoomApi.MachineRoom;
 const providers = ref<any[]>([]);
+const treeVisible = ref(false);
 
 const {
   loading, modalVisible, editingId, searchText, form,
@@ -29,6 +30,26 @@ const {
   searchKeys: ['room_name', 'room_code', 'address'],
 });
 onMounted(async () => { providers.value = await getServiceProviderList() as any; });
+const roomTree = computed(() => {
+  const groups = new Map<number, any>();
+  for (const room of filtered.value) {
+    const provider = providers.value.find((item) => item.id === room.provider_id);
+    const providerId = room.provider_id || 0;
+    let providerNode = groups.get(providerId);
+    if (!providerNode) {
+      providerNode = { key: `provider-${providerId}`, title: provider?.provider_name || '未分配服务商', children: [] };
+      groups.set(providerId, providerNode);
+    }
+    const typeKey = `${providerId}-${room.room_type || '未分类'}`;
+    let typeNode = providerNode.children.find((item: any) => item.key === `type-${typeKey}`);
+    if (!typeNode) {
+      typeNode = { key: `type-${typeKey}`, title: room.room_type || '未分类', children: [] };
+      providerNode.children.push(typeNode);
+    }
+    typeNode.children.push({ key: `room-${room.id}`, title: `${room.room_name}（${room.room_code}）`, isLeaf: true });
+  }
+  return [...groups.values()];
+});
 function openCreate() {
   if (!providers.value.length) {
     message.warning('请先创建服务商');
@@ -63,6 +84,7 @@ const statusMap:Record<string,{color:string;label:string}> = { active:{color:'gr
         <a-button @click="fetchData">刷新</a-button>
         <a-input-search v-model:value="searchText" placeholder="搜索机房" style="width:240px" allow-clear />
       </a-space>
+        <a-button style="margin-bottom: 12px" @click="treeVisible = true">层级视图</a-button>
         <a-table :columns="columns" :data-source="filtered" :loading="loading" row-key="id" size="middle" :pagination="{pageSize:20}">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key==='room_name'"><Icon icon="lucide:warehouse" style="color:var(--ant-color-primary);margin-right:6px" />{{ record.room_name }}</template>
@@ -96,6 +118,10 @@ const statusMap:Record<string,{color:string;label:string}> = { active:{color:'gr
           </a-row>
         </a-form>
       </a-modal>
+      <a-drawer v-model:open="treeVisible" title="机房层级视图" width="420px">
+        <a-empty v-if="!roomTree.length" description="暂无机房" />
+        <a-tree v-else :tree-data="roomTree" default-expand-all />
+      </a-drawer>
     </div>
   </Page>
 </template>

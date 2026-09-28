@@ -19,20 +19,13 @@ const SECURITY: TableSpec = TableSpec {
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
-        .api_route(
-"/infra/security-product/page", get(page))
-        .api_route(
-"/infra/security-product/list", get(list))
-        .api_route(
-"/infra/security-product/get", get(get_one))
-        .api_route(
-"/infra/security-product/create", post(create))
-        .api_route(
-"/infra/security-product/update", put(update))
-        .api_route(
-"/infra/security-product/delete", delete(delete_one))
-        .api_route(
-"/infra/security-product/delete-list", delete(delete_list))
+        .api_route("/infra/security-product/page", get(page))
+        .api_route("/infra/security-product/list", get(list))
+        .api_route("/infra/security-product/get", get(get_one))
+        .api_route("/infra/security-product/create", post(create))
+        .api_route("/infra/security-product/update", put(update))
+        .api_route("/infra/security-product/delete", delete(delete_one))
+        .api_route("/infra/security-product/delete-list", delete(delete_list))
 }
 
 async fn page(

@@ -15,22 +15,14 @@ use uuid::Uuid;
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
-        .api_route(
-"/infra/task/page", get(page))
-        .api_route(
-"/infra/task/list", get(list))
-        .api_route(
-"/infra/task/get", get(get_one))
-        .api_route(
-"/infra/task/create", post(create))
-        .api_route(
-"/infra/task/update", put(update))
-        .api_route(
-"/infra/task/delete", delete(delete_one))
-        .api_route(
-"/infra/task/delete-list", delete(delete_list))
-        .api_route(
-"/infra/task/trigger-scan", post(trigger_scan))
+        .api_route("/infra/task/page", get(page))
+        .api_route("/infra/task/list", get(list))
+        .api_route("/infra/task/get", get(get_one))
+        .api_route("/infra/task/create", post(create))
+        .api_route("/infra/task/update", put(update))
+        .api_route("/infra/task/delete", delete(delete_one))
+        .api_route("/infra/task/delete-list", delete(delete_list))
+        .api_route("/infra/task/trigger-scan", post(trigger_scan))
 }
 
 async fn page(

@@ -1,9 +1,6 @@
-use aide::axum::routing::{get};
 use aide::axum::ApiRouter;
-use axum::{
-    Json,
-    extract::State,
-};
+use aide::axum::routing::get;
+use axum::{Json, extract::State};
 use chrono::{DateTime, Utc};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::{CurrentUser, Permission};
@@ -17,8 +14,7 @@ use uuid::Uuid;
 use crate::SystemState;
 
 pub fn routes() -> ApiRouter<SystemState> {
-    ApiRouter::new().api_route(
-"/system/audit-logs", get(list_audit_logs))
+    ApiRouter::new().api_route("/system/audit-logs", get(list_audit_logs))
 }
 
 pub async fn record(

@@ -1,6 +1,5 @@
-use aide::axum::routing::{get, post};
-use schemars::JsonSchema;
 use aide::axum::ApiRouter;
+use aide::axum::routing::{get, post};
 use axum::{
     Json,
     extract::{Query, State},
@@ -13,6 +12,7 @@ use rustset_system_api::{
     CurrentUserResponse, LoginRequest, LogoutRequest, RefreshTokenRequest, SystemCapability,
     TokenResponse,
 };
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -20,29 +20,22 @@ use crate::{SystemState, application};
 
 pub fn routes(state: SystemState) -> ApiRouter {
     let protected = ApiRouter::new()
-        .api_route(
-"/system/auth/me", get(me))
-        .api_route(
-"/system/auth/get-permission-info", get(permission_info))
+        .api_route("/system/auth/me", get(me))
+        .api_route("/system/auth/get-permission-info", get(permission_info))
         .merge(crate::audit::routes())
         .merge(crate::management::routes())
         .route_layer(from_fn_with_state(state.tokens.clone(), authenticate));
 
     ApiRouter::new()
+        .api_route("/system/capabilities", get(capabilities))
+        .api_route("/system/auth/login", post(login))
+        .api_route("/system/tenant/simple-list", get(tenant_simple_list))
+        .api_route("/system/tenant/get-by-website", get(tenant_by_website))
         .api_route(
-"/system/capabilities", get(capabilities))
-        .api_route(
-"/system/auth/login", post(login))
-        .api_route(
-"/system/tenant/simple-list", get(tenant_simple_list))
-        .api_route(
-"/system/tenant/get-by-website", get(tenant_by_website))
-        .api_route(
-"/system/auth/refresh-token",
+            "/system/auth/refresh-token",
             get(refresh_token).post(refresh_token),
         )
-        .api_route(
-"/system/auth/logout", post(logout))
+        .api_route("/system/auth/logout", post(logout))
         .merge(protected)
         .with_state(state)
 }

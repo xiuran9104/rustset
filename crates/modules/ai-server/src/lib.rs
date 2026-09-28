@@ -11,9 +11,8 @@ mod write;
 
 pub use factory::AiModelFactory;
 
-use aide::axum::routing::{delete, get, post, put};
-use schemars::JsonSchema;
 use aide::axum::ApiRouter;
+use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     extract::{Query, State},
@@ -27,6 +26,7 @@ use rustset_framework_common::ApiResponse;
 use rustset_framework_database::PgPool;
 use rustset_framework_security::{CurrentUser, Permission, TokenService, authenticate};
 use rustset_framework_web::AppError;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -63,24 +63,15 @@ fn require(user: &CurrentUser, code: &str) -> Result<(), AppError> {
 
 pub fn routes(state: AiState) -> ApiRouter {
     let protected = ApiRouter::new()
-        .api_route(
-"/ai/model/page", get(page))
-        .api_route(
-"/ai/model/simple-list", get(simple_list))
-        .api_route(
-"/ai/model/get", get(get_one))
-        .api_route(
-"/ai/model/create", post(create))
-        .api_route(
-"/ai/model/update", put(update))
-        .api_route(
-"/ai/model/delete", delete(remove))
-        .api_route(
-"/ai/model/test", post(test))
-        .api_route(
-"/ai/model/discover", post(discover_models))
-        .api_route(
-"/ai/model/platforms", get(platforms))
+        .api_route("/ai/model/page", get(page))
+        .api_route("/ai/model/simple-list", get(simple_list))
+        .api_route("/ai/model/get", get(get_one))
+        .api_route("/ai/model/create", post(create))
+        .api_route("/ai/model/update", put(update))
+        .api_route("/ai/model/delete", delete(remove))
+        .api_route("/ai/model/test", post(test))
+        .api_route("/ai/model/discover", post(discover_models))
+        .api_route("/ai/model/platforms", get(platforms))
         .merge(chat::routes())
         .merge(chat_role::routes())
         .merge(midjourney::routes())
