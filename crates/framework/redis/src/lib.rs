@@ -66,6 +66,12 @@ impl RedisClient {
         format!("{}:{}:{}", self.key_prefix, namespace, id.as_ref())
     }
 
+    pub async fn ping(&self) -> anyhow::Result<()> {
+        let mut connection = self.client.get_multiplexed_async_connection().await?;
+        let _: String = redis::cmd("PING").query_async(&mut connection).await?;
+        Ok(())
+    }
+
     pub async fn get_json<T>(&self, key: &str) -> anyhow::Result<Option<T>>
     where
         T: DeserializeOwned,

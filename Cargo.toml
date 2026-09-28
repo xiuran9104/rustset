@@ -68,6 +68,7 @@ rustset-system-api = { path = "crates/modules/system-api" }
 rustset-system-server = { path = "crates/modules/system-server" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+csv = "1.4"
 sha2 = "0.10"
 sqlx = { version = "0.8", default-features = false, features = ["chrono", "macros", "migrate", "postgres", "runtime-tokio-rustls", "uuid"] }
 tokio = { version = "1.44", features = ["macros", "rt-multi-thread", "signal"] }

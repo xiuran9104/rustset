@@ -1,4 +1,18 @@
 <script lang="ts" setup>
+import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { Page } from '@vben/common-ui';
+import { downloadFileFromBlobPart } from '@vben/utils';
+import { message } from 'ant-design-vue';
+import { requestClient } from '#/api/request';
+import {
+  createAsset,
+  downloadAssetImportTemplate,
+  exportAssetCsv,
+  getAssetList,
+  importAssetCsv,
+  updateAsset,
+} from '#/api/scan/asset';
 import type { ScanAssetApi } from '#/api/scan/asset';
 
 import { computed, onMounted, ref } from 'vue';
@@ -54,18 +68,19 @@ async function handleSubmit() {
   modalVisible.value=false; fetchData();
 }
 
-async function handleSyncCmdb() {
-  cmdbSyncing.value = true;
-  try {
-    const result = await syncAssetInventoryToCmdb();
-    const action = result.modelCreated ? '已创建“资产台账”模型并完成同步' : 'CMDB 同步完成';
-    const stale = result.stale ? `，另有 ${result.stale} 条源资产已失效但未自动删除` : '';
-    message.success(`${action}：新增 ${result.created}，更新 ${result.updated}，未变化 ${result.unchanged}${stale}`);
-  } catch (error: any) {
-    message.error(error?.message || '同步 CMDB 失败');
-  } finally {
-    cmdbSyncing.value = false;
-  }
+async function handleExportCsv() {
+  const data = await exportAssetCsv();
+  downloadFileFromBlobPart({ fileName: 'assets.csv', source: data });
+}
+async function handleTemplate() {
+  const data = await downloadAssetImportTemplate();
+  downloadFileFromBlobPart({ fileName: 'assets-import-template.csv', source: data });
+}
+async function handleImportCsv(file: File) {
+  const result: any = await importAssetCsv(file);
+  message.success(`导入完成：成功 ${result.created || 0} 条，失败 ${result.failed || 0} 条`);
+  await fetchData();
+  return false;
 }
 
 const viewMode = ref<'grid'|'table'>('grid');
@@ -109,6 +124,11 @@ const statCards = [
             <a-segmented v-model:value="viewMode" :options="[{value:'grid',label:'卡片'},{value:'table',label:'列表'}]" />
             <a-button v-access:code="['infra:asset:update']" :loading="cmdbSyncing" @click="handleSyncCmdb"><Icon icon="lucide:database-zap" /> 同步 CMDB</a-button>
             <a-button @click="fetchData"><Icon icon="lucide:refresh-cw" /> 刷新</a-button>
+            <a-button v-access:code="['infra:asset:query']" @click="handleExportCsv"><Icon icon="lucide:download" /> 导出 CSV</a-button>
+            <a-button v-access:code="['infra:asset:create']" @click="handleTemplate">下载模板</a-button>
+            <a-upload :show-upload-list="false" accept=".csv,text/csv" :before-upload="handleImportCsv">
+              <a-button v-access:code="['infra:asset:create']"><Icon icon="lucide:upload" /> 导入 CSV</a-button>
+            </a-upload>
             <a-button v-access:code="['infra:asset:create']" type="primary" @click="openCreate"><Icon icon="lucide:plus" /> 新建资产</a-button>
           </a-space>
         </template>

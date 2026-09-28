@@ -6,6 +6,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+csv.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 schemars.workspace = true

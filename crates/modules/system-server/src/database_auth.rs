@@ -68,9 +68,12 @@ pub async fn authenticate_from_database(
         .await
         .map_err(|_| SecurityError::InvalidCredentials)?
         .ok_or(SecurityError::InvalidCredentials)?;
-    let current_user: CurrentUser = cache::load_current_user(&auth.state, &account)
+    let mut current_user: CurrentUser = cache::load_current_user(&auth.state, &account)
         .await
         .map_err(|_| SecurityError::InvalidCredentials)?;
+    // Tenant ownership is authoritative in the freshly loaded account, not in
+    // a cached authorization snapshot (which may predate a tenant transfer).
+    current_user.tenant_id = account.tenant_id.clone();
     request.extensions_mut().insert(current_user);
     Ok(next.run(request).await)
 }

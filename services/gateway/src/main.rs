@@ -13,6 +13,7 @@ use tracing::warn;
 
 mod audit;
 mod openapi;
+mod runtime_health;
 
 const SERVICE_NAME: &str = "gateway";
 
@@ -51,12 +52,32 @@ async fn main() -> anyhow::Result<()> {
 
     let database = connect(&DatabaseConfig::from_env()?).await?;
     migrate(&database).await?;
-    let redis = connect_redis().await;
+    let redis_config = RedisConfig::from_env();
+    let redis_configured = redis_config.is_some();
+    let cache_required = env_bool("CACHE_REDIS_REQUIRED", false);
+    let rate_limit_required = env_bool("RATE_LIMIT_REDIS_REQUIRED", false);
+    let cache_enabled = env_bool("CACHE_REDIS_ENABLED", redis_configured) || cache_required;
+    let rate_limit_enabled =
+        env_bool("RATE_LIMIT_REDIS_ENABLED", redis_configured) || rate_limit_required;
+    let cache_redis = connect_redis(
+        redis_config.as_ref(),
+        "cache",
+        cache_enabled,
+        cache_required,
+    )
+    .await?;
+    let rate_limit_redis = connect_redis(
+        redis_config.as_ref(),
+        "rate_limit",
+        rate_limit_enabled,
+        rate_limit_required,
+    )
+    .await?;
     let tokens = TokenService::new(SecurityConfig::from_env()?);
     let system_state = rustset_system_server::SystemState::with_cache(
         database.clone(),
         tokens.clone(),
-        redis.clone(),
+        cache_redis.clone(),
     );
     let object_storage = rustset_infra_server::object_storage::ObjectStorage::from_env()
         .map_err(anyhow::Error::msg)?;
@@ -65,6 +86,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .map_err(anyhow::Error::msg)?;
     let infra_state = rustset_infra_server::InfraState::new(database.clone(), object_storage);
+    infra_state.start_workers();
     let ai_state = rustset_ai_server::AiState::new(database.clone(), tokens);
     let cmdb_state = rustset_cmdb_server::CmdbState {
         pool: database.clone(),
@@ -141,19 +163,32 @@ async fn main() -> anyhow::Result<()> {
     }
     openapi::publish(api_doc);
 
+    let audit_state = audit::AuditState::new(database.clone());
+    let runtime_health = runtime_health::RuntimeHealthState::new(
+        database.clone(),
+        runtime_health::Dependency {
+            configured: cache_enabled,
+            required: cache_required,
+            client: cache_redis,
+        },
+        runtime_health::Dependency {
+            configured: rate_limit_enabled,
+            required: rate_limit_required,
+            client: rate_limit_redis.clone(),
+        },
+        audit_state.metrics(),
+    );
     let mut app = app
         .merge(health_route(SERVICE_NAME))
+        .merge(runtime_health::routes(runtime_health))
         .fallback(not_found)
-        .layer(from_fn_with_state(
-            audit::AuditState::new(database),
-            audit::record,
-        ))
+        .layer(from_fn_with_state(audit_state, audit::record))
         .layer(from_fn_with_state(
             database_auth,
             rustset_system_server::authenticate_from_database,
         ));
 
-    if let Some(redis) = redis {
+    if let Some(redis) = rate_limit_redis {
         app = app.layer(from_fn_with_state(
             RateLimitState::new(redis, RateLimitConfig::from_env()),
             rustset_framework_redis::rate_limit,
@@ -165,15 +200,46 @@ async fn main() -> anyhow::Result<()> {
     serve(ServiceConfig::from_env(SERVICE_NAME, 8080), app).await
 }
 
-async fn connect_redis() -> Option<RedisClient> {
-    let config = RedisConfig::from_env()?;
-    match RedisClient::connect(&config).await {
+async fn connect_redis(
+    config: Option<&RedisConfig>,
+    purpose: &'static str,
+    enabled: bool,
+    required: bool,
+) -> anyhow::Result<Option<RedisClient>> {
+    if !enabled {
+        return Ok(None);
+    }
+    let Some(config) = config else {
+        if required {
+            anyhow::bail!("REDIS_URL is required for {purpose}");
+        }
+        warn!(purpose, "redis feature enabled without REDIS_URL; disabled");
+        return Ok(None);
+    };
+    let client = match RedisClient::connect(config).await {
         Ok(client) => Some(client),
         Err(error) => {
-            warn!(%error, "redis is configured but unavailable; cache and rate limit disabled");
+            if required {
+                return Err(anyhow::anyhow!(
+                    "required redis {purpose} is unavailable: {error}"
+                ));
+            }
+            warn!(%error, purpose, "redis dependency unavailable; feature disabled");
             None
         }
-    }
+    };
+    Ok(client)
+}
+
+fn env_bool(name: &str, default: bool) -> bool {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        })
+        .unwrap_or(default)
 }
 
 async fn not_found() -> AppError {

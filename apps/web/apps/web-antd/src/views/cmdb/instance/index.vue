@@ -4,7 +4,7 @@ import type { CmdbAttribute, CmdbInstance, CmdbModel, CmdbTopology, CmdbTopology
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
-
+import { downloadFileFromBlobPart } from '@vben/utils';
 import { message } from 'ant-design-vue';
 
 import {
@@ -238,115 +238,33 @@ async function submit() {
   }
 }
 
-function openBatchUpdate() {
-  batchAttributeCodes.value = [];
-  batchForm.value = {};
-  batchModalVisible.value = true;
-}
-
-function changeBatchAttributes(codes: string[]) {
-  const next: Record<string, any> = {};
-  for (const code of codes) {
-    if (Object.hasOwn(batchForm.value, code)) {
-      next[code] = batchForm.value[code];
-      continue;
-    }
-    next[code] = undefined;
-  }
-  batchForm.value = next;
-}
-
-function serializeBatchPatch() {
-  const patch: Record<string, any> = {};
-  for (const attr of batchAttributes.value) {
-    let value = batchForm.value[attr.code];
-    if (attr.attrType === 'json' && typeof value === 'string' && value.trim()) {
-      try {
-        value = JSON.parse(value);
-      } catch {
-        message.warning(`属性 ${attr.name} 的 JSON 格式不正确`);
-        throw new Error('invalid json');
-      }
-    }
-    patch[attr.code] = value === '' || value === undefined ? null : value;
-  }
-  return patch;
-}
-
-async function submitBatchUpdate() {
-  if (!batchAttributeCodes.value.length || !selectedIds.value.length) return;
-  let patch: Record<string, any>;
-  try {
-    patch = serializeBatchPatch();
-  } catch {
-    return;
-  }
-  batchSubmitting.value = true;
-  try {
-    const result = await updateInstances(selectedIds.value, patch);
-    message.success(`批量修改完成：更新 ${result.updated} 条，未变化 ${result.unchanged} 条`);
-    batchModalVisible.value = false;
-    selectedIds.value = [];
-    await fetchRows();
-  } catch (error: any) {
-    message.error(error?.message || '批量修改失败');
-  } finally {
-    batchSubmitting.value = false;
-  }
-}
-
-async function fetchTopology() {
-  if (!topologyRoot.value) return;
-  topologyLoading.value = true;
-  try {
-    topology.value = await getRelationTopology(topologyRoot.value.id, topologyDepth.value, 80);
-    topologySelectedId.value = topologyRoot.value.id;
-  } catch (error: any) {
-    message.error(error?.message || '加载关系拓扑失败');
-  } finally {
-    topologyLoading.value = false;
-  }
-}
-
-async function openTopology(record: CmdbInstance) {
-  topologyRoot.value = record;
-  topologyDepth.value = 2;
-  topology.value = null;
-  topologyVisible.value = true;
-  await fetchTopology();
-}
-
-function topologyColor(code: string) {
-  const palette = ['#1677ff', '#13a8a8', '#722ed1', '#d46b08', '#389e0d', '#c41d7f', '#0958d9'];
-  let hash = 0;
-  for (const character of code) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  return palette[hash % palette.length]!;
-}
-
-function topologyLabel(label: string, max = 18) {
-  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
-}
-
-async function exportExcel() {
+async function exportCsv() {
   if (!currentModelId.value) return;
   try {
     const blob = (await requestClient.download('/cmdb/instance/export', {
       params: { modelId: currentModelId.value },
     })) as any;
-    const url = URL.createObjectURL(
-      blob instanceof Blob ? blob : new Blob([blob]),
-    );
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `cmdb_instances_model_${currentModelId.value}.xlsx`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadFileFromBlobPart({
+      fileName: `cmdb_instances_model_${currentModelId.value}.csv`,
+      source: blob,
+    });
   } catch {
     message.error('导出失败');
   }
 }
 
-async function importExcel(file: File) {
+async function downloadTemplate() {
+  if (!currentModelId.value) return;
+  const blob = await requestClient.download('/cmdb/instance/import-template', {
+    params: { modelId: currentModelId.value },
+  });
+  downloadFileFromBlobPart({
+    fileName: `cmdb_instances_model_${currentModelId.value}_template.csv`,
+    source: blob,
+  });
+}
+
+async function importCsv(file: File) {
   if (!currentModelId.value) return false;
   const form_data = new FormData();
   form_data.append('modelId', String(currentModelId.value));
@@ -425,14 +343,15 @@ function controlFor(attr: CmdbAttribute) {
           @search="() => { pageNo = 1; fetchRows(); }"
         />
         <a-button @click="fetchRows">刷新</a-button>
-        <a-button :disabled="!currentModelId || !rows.length" @click="exportExcel">导出 Excel</a-button>
+        <a-button :disabled="!currentModelId || !rows.length" @click="exportCsv">导出 CSV</a-button>
+        <a-button v-access:code="['cmdb:instance:create']" :disabled="!currentModelId || !attributes.length" @click="downloadTemplate">下载模板</a-button>
         <a-upload
           :show-upload-list="false"
-          :before-upload="importExcel"
-          accept=".xlsx"
+          :before-upload="importCsv"
+          accept=".csv,text/csv"
           :disabled="!currentModelId || !attributes.length"
         >
-          <a-button v-access:code="['cmdb:instance:create']" :disabled="!currentModelId || !attributes.length">导入 Excel</a-button>
+          <a-button v-access:code="['cmdb:instance:create']" :disabled="!currentModelId || !attributes.length">导入 CSV</a-button>
         </a-upload>
         <a-tooltip title="开启后整份文件在一个事务中提交，任一行失败都会全部回滚">
           <a-space size="small">

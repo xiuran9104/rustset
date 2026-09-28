@@ -133,6 +133,16 @@ async fn concurrent_writes_and_delete_rollback() {
         .unwrap()
         .replace("public.", "");
     sqlx::raw_sql(&ddl).execute(&pool).await.unwrap();
+    let migration =
+        include_str!("../../../../../sql/postgresql/0025_cmdb_instance_unique_values.sql")
+            .replace("public.", "");
+    sqlx::raw_sql(&migration).execute(&pool).await.unwrap();
+    sqlx::raw_sql("CREATE TABLE system_tenant(id bigint PRIMARY KEY); INSERT INTO system_tenant VALUES (1), (2); CREATE TABLE infra_resource_ticket(id bigint PRIMARY KEY, deleted smallint DEFAULT 0);")
+        .execute(&pool).await.unwrap();
+    let migration = include_str!("../../../../../sql/postgresql/0026_cmdb_tenant_isolation.sql")
+        .replace("public.", "");
+    sqlx::raw_sql(&migration).execute(&pool).await.unwrap();
+    let tenant = TenantContext::from_persisted_id(Some(1)).unwrap();
     let model_id: i64 = sqlx::query_scalar("INSERT INTO cmdb_model(name, code, unique_key) VALUES ('Test', 'test', 'name') RETURNING id")
         .fetch_one(&pool).await.unwrap();
     sqlx::query("INSERT INTO cmdb_attribute(model_id, name, code, attr_type) VALUES ($1, 'Name', 'name', 'text'), ($1, 'Left', 'left', 'number'), ($1, 'Right', 'right', 'number')")
@@ -144,7 +154,13 @@ async fn concurrent_writes_and_delete_rollback() {
     assert!(
         tokio::time::timeout(
             Duration::from_millis(100),
-            create(&pool, model_id, object(json!({"name": "blocked"})), "test")
+            create(
+                &pool,
+                &tenant,
+                model_id,
+                object(json!({"name": "blocked"})),
+                "test"
+            )
         )
         .await
         .is_err()
@@ -152,8 +168,20 @@ async fn concurrent_writes_and_delete_rollback() {
     guard.rollback().await.unwrap();
 
     let (first, second) = tokio::join!(
-        create(&pool, model_id, object(json!({"name": "same"})), "first"),
-        create(&pool, model_id, object(json!({"name": "same"})), "second"),
+        create(
+            &pool,
+            &tenant,
+            model_id,
+            object(json!({"name": "same"})),
+            "first"
+        ),
+        create(
+            &pool,
+            &tenant,
+            model_id,
+            object(json!({"name": "same"})),
+            "second"
+        ),
     );
     assert_ne!(
         first.is_ok(),
@@ -162,8 +190,8 @@ async fn concurrent_writes_and_delete_rollback() {
     );
     let id = first.or(second).unwrap();
     let (left, right) = tokio::join!(
-        update(&pool, id, object(json!({"left": 1})), "left"),
-        update(&pool, id, object(json!({"right": 2})), "right"),
+        update(&pool, &tenant, id, object(json!({"left": 1})), "left"),
+        update(&pool, &tenant, id, object(json!({"right": 2})), "right"),
     );
     left.unwrap();
     right.unwrap();
@@ -176,13 +204,14 @@ async fn concurrent_writes_and_delete_rollback() {
     assert_eq!(attributes, json!({"name": "same", "left": 1, "right": 2}));
     let other = create(
         &pool,
+        &tenant,
         model_id,
         object(json!({"name": "other", "left": 1})),
         "test",
     )
     .await
     .unwrap();
-    let summary = batch_update(&pool, &[id, other], object(json!({"right": 9})), "batch")
+    let summary = batch_update(&pool, &tenant, &[id, other], object(json!({"right": 9})), "batch")
         .await
         .unwrap();
     assert_eq!(summary.updated, 2);
@@ -190,6 +219,7 @@ async fn concurrent_writes_and_delete_rollback() {
     assert!(
         batch_update(
             &pool,
+            &tenant,
             &[id, other],
             object(json!({"name": "duplicate"})),
             "batch"
@@ -213,6 +243,7 @@ async fn concurrent_writes_and_delete_rollback() {
     assert!(
         create_many(
             &pool,
+            &tenant,
             model_id,
             vec![
                 (2, object(json!({"name": "atomic-good"}))),
@@ -233,9 +264,15 @@ async fn concurrent_writes_and_delete_rollback() {
         "atomic import must roll back all rows"
     );
     assert!(
-        update(&pool, other, object(json!({"name": "same"})), "test")
-            .await
-            .is_err()
+        update(
+            &pool,
+            &tenant,
+            other,
+            object(json!({"name": "same"})),
+            "test"
+        )
+        .await
+        .is_err()
     );
     let mut tx = pool.begin().await.unwrap();
     lock_model(&mut tx, model_id).await.unwrap();
@@ -246,8 +283,77 @@ async fn concurrent_writes_and_delete_rollback() {
     );
     tx.rollback().await.unwrap();
 
+    // The database protects direct SQL writers as well as the service.
+    let duplicate = sqlx::query(
+        "INSERT INTO cmdb_instance(model_id, tenant_id, attributes) VALUES ($1, 1, '{\"name\":\"same\"}')",
+    )
+    .bind(model_id)
+    .execute(&pool)
+    .await
+    .unwrap_err();
+    assert_eq!(
+        duplicate.as_database_error().unwrap().constraint(),
+        Some("cmdb_instance_unique_value_key")
+    );
+    let key_change = sqlx::query("UPDATE cmdb_model SET unique_key = 'left' WHERE id = $1")
+        .bind(model_id)
+        .execute(&pool)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        key_change.as_database_error().unwrap().constraint(),
+        Some("cmdb_instance_unique_value_key")
+    );
+    let key: String = sqlx::query_scalar("SELECT unique_key FROM cmdb_model WHERE id = $1")
+        .bind(model_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(key, "name");
+
+    // Concurrent direct inserts cannot bypass the registry, even without API locks.
+    let insert = || {
+        sqlx::query("INSERT INTO cmdb_instance(model_id, tenant_id, attributes) VALUES ($1, 1, $2)")
+            .bind(model_id)
+            .bind(json!({"name": "direct"}))
+            .execute(&pool)
+    };
+    let (a, b) = tokio::join!(insert(), insert());
+    assert_ne!(a.is_ok(), b.is_ok());
+    // JSONB equality treats numerically equivalent values as the same key.
+    sqlx::query("INSERT INTO cmdb_instance(model_id, tenant_id, attributes) VALUES ($1, 1, $2)")
+        .bind(model_id)
+        .bind(json!({"name": 42}))
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(
+        sqlx::query(
+            "INSERT INTO cmdb_instance(model_id, tenant_id, attributes) VALUES ($1, 1, $2)"
+        )
+        .bind(model_id)
+        .bind(json!({"name": 42.0}))
+        .execute(&pool)
+        .await
+        .is_err()
+    );
+    for value in [Value::Null, json!(" "), json!([])] {
+        for _ in 0..2 {
+            sqlx::query(
+                "INSERT INTO cmdb_instance(model_id, tenant_id, attributes) VALUES ($1, 1, $2)",
+            )
+            .bind(model_id)
+            .bind(json!({"name": value}))
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+    }
+    // Rerunning the migration reconstructs the same registrations.
+    sqlx::raw_sql(&migration).execute(&pool).await.unwrap();
+
     // Force relation cleanup to fail: the instance deletion must roll back.
-    sqlx::query("INSERT INTO cmdb_relation(source_id, target_id) VALUES ($1, $2)")
+    sqlx::query("INSERT INTO cmdb_relation(source_id, target_id, tenant_id) VALUES ($1, $2, 1)")
         .bind(id)
         .bind(other)
         .execute(&pool)
@@ -255,7 +361,7 @@ async fn concurrent_writes_and_delete_rollback() {
         .unwrap();
     sqlx::raw_sql("CREATE FUNCTION reject_detach() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test failure'; END $$; CREATE TRIGGER reject_detach BEFORE UPDATE ON cmdb_relation FOR EACH ROW EXECUTE FUNCTION reject_detach();")
         .execute(&pool).await.unwrap();
-    assert!(delete(&pool, &[id], "test", true).await.is_err());
+    assert!(delete(&pool, &tenant, &[id], "test", true).await.is_err());
     let deleted: i16 = sqlx::query_scalar("SELECT deleted FROM cmdb_instance WHERE id = $1")
         .bind(id)
         .fetch_one(&pool)
@@ -266,14 +372,47 @@ async fn concurrent_writes_and_delete_rollback() {
         .execute(&pool)
         .await
         .unwrap();
-    delete(&pool, &[id], "test", true).await.unwrap();
+    delete(&pool, &tenant, &[id], "test", true).await.unwrap();
     let active_relations: i64 =
         sqlx::query_scalar("SELECT count(*) FROM cmdb_relation WHERE deleted = 0")
             .fetch_one(&pool)
             .await
             .unwrap();
     assert_eq!(active_relations, 0);
-    create(&pool, model_id, object(json!({"name": "same"})), "test")
+    create(
+        &pool,
+        &tenant,
+        model_id,
+        object(json!({"name": "same"})),
+        "test",
+    )
+    .await
+    .unwrap();
+
+    let restore = sqlx::query("UPDATE cmdb_instance SET deleted = 0 WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        restore.as_database_error().unwrap().constraint(),
+        Some("cmdb_instance_unique_value_key")
+    );
+    sqlx::query("UPDATE cmdb_model SET unique_key = NULL WHERE id = $1")
+        .bind(model_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let registrations: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM cmdb_instance_unique_value WHERE model_id = $1")
+            .bind(model_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(registrations, 0);
+    sqlx::query("UPDATE cmdb_model SET unique_key = 'name' WHERE id = $1")
+        .bind(model_id)
+        .execute(&pool)
         .await
         .unwrap();
 

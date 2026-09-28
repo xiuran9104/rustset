@@ -1,3 +1,6 @@
+mod csv;
+mod policy_risk;
+mod repository;
 use crate::{
     InfraState, QueryParams, TableSpec, id_param, ids_param, soft_delete, soft_delete_list,
     table_create, table_get, table_list, table_page, table_update,
@@ -10,6 +13,7 @@ use axum::{
 };
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -38,12 +42,11 @@ const NETWORK_POLICY: TableSpec = TableSpec {
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
+        .merge(csv::routes())
         .api_route("/infra/asset/page", get(asset_page))
         .api_route("/infra/asset/list", get(asset_list))
         .api_route("/infra/asset/get", get(asset_get))
         .api_route("/infra/asset/create", post(asset_create))
-        .api_route("/infra/asset/sync-cmdb", post(asset_sync_cmdb))
-        .api_route("/infra/asset/discover", post(asset_discover))
         .api_route("/infra/asset/update", put(asset_update))
         .api_route("/infra/asset/delete", delete(asset_delete))
         .api_route("/infra/asset/delete-list", delete(asset_delete_list))
@@ -66,6 +69,21 @@ pub fn routes() -> ApiRouter<InfraState> {
         .api_route("/infra/cloud-asset/page", get(cloud_asset_page))
         .api_route("/infra/cloud-asset/list", get(cloud_asset_list))
         .api_route("/infra/cloud-asset/discover", post(cloud_asset_discover))
+        .api_route("/infra/cloud-asset/get", get(cloud_asset_get))
+        .api_route("/infra/cloud-asset/create", post(cloud_asset_create))
+        .api_route("/infra/cloud-asset/update", put(cloud_asset_update))
+        .api_route("/infra/cloud-asset/delete", delete(cloud_asset_delete))
+        .api_route("/infra/cloud-resource/page", get(cloud_resource_page))
+        .api_route("/infra/cloud-resource/list", get(cloud_resource_list))
+        .api_route("/infra/cloud-resource/get", get(cloud_resource_get))
+        .api_route("/infra/cloud-resource/create", post(cloud_resource_create))
+        .api_route("/infra/cloud-resource/update", put(cloud_resource_update))
+        .api_route(
+            "/infra/network-policy/recheck-risks",
+            post(network_policy_recheck_risks),
+        )
+        .api_route("/infra/cloud-asset/page", get(cloud_asset_page))
+        .api_route("/infra/cloud-asset/list", get(cloud_asset_list))
         .api_route("/infra/cloud-asset/get", get(cloud_asset_get))
         .api_route("/infra/cloud-asset/create", post(cloud_asset_create))
         .api_route("/infra/cloud-asset/update", put(cloud_asset_update))
@@ -106,62 +124,94 @@ pub fn routes() -> ApiRouter<InfraState> {
 
 async fn network_policy_page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, NETWORK_POLICY, p).await
+    let tenant = TenantContext::from_user(&user)?;
+    policy_risk::page(&state.pool, &tenant, p).await
 }
 async fn network_policy_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, NETWORK_POLICY).await
+    let tenant = TenantContext::from_user(&user)?;
+    policy_risk::list(&state.pool, &tenant).await
 }
 async fn network_policy_get(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, NETWORK_POLICY, id_param(&p)?).await
+    let tenant = TenantContext::from_user(&user)?;
+    Ok(Json(ApiResponse::new(
+        repository::get(&state.pool, NETWORK_POLICY, &tenant, id_param(&p)?).await?,
+    )))
 }
 async fn network_policy_create(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    table_create(&state.pool, NETWORK_POLICY, p).await
+    let tenant = TenantContext::from_user(&user)?;
+    policy_risk::create(&state.pool, &tenant, p).await
 }
 async fn network_policy_update(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    table_update(&state.pool, NETWORK_POLICY, p).await
+    let tenant = TenantContext::from_user(&user)?;
+    policy_risk::update(&state.pool, &tenant, p).await
 }
 async fn network_policy_delete(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, NETWORK_POLICY.table, id_param(&p)?).await
+    let tenant = TenantContext::from_user(&user)?;
+    policy_risk::delete(&state.pool, &tenant, &[id_param(&p)?]).await
 }
 async fn network_policy_delete_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete_list(&state.pool, NETWORK_POLICY.table, ids_param(&p)).await
+    let tenant = TenantContext::from_user(&user)?;
+    policy_risk::delete(&state.pool, &tenant, &ids_param(&p)).await
+}
+
+async fn network_policy_recheck_risks(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<policy_risk::RiskMatchSummary>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    policy_risk::recheck(&state.pool, &tenant).await
 }
 
 async fn asset_page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, ASSET, p).await
+    let tenant = TenantContext::from_user(&user)?;
+    repository::page(&state.pool, ASSET, &tenant, p).await
 }
 async fn asset_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, ASSET).await
+    let tenant = TenantContext::from_user(&user)?;
+    repository::list(&state.pool, ASSET, &tenant).await
 }
 async fn asset_get(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, ASSET, id_param(&p)?).await
+    let tenant = TenantContext::from_user(&user)?;
+    Ok(Json(ApiResponse::new(
+        repository::get(&state.pool, ASSET, &tenant, id_param(&p)?).await?,
+    )))
 }
 async fn asset_sync_cmdb(
     State(state): State<InfraState>,
@@ -239,34 +289,40 @@ async fn asset_create(
     user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    let Json(created) = table_create(&state.pool, ASSET, p).await?;
+    let tenant = TenantContext::from_user(&user)?;
+    let Json(created) = repository::create(&state.pool, ASSET, &tenant, p).await?;
     if let Ok(asset_id) = created.data.parse::<i64>() {
-        auto_attribute_ownership(&state.pool, asset_id).await;
+        auto_attribute_ownership(&state.pool, &tenant, asset_id).await;
     }
-    let _ = user;
     Ok(Json(created))
 }
 
 /// Longest-prefix segment match over cmdb_net_zone; fills net_zone_id and
 /// organization_name when the IP falls inside a managed segment and the
 /// ownership is not manually pinned.
-pub(crate) async fn auto_attribute_ownership(pool: &sqlx::PgPool, asset_id: i64) {
+pub(crate) async fn auto_attribute_ownership(
+    pool: &sqlx::PgPool,
+    tenant: &TenantContext,
+    asset_id: i64,
+) {
     let Ok((asset_id, ip)) = sqlx::query_as::<_, (i64, String)>(
         // Skip only assets whose organization a human chose; the default
         // 'manual' marker with an empty organization still gets attributed.
-        "SELECT id, ip FROM infra_asset WHERE id = $1 AND deleted = 0
+        "SELECT id, ip FROM infra_asset WHERE id = $1 AND tenant_id = $2 AND deleted = 0
            AND NOT (ownership_source = 'manual'
                     AND organization_name IS NOT NULL AND organization_name <> '')",
     )
     .bind(asset_id)
+    .bind(tenant.id())
     .fetch_one(pool)
     .await
     else {
         return;
     };
     let segments = sqlx::query(
-        "SELECT id, cidr FROM cmdb_net_zone WHERE deleted = 0 AND cidr IS NOT NULL AND cidr <> ''",
+        "SELECT id, cidr FROM cmdb_net_zone WHERE deleted = 0 AND tenant_id = $1 AND cidr IS NOT NULL AND cidr <> ''",
     )
+    .bind(tenant.id())
     .fetch_all(pool)
     .await
     .unwrap_or_default();
@@ -310,57 +366,73 @@ pub(crate) async fn auto_attribute_ownership(pool: &sqlx::PgPool, asset_id: i64)
          SET net_zone_id = $2,
              organization_name = COALESCE((
                  WITH RECURSIVE ancestors AS (
-                     SELECT id, name, zone_type, parent_id FROM cmdb_net_zone WHERE id = $2
-                     UNION ALL
+                     SELECT id, name, zone_type, parent_id FROM cmdb_net_zone WHERE id = $2 AND tenant_id = $3
+                     UNION
                      SELECT z.id, z.name, z.zone_type, z.parent_id
-                     FROM cmdb_net_zone z JOIN ancestors an ON z.id = an.parent_id
+                     FROM cmdb_net_zone z JOIN ancestors an ON z.id = an.parent_id WHERE z.tenant_id = $3
                  )
                  SELECT name FROM ancestors
                  WHERE zone_type IN ('company','subsidiary')
                  ORDER BY id LIMIT 1
-             ), (SELECT name FROM cmdb_net_zone WHERE id = $2), a.organization_name),
+             ), (SELECT name FROM cmdb_net_zone WHERE id = $2 AND tenant_id = $3), a.organization_name),
              ownership_source = 'segment',
              update_time = now()
-         WHERE a.id = $1 AND a.deleted = 0",
+         WHERE a.id = $1 AND a.tenant_id = $3 AND a.deleted = 0",
     )
     .bind(asset_id)
     .bind(zone_id)
+    .bind(tenant.id())
     .execute(pool)
     .await;
 }
 async fn asset_update(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
     let id = p
         .get("id")
         .and_then(Value::as_i64)
         .filter(|value| *value > 0)
         .ok_or_else(|| AppError::bad_request("id is required"))?;
-    let _ = table_update(&state.pool, ASSET, p).await?;
-    auto_attribute_ownership(&state.pool, id).await;
+    let _ = repository::update(&state.pool, ASSET, &tenant, p).await?;
+    auto_attribute_ownership(&state.pool, &tenant, id).await;
     Ok(Json(ApiResponse::new(())))
 }
 async fn asset_delete(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, ASSET.table, id_param(&p)?).await
+    let tenant = TenantContext::from_user(&user)?;
+    repository::delete(&state.pool, ASSET, &tenant, &[id_param(&p)?]).await
 }
 async fn asset_delete_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete_list(&state.pool, ASSET.table, ids_param(&p)).await
+    let tenant = TenantContext::from_user(&user)?;
+    repository::delete(&state.pool, ASSET, &tenant, &ids_param(&p)).await
 }
 
 async fn asset_add_port(
     State(state): State<InfraState>,
+    user: CurrentUser,
     axum::extract::Path(id): axum::extract::Path<i64>,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
     let port_num = crate::i32_field(&payload, "port", 0);
-    let existing = crate::table_get_value(&state.pool, ASSET, id).await?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to edit ports"))?;
+    let existing = sqlx::query_scalar::<_,Value>("SELECT to_jsonb(a) FROM infra_asset a WHERE id=$1 AND tenant_id=$2 AND deleted=0 FOR UPDATE")
+        .bind(id).bind(tenant.id()).fetch_optional(&mut *tx).await.map_err(|_|AppError::internal("failed to read asset"))?
+        .ok_or_else(||AppError::not_found("asset not found"))?;
     let mut ports: Vec<Value> = existing
         .get("ports")
         .and_then(|v| v.as_str())
@@ -374,21 +446,34 @@ async fn asset_add_port(
     }
     ports.push(json!({"port": port_num, "isOpen": true, "service": crate::opt_str_field(&payload, "service"), "banner": crate::opt_str_field(&payload, "banner"), "isBound": crate::bool_field(&payload, "isBound", false), "systemName": crate::opt_str_field(&payload, "systemName"), "middleware": crate::opt_str_field(&payload, "middleware")}));
     let ports_json = serde_json::to_string(&ports).unwrap_or_default();
-    sqlx::query("UPDATE infra_asset SET ports=$2, update_time=now() WHERE id=$1 AND deleted=0")
+    sqlx::query("UPDATE infra_asset SET ports=$2, update_time=now() WHERE id=$1 AND tenant_id=$3 AND deleted=0")
         .bind(id)
         .bind(&ports_json)
-        .execute(&state.pool)
+        .bind(tenant.id())
+        .execute(&mut *tx)
         .await
         .map_err(|_| AppError::internal("failed to add port"))?;
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit ports"))?;
     Ok(Json(ApiResponse::new(json!({"id": id, "ports": ports}))))
 }
 
 async fn asset_update_port(
     State(state): State<InfraState>,
+    user: CurrentUser,
     axum::extract::Path((id, port_num)): axum::extract::Path<(i64, i32)>,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let existing = crate::table_get_value(&state.pool, ASSET, id).await?;
+    let tenant = TenantContext::from_user(&user)?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to edit ports"))?;
+    let existing = sqlx::query_scalar::<_,Value>("SELECT to_jsonb(a) FROM infra_asset a WHERE id=$1 AND tenant_id=$2 AND deleted=0 FOR UPDATE")
+        .bind(id).bind(tenant.id()).fetch_optional(&mut *tx).await.map_err(|_|AppError::internal("failed to read asset"))?
+        .ok_or_else(||AppError::not_found("asset not found"))?;
     let mut ports: Vec<Value> = existing
         .get("ports")
         .and_then(|v| v.as_str())
@@ -401,20 +486,33 @@ async fn asset_update_port(
         *p = json!({"port": port_num, "isOpen": true, "service": crate::opt_str_field(&payload, "service"), "banner": crate::opt_str_field(&payload, "banner"), "isBound": crate::bool_field(&payload, "isBound", p.get("isBound").and_then(|v| v.as_bool()).unwrap_or(false)), "systemName": crate::opt_str_field(&payload, "systemName"), "middleware": crate::opt_str_field(&payload, "middleware")});
     }
     let ports_json = serde_json::to_string(&ports).unwrap_or_default();
-    sqlx::query("UPDATE infra_asset SET ports=$2, update_time=now() WHERE id=$1 AND deleted=0")
+    sqlx::query("UPDATE infra_asset SET ports=$2, update_time=now() WHERE id=$1 AND tenant_id=$3 AND deleted=0")
         .bind(id)
         .bind(&ports_json)
-        .execute(&state.pool)
+        .bind(tenant.id())
+        .execute(&mut *tx)
         .await
         .map_err(|_| AppError::internal("failed"))?;
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit ports"))?;
     Ok(Json(ApiResponse::new(json!({"id": id, "ports": ports}))))
 }
 
 async fn asset_delete_port(
     State(state): State<InfraState>,
+    user: CurrentUser,
     axum::extract::Path((id, port_num)): axum::extract::Path<(i64, i32)>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let existing = crate::table_get_value(&state.pool, ASSET, id).await?;
+    let tenant = TenantContext::from_user(&user)?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to edit ports"))?;
+    let existing = sqlx::query_scalar::<_,Value>("SELECT to_jsonb(a) FROM infra_asset a WHERE id=$1 AND tenant_id=$2 AND deleted=0 FOR UPDATE")
+        .bind(id).bind(tenant.id()).fetch_optional(&mut *tx).await.map_err(|_|AppError::internal("failed to read asset"))?
+        .ok_or_else(||AppError::not_found("asset not found"))?;
     let mut ports: Vec<Value> = existing
         .get("ports")
         .and_then(|v| v.as_str())
@@ -422,12 +520,16 @@ async fn asset_delete_port(
         .unwrap_or_default();
     ports.retain(|p| p.get("port").and_then(|v| v.as_i64()) != Some(port_num as i64));
     let ports_json = serde_json::to_string(&ports).unwrap_or_default();
-    sqlx::query("UPDATE infra_asset SET ports=$2, update_time=now() WHERE id=$1 AND deleted=0")
+    sqlx::query("UPDATE infra_asset SET ports=$2, update_time=now() WHERE id=$1 AND tenant_id=$3 AND deleted=0")
         .bind(id)
         .bind(&ports_json)
-        .execute(&state.pool)
+        .bind(tenant.id())
+        .execute(&mut *tx)
         .await
         .map_err(|_| AppError::internal("failed"))?;
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit ports"))?;
     Ok(Json(ApiResponse::new(json!({"id": id, "ports": ports}))))
 }
 

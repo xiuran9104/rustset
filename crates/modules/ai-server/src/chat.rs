@@ -328,6 +328,7 @@ async fn load_request(
 }
 async fn generate(
     state: &AiState,
+    user: &CurrentUser,
     model_id: i64,
     request: ChatRequest,
     tool_ids: &[i64],
@@ -411,7 +412,7 @@ async fn generate(
                 .unwrap_or("{}");
             let args: Value = serde_json::from_str(arguments)
                 .map_err(|_| AppError::bad_request("工具参数不是合法 JSON"))?;
-            let output = crate::tools::execute(&state.pool, name, &args)
+            let output = crate::tools::execute(&state.pool, user, name, &args)
                 .await
                 .map_err(AppError::bad_request)?;
             records.push(json!({"id":call_id,"name":name,"arguments":args,"output":output}));
@@ -426,7 +427,7 @@ async fn send(
     Json(v): Json<SendRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let (model_id, receive_id, request, send, tool_ids) = load_request(&state, &user, &v).await?;
-    let (result, tool_calls) = generate(&state, model_id, request, &tool_ids).await?;
+    let (result, tool_calls) = generate(&state, &user, model_id, request, &tool_ids).await?;
     sqlx::query(
         "UPDATE ai.chat_messages SET content=$2,reasoning_content=$3,tool_calls=$4 WHERE id=$1",
     )
@@ -459,7 +460,7 @@ async fn send_stream(
         let result = if tool_ids.is_empty() {
             factory.chat_stream(model_id,request,move|delta|{let tx=tx_chunks.clone();let send=send_for_chunks.clone();async move{let payload=json!({"code":0,"data":{"send":send,"receive":{"id":receive_id,"conversationId":conversation_id,"type":"assistant","modelId":model_id,"content":delta,"reasoningContent":null}},"msg":""});tx.send(Ok(format!("data: {}\n\n",payload))).await.map_err(|_|"客户端已断开".to_string())}}).await.map(|r|(r,json!([])))
         } else {
-            generate(&state_for_tools, model_id, request, &tool_ids).await
+            generate(&state_for_tools, &user, model_id, request, &tool_ids).await
         };
         match result {
             Ok((response, tool_calls)) => {

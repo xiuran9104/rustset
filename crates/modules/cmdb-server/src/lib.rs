@@ -17,6 +17,7 @@ use rustset_cmdb_api::AttrType;
 use rustset_framework_common::ApiResponse;
 use rustset_framework_database::PgPool;
 use rustset_framework_security::{CurrentUser, Permission};
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -130,12 +131,40 @@ fn model_row(row: &sqlx::postgres::PgRow) -> Value {
     })
 }
 
+async fn model_count(pool: &PgPool, tenant: &TenantContext, model_id: i64) -> i64 {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM cmdb_instance WHERE model_id = $1 AND tenant_id = $2 AND deleted = 0",
+    )
+    .bind(model_id)
+    .bind(tenant.id())
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0)
+}
+
+async fn attribute_count(pool: &PgPool, model_id: i64) -> i64 {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM cmdb_attribute WHERE model_id = $1 AND deleted = 0",
+    )
+    .bind(model_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0)
+}
+
+fn model_keyword_clause(keyword: &Option<String>) -> (String, String) {
+    match keyword.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+        Some(keyword) => (
+            " AND (name ILIKE $2 OR code ILIKE $2)".into(),
+            format!("%{keyword}%"),
+        ),
+        None => (String::new(), String::new()),
+    }
+}
+
 fn model_keyword_pattern(keyword: &Option<String>) -> Option<String> {
-    keyword
-        .as_deref()
-        .map(str::trim)
-        .filter(|keyword| !keyword.is_empty())
-        .map(|keyword| format!("%{keyword}%"))
+    keyword.as_deref().map(str::trim).filter(|value| !value.is_empty())
+        .map(|value| format!("%{value}%"))
 }
 
 async fn model_list(
@@ -143,6 +172,7 @@ async fn model_list(
     user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     require(&user, "cmdb:model:query")?;
+    let tenant = TenantContext::from_user(&user)?;
     let rows = sqlx::query(
         "SELECT m.id, m.name, m.code, m.description, m.icon, m.unique_key, m.sort, m.status,
                 m.create_time,
@@ -156,7 +186,22 @@ async fn model_list(
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to read models"))?;
-    Ok(Json(ApiResponse::new(rows.iter().map(model_row).collect())))
+    let mut models = Vec::new();
+    for row in rows {
+        models.push(json!({
+            "id": row.get::<i64, _>("id"),
+            "name": row.get::<String, _>("name"),
+            "code": row.get::<String, _>("code"),
+            "description": row.get::<Option<String>, _>("description"),
+            "icon": row.get::<Option<String>, _>("icon"),
+            "uniqueKey": row.get::<Option<String>, _>("unique_key"),
+            "sort": row.get::<i32, _>("sort"),
+            "status": row.get::<i16, _>("status"),
+            "instanceCount": model_count(&state.pool, &tenant, row.get::<i64, _>("id")).await,
+            "attributeCount": attribute_count(&state.pool, row.get::<i64, _>("id")).await,
+        }));
+    }
+    Ok(Json(ApiResponse::new(models)))
 }
 
 async fn model_page(
@@ -349,7 +394,7 @@ async fn model_update(
     .bind(&user.username)
     .execute(&mut *tx)
     .await
-    .map_err(|_| AppError::internal("failed to update model"))?;
+    .map_err(|error| instance_service::mutation_error(error, "failed to update model"))?;
     if result.rows_affected() == 0 {
         return Err(AppError::not_found("model not found"));
     }
@@ -379,9 +424,9 @@ async fn model_delete(
     .await
     .map_err(|_| AppError::internal("failed to count instances"))?;
     if instances > 0 {
-        return Err(AppError::bad_request(format!(
-            "model still has {instances} instances; delete them first"
-        )));
+        return Err(AppError::bad_request(
+            "model still has instances; delete them first",
+        ));
     }
     let result = sqlx::query(
         "UPDATE cmdb_model SET deleted = 1, updater = $2, update_time = now()
@@ -726,7 +771,8 @@ async fn attribute_create(
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to create attribute"))?;
-    instance_service::recompute_model_instances(&mut tx, model_id, &user.username).await?;
+    let tenant = TenantContext::from_user(&user)?;
+    instance_service::recompute_model_instances(&mut tx, &tenant, model_id, &user.username).await?;
     tx.commit()
         .await
         .map_err(|_| AppError::internal("failed to commit attribute create"))?;
@@ -800,7 +846,8 @@ async fn attribute_update(
     if result.rows_affected() == 0 {
         return Err(AppError::not_found("attribute not found"));
     }
-    instance_service::recompute_model_instances(&mut tx, model_id, &user.username).await?;
+    let tenant = TenantContext::from_user(&user)?;
+    instance_service::recompute_model_instances(&mut tx, &tenant, model_id, &user.username).await?;
     tx.commit()
         .await
         .map_err(|_| AppError::internal("failed to commit attribute update"))?;
@@ -871,231 +918,4 @@ async fn attribute_delete(
 }
 
 #[cfg(test)]
-mod model_query_tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn model_keyword_is_optional_and_trimmed() {
-        assert_eq!(model_keyword_pattern(&None), None);
-        assert_eq!(model_keyword_pattern(&Some("  ".into())), None);
-        assert_eq!(
-            model_keyword_pattern(&Some(" server ".into())),
-            Some("%server%".into())
-        );
-    }
-
-    #[test]
-    fn model_page_bounds_are_safe() {
-        assert_eq!(page_bounds(None, None), (20, 0));
-        assert_eq!(page_bounds(Some(0), Some(0)), (1, 0));
-        assert_eq!(page_bounds(Some(3), Some(500)), (200, 400));
-    }
-
-    #[test]
-    fn attribute_schema_validates_defaults_choices_and_backfills() {
-        assert!(
-            attribute_schema(&json!({
-                "attrType": "select",
-                "choices": [
-                    {"label": "One", "value": "same"},
-                    {"label": "Two", "value": "same"}
-                ]
-            }))
-            .is_err()
-        );
-        assert!(attribute_schema(&json!({"attrType": "number", "defaultValue": "one"})).is_err());
-
-        let required =
-            attribute_schema(&json!({"attrType": "number", "required": true, "defaultValue": 2}))
-                .unwrap();
-        let mut attributes = serde_json::Map::new();
-        assert!(reconcile_attribute_map(&mut attributes, "count", &required, false).unwrap());
-        assert_eq!(attributes["count"], 2);
-        attributes.insert("count".into(), json!("wrong"));
-        assert!(reconcile_attribute_map(&mut attributes, "count", &required, false).is_err());
-
-        let optional = attribute_schema(
-            &json!({"attrType": "text", "required": false, "defaultValue": "new"}),
-        )
-        .unwrap();
-        let mut old_instance = serde_json::Map::new();
-        assert!(!reconcile_attribute_map(&mut old_instance, "note", &optional, false).unwrap());
-        assert!(!old_instance.contains_key("note"));
-        assert!(reconcile_attribute_map(&mut old_instance, "note", &optional, true).unwrap());
-        assert_eq!(old_instance["note"], "new");
-    }
-
-    #[tokio::test]
-    #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
-    async fn attribute_changes_lock_validate_backfill_and_clean_instances() {
-        use rustset_framework_security::{DataScope, PermissionSet};
-        use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-        use std::{
-            str::FromStr,
-            time::{SystemTime, UNIX_EPOCH},
-        };
-
-        let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
-        let admin = PgPool::connect(&url).await.unwrap();
-        let schema_name = format!(
-            "cmdb_attribute_test_{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
-        sqlx::query(&format!("CREATE SCHEMA {schema_name}"))
-            .execute(&admin)
-            .await
-            .unwrap();
-        let options = PgConnectOptions::from_str(&url)
-            .unwrap()
-            .options([("search_path", schema_name.as_str())]);
-        let pool = PgPoolOptions::new()
-            .max_connections(8)
-            .connect_with(options)
-            .await
-            .unwrap();
-        let ddl = include_str!("../../../../sql/postgresql/0009_cmdb_core.sql")
-            .split("-- Menus:")
-            .next()
-            .unwrap()
-            .replace("public.", "");
-        sqlx::raw_sql(&ddl).execute(&pool).await.unwrap();
-        let model_id: i64 = sqlx::query_scalar(
-            "INSERT INTO cmdb_model(name, code, unique_key) VALUES ('Test', 'test', 'name') RETURNING id",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        sqlx::query("INSERT INTO cmdb_attribute(model_id, name, code, attr_type, required) VALUES ($1, 'Name', 'name', 'text', true)")
-            .bind(model_id)
-            .execute(&pool)
-            .await
-            .unwrap();
-        sqlx::query("INSERT INTO cmdb_instance(model_id, attributes) VALUES ($1, $2)")
-            .bind(model_id)
-            .bind(json!({"name": "server-1"}))
-            .execute(&pool)
-            .await
-            .unwrap();
-        let state = CmdbState { pool: pool.clone() };
-        let user = CurrentUser {
-            user_id: "1".into(),
-            username: "test".into(),
-            tenant_id: None,
-            role_codes: vec!["super_admin".into()],
-            permissions: PermissionSet::default(),
-            data_scope: DataScope::All,
-        };
-
-        assert!(
-            attribute_create(
-                State(state.clone()),
-                user.clone(),
-                Json(json!({
-                    "modelId": model_id,
-                    "name": "Required",
-                    "code": "required_without_default",
-                    "attrType": "number",
-                    "required": true
-                }))
-            )
-            .await
-            .is_err()
-        );
-        let _ = attribute_create(
-            State(state.clone()),
-            user.clone(),
-            Json(json!({
-                "modelId": model_id,
-                "name": "Count",
-                "code": "count",
-                "attrType": "number",
-                "required": true,
-                "defaultValue": 1
-            })),
-        )
-        .await
-        .unwrap();
-        let attributes: Value = sqlx::query_scalar("SELECT attributes FROM cmdb_instance")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert_eq!(attributes, json!({"name": "server-1", "count": 1}));
-
-        let count_id: i64 = sqlx::query_scalar(
-            "SELECT id FROM cmdb_attribute WHERE code = 'count' AND deleted = 0",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert!(
-            attribute_update(
-                State(state.clone()),
-                user.clone(),
-                Json(json!({
-                    "id": count_id,
-                    "name": "Count",
-                    "attrType": "select",
-                    "required": true,
-                    "choices": [{"label": "One", "value": "one"}],
-                    "defaultValue": "one"
-                }))
-            )
-            .await
-            .is_err()
-        );
-        let attr_type: String =
-            sqlx::query_scalar("SELECT attr_type FROM cmdb_attribute WHERE id = $1")
-                .bind(count_id)
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-        assert_eq!(attr_type, "number");
-
-        let name_id: i64 =
-            sqlx::query_scalar("SELECT id FROM cmdb_attribute WHERE code = 'name' AND deleted = 0")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-        assert!(
-            attribute_delete(
-                State(state.clone()),
-                user.clone(),
-                Query(IdParams { id: name_id })
-            )
-            .await
-            .is_err()
-        );
-        let _ = attribute_delete(
-            State(state.clone()),
-            user.clone(),
-            Query(IdParams { id: count_id }),
-        )
-        .await
-        .unwrap();
-        let attributes: Value = sqlx::query_scalar("SELECT attributes FROM cmdb_instance")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert_eq!(attributes, json!({"name": "server-1"}));
-        assert!(
-            model_update(
-                State(state),
-                user,
-                Json(json!({"id": model_id, "name": "Test", "uniqueKey": "count"}))
-            )
-            .await
-            .is_err()
-        );
-
-        pool.close().await;
-        sqlx::query(&format!("DROP SCHEMA {schema_name} CASCADE"))
-            .execute(&admin)
-            .await
-            .unwrap();
-        admin.close().await;
-    }
-}
+mod tenant_tests;

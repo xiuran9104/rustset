@@ -6,11 +6,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+rustset-framework-tenant.workspace = true
 axum.workspace = true
 aide.workspace = true
 schemars.workspace = true
-calamine.workspace = true
-rust_xlsxwriter.workspace = true
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -23,3 +22,4 @@ rustset-framework-web.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+tower.workspace = true

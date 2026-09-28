@@ -1,22 +1,31 @@
 <script lang="ts" setup>
 import { Page } from '@vben/common-ui';
-import { getTaskList, createTask, deleteTask } from '#/api/scan/task';
+import { message } from 'ant-design-vue';
+import { onMounted, onUnmounted } from 'vue';
+import { cancelTask, getTaskList, createTask, deleteTask, retryTask } from '#/api/scan/task';
+import type { ScanTaskApi } from '#/api/scan/task';
 import { useCrudList } from '../composables/useCrudList';
 
-interface Task { id:string; name:string; target:string; status:string; found_assets:number; found_risks:number; port_policy:string; service_detection:boolean; domain_brute:boolean; os_detection:boolean; site_identify:boolean; start_time?:string; }
+type Task = ScanTaskApi.ScanTask;
 const { loading, modalVisible, searchText, form, filtered, fetchData, openCreate, handleSubmit, handleDelete } = useCrudList<Task>({
   api: { list: getTaskList, create: createTask, del: (id)=>deleteTask(String(id)) },
-  defaultForm: () => ({ id:'',name:'',target:'',status:'pending',found_assets:0,found_risks:0,port_policy:'TOP100',service_detection:true,domain_brute:false,os_detection:false,site_identify:false }),
+  defaultForm: () => ({ id:'',name:'',target:'',status:'pending',foundAssets:0,foundRisks:0,portPolicy:'COMMON',serviceDetection:true,domainBrute:false,osDetection:false,siteIdentify:false,attemptCount:0,maxAttempts:3,cancelRequested:false,completedTargets:0,createTime:'',nextAttemptAt:'',scanPorts:[],taskKind:'scan',timeoutSeconds:300,totalTargets:0,updateTime:'' }),
   searchKeys: ['name', 'target'],
 });
 const columns = [
   { title:'名称', dataIndex:'name', width:180 },{ title:'目标', dataIndex:'target', ellipsis:true },
-  { title:'状态', dataIndex:'status', width:90 },{ title:'策略', dataIndex:'port_policy', width:80 },
-  { title:'资产', dataIndex:'found_assets', width:60 },{ title:'风险', dataIndex:'found_risks', width:60 },
-  { title:'时间', dataIndex:'start_time', width:160 },{ title:'操作', key:'actions', width:80, fixed:'right' },
+  { title:'状态', dataIndex:'status', width:105 },{ title:'策略', dataIndex:'portPolicy', width:80 },
+  { title:'尝试', key:'attempts', width:70 },
+  { title:'资产', dataIndex:'foundAssets', width:60 },{ title:'风险', dataIndex:'foundRisks', width:60 },
+  { title:'时间', dataIndex:'startTime', width:160 },{ title:'操作', key:'actions', width:150, fixed:'right' },
 ];
-const stC:Record<string,string>={pending:'default',running:'processing',completed:'green',failed:'red'};
-const stL:Record<string,string>={pending:'待执行',running:'运行中',completed:'已完成',failed:'失败'};
+const stC:Record<string,string>={pending:'default',queued:'blue',retrying:'orange',running:'processing',completed:'green',failed:'red',cancelled:'default'};
+const stL:Record<string,string>={pending:'待执行',queued:'排队中',retrying:'等待重试',running:'运行中',completed:'已完成',failed:'失败',cancelled:'已取消'};
+async function handleCancel(id:string){await cancelTask(id);message.success('已请求取消任务');await fetchData();}
+async function handleRetry(id:string){await retryTask(id);message.success('任务已重新排队');await fetchData();}
+let refreshTimer:number|undefined;
+onMounted(()=>{refreshTimer=window.setInterval(()=>{if(filtered.value.some((task)=>['queued','retrying','running'].includes(task.status)))fetchData();},3000);});
+onUnmounted(()=>{if(refreshTimer)window.clearInterval(refreshTimer);});
 </script>
 
 <template>
@@ -27,18 +36,19 @@ const stL:Record<string,string>={pending:'待执行',running:'运行中',complet
       <a-card style="border-radius:8px" size="small">
         <a-table :columns="columns" :data-source="filtered" :loading="loading" row-key="id" size="middle" :pagination="{pageSize:15}">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key==='status'"><a-badge :status="record.status==='running'?'processing':record.status==='completed'?'success':record.status==='failed'?'error':'default'" /><a-tag :color="stC[record.status]" style="margin-left:4px">{{ stL[record.status]||record.status }}</a-tag></template>
-            <template v-if="column.key==='actions'"><a-popconfirm title="确认删除?" @confirm="handleDelete(record.id)"><a-button v-access:code="['infra:task:delete']" type="link" size="small" danger>删除</a-button></a-popconfirm></template>
+            <template v-if="column.key==='status'"><a-tooltip :title="record.errorMessage"><a-badge :status="record.status==='running'?'processing':record.status==='completed'?'success':record.status==='failed'?'error':'default'" /><a-tag :color="stC[record.status]" style="margin-left:4px">{{ stL[record.status]||record.status }}</a-tag></a-tooltip></template>
+            <template v-if="column.key==='attempts'">{{ record.attemptCount||0 }}/{{ record.maxAttempts||3 }}</template>
+            <template v-if="column.key==='actions'"><a-space size="small"><a-popconfirm v-if="['queued','retrying','running'].includes(record.status)" title="确认取消任务?" @confirm="handleCancel(record.id)"><a-button v-access:code="['infra:task:execute']" type="link" size="small">取消</a-button></a-popconfirm><a-button v-if="['failed','cancelled'].includes(record.status)" v-access:code="['infra:task:execute']" type="link" size="small" @click="handleRetry(record.id)">重试</a-button><a-popconfirm title="确认删除?" @confirm="handleDelete(record.id)"><a-button v-access:code="['infra:task:delete']" type="link" size="small" danger>删除</a-button></a-popconfirm></a-space></template>
           </template>
         </a-table>
       </a-card>
       <a-modal v-model:open="modalVisible" title="新建扫描任务" @ok="handleSubmit" width="500px">
         <a-form v-if="form" layout="vertical">
           <a-form-item label="任务名称" required><a-input v-model:value="form.name" placeholder="例如：核心网段扫描" /></a-form-item>
-          <a-form-item label="目标" required><a-textarea v-model:value="form.target" placeholder="192.168.1.0/24, 10.0.0.1-10.0.0.255" :rows="2" /></a-form-item>
+          <a-form-item label="目标" required extra="每个任务最多 64 个明确 IP，使用逗号、分号或空格分隔"><a-textarea v-model:value="form.target" placeholder="192.168.1.10, 10.0.0.20" :rows="2" /></a-form-item>
           <a-row :gutter="16">
-            <a-col :span="12"><a-form-item label="端口策略"><a-select v-model:value="form.port_policy"><a-select-option value="TOP100">TOP 100</a-select-option><a-select-option value="TOP1000">TOP 1000</a-select-option><a-select-option value="ALL">全端口</a-select-option></a-select></a-form-item></a-col>
-            <a-col :span="12"><a-form-item label="服务识别"><a-switch v-model:checked="form.service_detection" /></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="端口策略"><a-select v-model:value="form.portPolicy"><a-select-option value="COMMON">常用端口</a-select-option><a-select-option value="TOP1000">1-1000 + 常用高端口</a-select-option><a-select-option value="ALL">全端口</a-select-option></a-select></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="服务识别"><a-switch v-model:checked="form.serviceDetection" /></a-form-item></a-col>
           </a-row>
         </a-form>
       </a-modal>

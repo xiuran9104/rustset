@@ -7,6 +7,7 @@ repository.workspace = true
 
 [dependencies]
 aws-sdk-s3.workspace = true
+rustset-framework-tenant.workspace = true
 axum.workspace = true
 aide.workspace = true
 schemars.workspace = true

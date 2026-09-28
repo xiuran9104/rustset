@@ -1,17 +1,27 @@
-use crate::{InfraState, QueryParams, bool_field, str_field};
+use crate::{InfraState, QueryParams, bool_field};
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
 use axum::{
     Json,
     extract::{Query, State},
 };
-use chrono::Utc;
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
+use rustset_infra_api::{
+    CreateScanTaskRequest, ScanTaskPageResponse, ScanTaskResponse, TaskIdRequest, TaskIdsQuery,
+    TriggerScanRequest, TriggerScanResponse, UpdateScanTaskRequest,
+};
 use serde_json::{Value, json};
-use std::collections::HashMap;
 use uuid::Uuid;
+
+pub(crate) mod repository;
+pub(crate) mod worker;
+
+pub(crate) fn start_worker(pool: sqlx::PgPool) {
+    worker::start(pool);
+}
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
@@ -23,88 +33,118 @@ pub fn routes() -> ApiRouter<InfraState> {
         .api_route("/infra/task/delete", delete(delete_one))
         .api_route("/infra/task/delete-list", delete(delete_list))
         .api_route("/infra/task/trigger-scan", post(trigger_scan))
+        .api_route("/infra/task/cancel", put(cancel))
+        .api_route("/infra/task/retry", post(retry))
 }
 
 async fn page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<QueryParams>,
-) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+) -> Result<Json<ApiResponse<ScanTaskPageResponse>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
     let page_no = params.page_no.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (page_no - 1) * page_size;
-    let total = sqlx::query_scalar::<_, i64>("SELECT count(*) FROM infra_task WHERE deleted=0")
-        .fetch_one(&state.pool)
+    let total = repository::count(&state.pool, tenant.id())
         .await
-        .map_err(|_| AppError::internal("failed"))?;
-    let list = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_task t WHERE deleted=0 ORDER BY create_time DESC LIMIT $1 OFFSET $2").bind(page_size).bind(offset).fetch_all(&state.pool).await.map_err(|_| AppError::internal("failed"))?.into_iter().map(crate::table_value).collect();
-    Ok(Json(ApiResponse::new(crate::Page { list, total })))
+        .map_err(|_| AppError::internal("读取任务数量失败"))?;
+    let list = repository::page(&state.pool, tenant.id(), page_size, offset)
+        .await
+        .map_err(|_| AppError::internal("读取任务列表失败"))?;
+    Ok(Json(ApiResponse::new(ScanTaskPageResponse { list, total })))
 }
 
-async fn list(State(state): State<InfraState>) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    let list = sqlx::query_scalar::<_, Value>(
-        "SELECT to_jsonb(t) FROM infra_task t WHERE deleted=0 ORDER BY create_time DESC",
-    )
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|_| AppError::internal("failed"))?
-    .into_iter()
-    .map(crate::table_value)
-    .collect();
+async fn list(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<Vec<ScanTaskResponse>>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let list = repository::list(&state.pool, tenant.id())
+        .await
+        .map_err(|_| AppError::internal("读取任务列表失败"))?;
     Ok(Json(ApiResponse::new(list)))
 }
 
 async fn get_one(
     State(state): State<InfraState>,
-    Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let id = params.get("id").cloned().unwrap_or_default();
-    let v = sqlx::query_scalar::<_, Value>(
-        "SELECT to_jsonb(t) FROM infra_task t WHERE id=$1 AND deleted=0",
-    )
-    .bind(&id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|_| AppError::internal("failed"))?
-    .ok_or_else(|| AppError::not_found("not found"))?;
-    Ok(Json(ApiResponse::new(crate::table_value(v))))
+    user: CurrentUser,
+    Query(params): Query<TaskIdRequest>,
+) -> Result<Json<ApiResponse<ScanTaskResponse>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let task = repository::get(&state.pool, tenant.id(), &params.id)
+        .await
+        .map_err(|_| AppError::internal("读取任务失败"))?
+        .ok_or_else(|| AppError::not_found("任务不存在"))?;
+    Ok(Json(ApiResponse::new(task)))
 }
 
 async fn create(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<CreateScanTaskRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    let id = Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO infra_task (id, name, target, status, port_policy, domain_brute, service_detection, os_detection, site_identify, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)")
-        .bind(&id).bind(&str_field(&payload, "name")).bind(&str_field(&payload, "target")).bind("pending").bind(&str_field(&payload, "portPolicy"))
-        .bind(bool_field(&payload, "domainBrute", false) as i32).bind(bool_field(&payload, "serviceDetection", false) as i32)
-        .bind(bool_field(&payload, "osDetection", false) as i32).bind(bool_field(&payload, "siteIdentify", false) as i32)
-        .bind(&user.username).execute(&state.pool).await.map_err(|_| AppError::internal("failed"))?;
+    let tenant = TenantContext::from_user(&user)?;
+    let targets = parse_targets(&payload.target)?;
+    let policy = payload.port_policy.trim().to_owned();
+    let ports = ports_for_policy(&policy)?;
+    let options = json!({
+        "domainBrute": payload.domain_brute,
+        "serviceDetection": payload.service_detection.unwrap_or(true),
+        "osDetection": payload.os_detection,
+        "siteIdentify": payload.site_identify,
+    });
+    let id = enqueue(
+        &state.pool,
+        &tenant,
+        &user.username,
+        &payload.name,
+        &payload.target,
+        &policy,
+        targets,
+        ports,
+        payload.idempotency_key.as_deref(),
+        payload.max_attempts,
+        payload.timeout_seconds,
+        &options,
+    )
+    .await?;
     Ok(Json(ApiResponse::new(id)))
 }
 
 async fn update(
     State(state): State<InfraState>,
-    Json(payload): Json<Value>,
+    user: CurrentUser,
+    Json(payload): Json<UpdateScanTaskRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let id = str_field(&payload, "id");
-    if id.is_empty() {
+    let tenant = TenantContext::from_user(&user)?;
+    if payload.id.trim().is_empty() {
         return Err(AppError::bad_request("id is required"));
     }
-    sqlx::query("UPDATE infra_task SET name=$2, target=$3, port_policy=$4, domain_brute=$5, service_detection=$6, os_detection=$7, site_identify=$8, update_time=now() WHERE id=$1 AND deleted=0")
-        .bind(&id).bind(&str_field(&payload, "name")).bind(&str_field(&payload, "target")).bind(&str_field(&payload, "portPolicy"))
-        .bind(bool_field(&payload, "domainBrute", false) as i32).bind(bool_field(&payload, "serviceDetection", false) as i32)
-        .bind(bool_field(&payload, "osDetection", false) as i32).bind(bool_field(&payload, "siteIdentify", false) as i32)
-        .execute(&state.pool).await.map_err(|_| AppError::internal("failed"))?;
+    let targets = parse_targets(&payload.target)?;
+    let policy = payload.port_policy.trim().to_owned();
+    let ports = ports_for_policy(&policy)?;
+    let durable_payload = json!({"targetIps": targets, "ports": ports});
+    let result = sqlx::query("UPDATE infra_task SET name=$2, target=$3, port_policy=$4, domain_brute=$5, service_detection=$6, os_detection=$7, site_identify=$8, payload=$9, update_time=now() WHERE id=$1 AND tenant_id=$10 AND deleted=0 AND status IN ('queued','retrying')")
+        .bind(&payload.id).bind(&payload.name).bind(&payload.target).bind(&policy)
+        .bind(payload.domain_brute as i32).bind(payload.service_detection.unwrap_or(true) as i32)
+        .bind(payload.os_detection as i32).bind(payload.site_identify as i32)
+        .bind(durable_payload).bind(tenant.id()).execute(&state.pool).await.map_err(|_| AppError::internal("failed"))?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::bad_request("只有排队或等待重试的任务可以修改"));
+    }
     Ok(Json(ApiResponse::new(())))
 }
 
 async fn delete_one(
     State(state): State<InfraState>,
-    Query(params): Query<HashMap<String, String>>,
+    user: CurrentUser,
+    Query(params): Query<TaskIdRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    sqlx::query("UPDATE infra_task SET deleted=1, update_time=now() WHERE id=$1")
-        .bind(&params.get("id").cloned().unwrap_or_default())
+    let tenant = TenantContext::from_user(&user)?;
+    sqlx::query("UPDATE infra_task SET deleted=1,cancel_requested=true,update_time=now() WHERE id=$1 AND tenant_id=$2")
+        .bind(&params.id)
+        .bind(tenant.id())
         .execute(&state.pool)
         .await
         .map_err(|_| AppError::internal("failed"))?;
@@ -113,56 +153,240 @@ async fn delete_one(
 
 async fn delete_list(
     State(state): State<InfraState>,
-    Query(params): Query<HashMap<String, String>>,
+    user: CurrentUser,
+    Query(params): Query<TaskIdsQuery>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    for id in crate::ids_param(&params) {
-        let _ = sqlx::query("UPDATE infra_task SET deleted=1, update_time=now() WHERE id=$1")
-            .bind(id)
-            .execute(&state.pool)
-            .await;
-    }
+    let tenant = TenantContext::from_user(&user)?;
+    let ids = parse_task_ids(&params.ids)?;
+    delete_tasks(&state.pool, &tenant, &ids).await?;
     Ok(Json(ApiResponse::new(())))
 }
 
 async fn trigger_scan(
     State(state): State<InfraState>,
-    Json(payload): Json<Value>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let target_ip = str_field(&payload, "targetIp");
-    let ports: Vec<i32> = payload
-        .get("ports")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_i64().map(|n| n as i32))
-                .collect()
-        })
-        .unwrap_or_else(|| {
-            vec![
-                21, 22, 23, 25, 53, 80, 443, 3306, 3389, 5432, 6379, 8080, 27017,
-            ]
-        });
-    let pool = state.pool.clone();
-    let tip = target_ip.clone();
-    let pr = ports.clone();
-    tokio::spawn(async move {
-        for port in &ports {
-            let addr = format!("{}:{}", tip, port);
-            if let Ok(sa) = addr.parse::<std::net::SocketAddr>() {
-                let open = std::net::TcpStream::connect_timeout(
-                    &sa,
-                    std::time::Duration::from_millis(500),
-                )
-                .is_ok();
-                if open {
-                    let rid = Uuid::new_v4().to_string();
-                    let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                    let _ = sqlx::query("INSERT INTO infra_risk (id, asset_ip, port, severity, description, status, create_time, update_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)").bind(&rid).bind(&tip).bind(*port).bind("Low").bind(format!("Open port {} detected", port)).bind("open").bind(&now).bind(&now).execute(&pool).await;
-                }
-            }
-        }
-    });
-    Ok(Json(ApiResponse::new(
-        json!({"message": format!("Scan started for {}", target_ip), "targetIp": target_ip, "ports": pr}),
-    )))
+    user: CurrentUser,
+    Json(payload): Json<TriggerScanRequest>,
+) -> Result<Json<ApiResponse<TriggerScanResponse>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let target_ip = payload.target_ip.trim().to_owned();
+    let targets = parse_targets(&target_ip)?;
+    let ports = if payload.ports.is_empty() {
+        vec![
+            21, 22, 23, 25, 53, 80, 443, 3306, 3389, 5432, 6379, 8080, 27017,
+        ]
+    } else {
+        payload.ports
+    };
+    let ports = normalize_ports(ports)?;
+    let id = enqueue(
+        &state.pool,
+        &tenant,
+        &user.username,
+        &format!("扫描 {target_ip}"),
+        &target_ip,
+        "custom",
+        targets,
+        ports.clone(),
+        payload.idempotency_key.as_deref(),
+        payload.max_attempts,
+        payload.timeout_seconds,
+        &json!({}),
+    )
+    .await?;
+    Ok(Json(ApiResponse::new(TriggerScanResponse {
+        task_id: id,
+        message: format!("扫描任务已排队: {target_ip}"),
+        target_ip,
+        ports,
+    })))
 }
+
+async fn cancel(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Json(payload): Json<TaskIdRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let id = payload.id;
+    let result = sqlx::query(
+        "UPDATE infra_task SET cancel_requested=true,
+             status=CASE WHEN status IN ('queued','retrying') THEN 'cancelled' ELSE status END,
+             end_time=CASE WHEN status IN ('queued','retrying') THEN now()::text ELSE end_time END,
+             update_time=now()
+         WHERE id=$1 AND tenant_id=$2 AND deleted=0
+           AND status IN ('queued','retrying','running')",
+    )
+    .bind(id)
+    .bind(tenant.id())
+    .execute(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("取消任务失败"))?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::bad_request("任务不存在或当前状态不能取消"));
+    }
+    Ok(Json(ApiResponse::new(())))
+}
+
+async fn retry(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Json(payload): Json<TaskIdRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let id = payload.id;
+    let result = sqlx::query(
+        "UPDATE infra_task SET status='queued',attempt_count=0,cancel_requested=false,
+             next_attempt_at=now(),lease_owner=NULL,lease_expires_at=NULL,
+             start_time=NULL,end_time=NULL,error_message=NULL,update_time=now()
+         WHERE id=$1 AND tenant_id=$2 AND deleted=0
+           AND task_kind IN ('scan','inspection') AND status IN ('failed','cancelled')",
+    )
+    .bind(id)
+    .bind(tenant.id())
+    .execute(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("重试任务失败"))?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::bad_request("任务不存在或当前状态不能重试"));
+    }
+    Ok(Json(ApiResponse::new(())))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn enqueue(
+    pool: &sqlx::PgPool,
+    tenant: &TenantContext,
+    operator: &str,
+    name: &str,
+    target: &str,
+    policy: &str,
+    targets: Vec<std::net::IpAddr>,
+    ports: Vec<i32>,
+    idempotency_key: Option<&str>,
+    max_attempts: Option<i64>,
+    timeout_seconds: Option<i64>,
+    options: &Value,
+) -> Result<String, AppError> {
+    if name.trim().is_empty() || name.chars().count() > 256 {
+        return Err(AppError::bad_request("任务名称需要 1-256 个字符"));
+    }
+    let idempotency_key = idempotency_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if idempotency_key.is_some_and(|value| value.len() > 128) {
+        return Err(AppError::bad_request("idempotencyKey 最多 128 个字符"));
+    }
+    let max_attempts = max_attempts.unwrap_or(3).clamp(1, 20) as i32;
+    let estimated_seconds = ((ports.len().div_ceil(64) * targets.len()) as i64)
+        .saturating_add(60)
+        .clamp(300, 86_400);
+    let timeout_seconds = timeout_seconds
+        .unwrap_or(estimated_seconds)
+        .clamp(1, 86_400) as i32;
+    let id = Uuid::new_v4().to_string();
+    let durable_payload = json!({"targetIps":targets,"ports":ports});
+    let existing_or_created: String = sqlx::query_scalar(
+        "INSERT INTO infra_task
+            (id,name,target,status,port_policy,domain_brute,service_detection,
+             os_detection,site_identify,created_by,tenant_id,task_kind,scan_ports,
+             total_targets,payload,idempotency_key,max_attempts,timeout_seconds)
+         VALUES($1,$2,$3,'queued',$4,$5,$6,$7,$8,$9,$10,'scan',$11,$12,$13,$14,$15,$16)
+         ON CONFLICT(tenant_id,idempotency_key)
+             WHERE deleted=0 AND idempotency_key IS NOT NULL
+         DO UPDATE SET update_time=infra_task.update_time
+         RETURNING id",
+    )
+    .bind(&id)
+    .bind(name.trim())
+    .bind(target)
+    .bind(policy)
+    .bind(bool_field(options, "domainBrute", false) as i32)
+    .bind(bool_field(options, "serviceDetection", true) as i32)
+    .bind(bool_field(options, "osDetection", false) as i32)
+    .bind(bool_field(options, "siteIdentify", false) as i32)
+    .bind(operator)
+    .bind(tenant.id())
+    .bind(&ports)
+    .bind(targets.len() as i32)
+    .bind(durable_payload)
+    .bind(idempotency_key)
+    .bind(max_attempts)
+    .bind(timeout_seconds)
+    .fetch_one(pool)
+    .await
+    .map_err(|error| crate::record_query_error("enqueue scan task", error))?;
+    Ok(existing_or_created)
+}
+
+fn parse_targets(value: &str) -> Result<Vec<std::net::IpAddr>, AppError> {
+    let targets = value
+        .split(|character: char| character == ',' || character == ';' || character.is_whitespace())
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            value
+                .parse::<std::net::IpAddr>()
+                .map_err(|_| AppError::bad_request(format!("目标必须是明确的 IP 地址: {value}")))
+        })
+        .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+    if targets.is_empty() || targets.len() > 64 {
+        return Err(AppError::bad_request("每个任务需要 1-64 个明确的 IP 地址"));
+    }
+    Ok(targets.into_iter().collect())
+}
+
+fn normalize_ports(ports: Vec<i32>) -> Result<Vec<i32>, AppError> {
+    let ports = ports.into_iter().collect::<std::collections::BTreeSet<_>>();
+    if ports.is_empty() || ports.iter().any(|port| !(1..=65_535).contains(port)) {
+        return Err(AppError::bad_request("端口必须在 1-65535 之间"));
+    }
+    Ok(ports.into_iter().collect())
+}
+
+fn ports_for_policy(policy: &str) -> Result<Vec<i32>, AppError> {
+    const TOP: &[i32] = &[
+        21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 993, 995, 1433, 1521, 2049, 2375,
+        3306, 3389, 5432, 5900, 6379, 8080, 8443, 9200, 11211, 27017,
+    ];
+    match policy {
+        "COMMON" | "TOP100" | "" => Ok(TOP.to_vec()),
+        "TOP1000" => {
+            let mut ports = (1..=1000).collect::<std::collections::BTreeSet<_>>();
+            ports.extend(TOP);
+            Ok(ports.into_iter().collect())
+        }
+        "ALL" => Ok((1..=65_535).collect()),
+        _ => Err(AppError::bad_request("不支持的端口策略")),
+    }
+}
+
+// Task IDs are strings (UUIDs for new tasks), unlike the numeric CRUD IDs.
+fn parse_task_ids(raw: &str) -> Result<Vec<String>, AppError> {
+    let mut ids: Vec<String> = raw.split(',').map(|id| id.trim().to_owned()).collect();
+    if ids.iter().any(|id| id.is_empty()) {
+        return Err(AppError::bad_request("ids must contain non-empty task IDs"));
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    Ok(ids)
+}
+
+async fn delete_tasks(
+    pool: &sqlx::PgPool,
+    tenant: &TenantContext,
+    ids: &[String],
+) -> Result<(), AppError> {
+    // One statement is atomic: any database failure rolls back the whole batch.
+    // Missing/already deleted IDs are successful no-ops, making retries safe.
+    sqlx::query(
+        "UPDATE infra_task SET deleted=1,cancel_requested=true,update_time=now() WHERE id = ANY($1) AND tenant_id=$2 AND deleted=0",
+    )
+    .bind(ids)
+    .bind(tenant.id())
+    .execute(pool)
+    .await
+    .map_err(|_| AppError::internal("failed to delete tasks"))?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests;

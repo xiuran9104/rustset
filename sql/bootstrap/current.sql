@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict n7kqBceqPRZAz65IUrkz1D9w5ERddlSqmnobizMD7MjjDVSBfJvRAOFjcMScAMS
+\restrict O11kQ74k2KCb73stt2JlE8yvRaKwWt5cSHy1KaavgPkPrE4pMJF15fbbx63PsTZ
 
--- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
--- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
+-- Dumped from database version 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)
+-- Dumped by pg_dump version 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -31,6 +31,93 @@ CREATE SCHEMA ai;
 --
 
 CREATE SCHEMA infra;
+
+
+--
+-- Name: cmdb_rebuild_model_unique_values(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cmdb_rebuild_model_unique_values() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF OLD.unique_key IS DISTINCT FROM NEW.unique_key THEN
+        DELETE FROM public.cmdb_instance_unique_value WHERE model_id = NEW.id;
+        INSERT INTO public.cmdb_instance_unique_value(instance_id, tenant_id, model_id, value)
+            SELECT id, tenant_id, model_id, public.cmdb_unique_value(attributes, NEW.unique_key)
+            FROM public.cmdb_instance WHERE model_id = NEW.id AND deleted = 0
+              AND public.cmdb_unique_value(attributes, NEW.unique_key) IS NOT NULL;
+    END IF;
+    RETURN NEW;
+END $$;
+
+
+--
+-- Name: cmdb_sync_instance_unique_value(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cmdb_sync_instance_unique_value() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE model_key text; key_value jsonb;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        PERFORM id FROM public.cmdb_model WHERE id = OLD.model_id FOR UPDATE;
+        DELETE FROM public.cmdb_instance_unique_value WHERE instance_id = OLD.id;
+        RETURN OLD;
+    END IF;
+    IF TG_OP = 'UPDATE' THEN
+        PERFORM id FROM public.cmdb_model WHERE id IN (OLD.model_id, NEW.model_id) ORDER BY id FOR UPDATE;
+        DELETE FROM public.cmdb_instance_unique_value WHERE instance_id = OLD.id;
+    END IF;
+    SELECT unique_key INTO model_key FROM public.cmdb_model WHERE id = NEW.model_id FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'instance model does not exist' USING ERRCODE = '23503';
+    END IF;
+    key_value := public.cmdb_unique_value(NEW.attributes, model_key);
+    IF NEW.deleted = 0 AND key_value IS NOT NULL THEN
+        INSERT INTO public.cmdb_instance_unique_value(instance_id, tenant_id, model_id, value)
+            VALUES (NEW.id, NEW.tenant_id, NEW.model_id, key_value);
+    END IF;
+    RETURN NEW;
+END $$;
+
+
+--
+-- Name: cmdb_unique_value(jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cmdb_unique_value(attributes jsonb, key text) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    SELECT CASE
+        WHEN key IS NULL OR key = '' OR attributes->key IS NULL
+          OR attributes->key IN ('null'::jsonb, '[]'::jsonb)
+          OR (jsonb_typeof(attributes->key) = 'string'
+              AND btrim(attributes->>key, U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000') = '')
+        THEN NULL ELSE attributes->key END
+$$;
+
+
+--
+-- Name: require_resource_tenant(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.require_resource_tenant() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' AND (NEW.tenant_id IS NULL OR NEW.tenant_id <= 0) THEN
+        RAISE EXCEPTION 'tenant_id is required for new resources' USING ERRCODE = '23514';
+    END IF;
+    IF TG_OP = 'UPDATE' AND OLD.tenant_id IS NOT NULL AND NEW.tenant_id IS DISTINCT FROM OLD.tenant_id THEN
+        RAISE EXCEPTION 'resource tenant is immutable' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.tenant_id IS NOT NULL AND NEW.tenant_id <= 0 THEN
+        RAISE EXCEPTION 'tenant_id must be positive' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END $$;
 
 
 SET default_tablespace = '';
@@ -312,6 +399,20 @@ CREATE TABLE ai.writes (
 
 
 --
+-- Name: _sqlx_migrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public._sqlx_migrations (
+    version bigint NOT NULL,
+    description text NOT NULL,
+    installed_on timestamp with time zone DEFAULT now() NOT NULL,
+    success boolean NOT NULL,
+    checksum bytea NOT NULL,
+    execution_time bigint NOT NULL
+);
+
+
+--
 -- Name: cmdb_attribute_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -371,7 +472,20 @@ CREATE TABLE public.cmdb_instance (
     create_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updater character varying(64) DEFAULT ''::character varying NOT NULL,
     update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    deleted smallint DEFAULT 0 NOT NULL
+    deleted smallint DEFAULT 0 NOT NULL,
+    tenant_id bigint
+);
+
+
+--
+-- Name: cmdb_instance_unique_value; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cmdb_instance_unique_value (
+    instance_id bigint NOT NULL,
+    model_id bigint NOT NULL,
+    value jsonb NOT NULL,
+    tenant_id bigint
 );
 
 
@@ -466,7 +580,8 @@ CREATE TABLE public.cmdb_relation (
     create_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updater character varying(64) DEFAULT ''::character varying NOT NULL,
     update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    deleted smallint DEFAULT 0 NOT NULL
+    deleted smallint DEFAULT 0 NOT NULL,
+    tenant_id bigint
 );
 
 
@@ -709,7 +824,8 @@ CREATE TABLE public.infra_asset (
     cryptography_assessment_date date,
     cryptography_assessment_number character varying(128),
     net_zone_id bigint,
-    ownership_source character varying(32) DEFAULT 'manual'::character varying
+    ownership_source character varying(32) DEFAULT 'manual'::character varying,
+    tenant_id bigint
 );
 
 
@@ -1178,6 +1294,43 @@ CREATE TABLE public.infra_file_config (
 
 
 --
+-- Name: infra_high_risk_port_rule_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.infra_high_risk_port_rule_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: infra_high_risk_port_rule; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.infra_high_risk_port_rule (
+    id bigint DEFAULT nextval('public.infra_high_risk_port_rule_seq'::regclass) NOT NULL,
+    name character varying(128) NOT NULL,
+    protocol character varying(16) DEFAULT 'tcp'::character varying NOT NULL,
+    port_start integer NOT NULL,
+    port_end integer NOT NULL,
+    severity character varying(32) NOT NULL,
+    description text NOT NULL,
+    solution text NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    creator character varying(64) DEFAULT ''::character varying NOT NULL,
+    create_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updater character varying(64) DEFAULT ''::character varying NOT NULL,
+    update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted smallint DEFAULT 0 NOT NULL,
+    CONSTRAINT infra_high_risk_port_rule_protocol_check CHECK (((protocol)::text = ANY ((ARRAY['tcp'::character varying, 'udp'::character varying, 'any'::character varying])::text[]))),
+    CONSTRAINT infra_high_risk_port_rule_range_check CHECK ((((port_start >= 1) AND (port_start <= 65535)) AND ((port_end >= port_start) AND (port_end <= 65535)))),
+    CONSTRAINT infra_high_risk_port_rule_severity_check CHECK (((severity)::text = ANY ((ARRAY['Critical'::character varying, 'High'::character varying, 'Medium'::character varying, 'Low'::character varying])::text[])))
+);
+
+
+--
 -- Name: infra_inspection_baseline; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1187,6 +1340,7 @@ CREATE TABLE public.infra_inspection_baseline (
     reason text NOT NULL,
     updated_by character varying(64) NOT NULL,
     update_time timestamp without time zone DEFAULT now() NOT NULL,
+    tenant_id bigint,
     CONSTRAINT infra_inspection_baseline_allowed_ports_check CHECK (((0 < ALL (allowed_ports)) AND (65536 > ALL (allowed_ports))))
 );
 
@@ -1205,7 +1359,8 @@ CREATE TABLE public.infra_inspection_result (
     uncertain_ports integer[] NOT NULL,
     differences jsonb NOT NULL,
     risk_ids text[] DEFAULT '{}'::text[] NOT NULL,
-    create_time timestamp without time zone DEFAULT now() NOT NULL
+    create_time timestamp without time zone DEFAULT now() NOT NULL,
+    tenant_id bigint
 );
 
 
@@ -1356,7 +1511,8 @@ CREATE TABLE public.infra_network_policy (
     create_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updater character varying(64) DEFAULT ''::character varying NOT NULL,
     update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    deleted smallint DEFAULT 0 NOT NULL
+    deleted smallint DEFAULT 0 NOT NULL,
+    tenant_id bigint
 );
 
 
@@ -1564,7 +1720,8 @@ CREATE TABLE public.infra_resource_ticket (
     apply_log text,
     tf_outputs jsonb,
     tofu_workspace character varying(128),
-    target_resource_type character varying(16)
+    target_resource_type character varying(16),
+    tenant_id bigint
 );
 
 
@@ -1581,7 +1738,7 @@ COMMENT ON COLUMN public.infra_resource_ticket.apply_status IS 'none | planned |
 
 CREATE TABLE public.infra_risk (
     id character varying(64) NOT NULL,
-    asset_ip character varying(64) NOT NULL,
+    asset_ip character varying(256) NOT NULL,
     port integer NOT NULL,
     severity character varying(32) NOT NULL,
     description text NOT NULL,
@@ -1593,7 +1750,11 @@ CREATE TABLE public.infra_risk (
     updater character varying(64) DEFAULT ''::character varying NOT NULL,
     update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     deleted smallint DEFAULT 0 NOT NULL,
-    inspection_key text
+    inspection_key text,
+    tenant_id bigint,
+    source_type character varying(64),
+    source_id bigint,
+    rule_id bigint
 );
 
 
@@ -1720,7 +1881,20 @@ CREATE TABLE public.infra_task (
     scan_ports integer[] DEFAULT '{}'::integer[] NOT NULL,
     total_targets integer DEFAULT 0 NOT NULL,
     completed_targets integer DEFAULT 0 NOT NULL,
-    error_message text
+    error_message text,
+    tenant_id bigint,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    idempotency_key character varying(128),
+    attempt_count integer DEFAULT 0 NOT NULL,
+    max_attempts integer DEFAULT 3 NOT NULL,
+    timeout_seconds integer DEFAULT 300 NOT NULL,
+    next_attempt_at timestamp with time zone DEFAULT now() NOT NULL,
+    lease_owner character varying(128),
+    lease_expires_at timestamp with time zone,
+    heartbeat_at timestamp with time zone,
+    cancel_requested boolean DEFAULT false NOT NULL,
+    CONSTRAINT infra_task_retry_bounds_check CHECK (((attempt_count >= 0) AND ((max_attempts >= 1) AND (max_attempts <= 20)))),
+    CONSTRAINT infra_task_timeout_bounds_check CHECK (((timeout_seconds >= 1) AND (timeout_seconds <= 86400)))
 );
 
 
@@ -3021,7 +3195,7 @@ COPY ai.chat_messages (id, conversation_id, user_id, type, model_id, content, re
 --
 
 COPY ai.chat_roles (id, user_id, model_id, name, avatar, category, sort, description, system_message, welcome_message, public_status, status, knowledge_ids, tool_ids, create_time, update_time) FROM stdin;
-1784300000100	1	1784257814114	运维助理		Agent	100	CMDB / 资产台账 / 资源工单的智能运维 Agent	你是 RustSet 的运维助理 Agent。你可以：用 cmdb_model_list 和 cmdb_instance_query 查询 CMDB 模型与配置项；用 asset_query 查询资产采集台账；用 ticket_query 查询资源开通工单；用 ticket_create 创建云主机开通工单（会按自动审批规则流转）。回答保持简洁、基于工具返回的真实数据，不确定时先查询再回答。创建工单前先向用户确认规格（名称/CPU/内存/数量）。	你好，我是运维助理。可以问我“CMDB 里有哪些模型”“查一下 web-prod 相关资产”或“帮我开一台 4 核 8G 的机器”。	t	1	{}	{1784300000001,1784300000002,1784300000003,1784300000004,1784300000005}	1790321942216	1790321942216
+1784300000100	1	1784257814114	运维助理		Agent	100	CMDB / 资产台账 / 资源工单的智能运维 Agent	你是 RustSet 的运维助理 Agent。你可以：用 cmdb_model_list 和 cmdb_instance_query 查询 CMDB 模型与配置项；用 asset_query 查询资产采集台账；用 ticket_query 查询资源开通工单；用 ticket_create 创建云主机开通工单（会按自动审批规则流转）。回答保持简洁、基于工具返回的真实数据，不确定时先查询再回答。创建工单前先向用户确认规格（名称/CPU/内存/数量）。	你好，我是运维助理。可以问我“CMDB 里有哪些模型”“查一下 web-prod 相关资产”或“帮我开一台 4 核 8G 的机器”。	t	1	{}	{1784300000001,1784300000002,1784300000003,1784300000004,1784300000005}	1790506719106	1790506719106
 \.
 
 
@@ -3304,11 +3478,11 @@ COPY ai.music (id, user_id, model_id, title, lyric, image_url, audio_url, video_
 COPY ai.tools (id, name, description, status, input_schema, executor, create_time, update_time) FROM stdin;
 1	current_time	获取指定时区的当前时间	1	{"type": "object", "required": ["utcOffset"], "properties": {"utcOffset": {"type": "string"}}}	{"kind": "builtin"}	0	0
 2	weather_query	查询指定地点的天气	1	{"type": "object", "required": ["location"], "properties": {"location": {"type": "string"}}}	{"kind": "builtin"}	0	0
-1784300000001	cmdb_model_list	列出 CMDB 中所有已启用的模型及其属性数和实例数	1	{"type": "object", "required": [], "properties": {}}	{"kind": "rust"}	1790321942200	1790321942200
-1784300000002	cmdb_instance_query	按模型编码查询 CMDB 配置项实例，可带关键词过滤实例属性内容	1	{"type": "object", "required": ["model_code"], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "keyword": {"type": "string", "description": "属性内容关键词，可选"}, "model_code": {"type": "string", "description": "CMDB 模型编码，如 server / cloud_ecs"}}}	{"kind": "rust"}	1790321942204	1790321942204
-1784300000003	asset_query	查询资产采集台账（infra_asset），支持名称/IP/单位/应用关键词	1	{"type": "object", "required": [], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "keyword": {"type": "string", "description": "名称、IP、单位或应用关键词，可选"}}}	{"kind": "rust"}	1790321942207	1790321942207
-1784300000004	ticket_query	查询资源开通工单，可按状态（pending_approval/pending_provision/pending_delivery/delivered/rejected）和关键词过滤	1	{"type": "object", "required": [], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "status": {"type": "string", "description": "工单状态，可选"}, "keyword": {"type": "string", "description": "主机名或应用名关键词，可选"}}}	{"kind": "rust"}	1790321942210	1790321942210
-1784300000005	ticket_create	创建云主机开通工单（ecs）。命中自动审批规则时会直接进入待配置状态；开通执行需在工单页进行或由自动规则触发	1	{"type": "object", "required": ["ecs_name"], "properties": {"ecs_os": {"type": "string", "description": "操作系统镜像，可选"}, "ecs_name": {"type": "string", "description": "主机名"}, "ecs_type": {"type": "string", "description": "规格，可选"}, "applicant": {"type": "string", "description": "申请人，可选"}, "cpu_cores": {"type": "integer", "description": "CPU 核数，默认 4"}, "memory_gb": {"type": "integer", "description": "内存 GB，默认 8"}, "cloud_region": {"type": "string", "description": "地域，可选"}, "cloud_category": {"type": "string", "description": "云类别（demo/aliyun/tencent），可选"}, "resource_count": {"type": "integer", "description": "数量，默认 1"}, "application_name": {"type": "string", "description": "所属应用，可选"}}}	{"kind": "rust"}	1790321942213	1790321942213
+1784300000001	cmdb_model_list	列出 CMDB 中所有已启用的模型及其属性数和实例数	1	{"type": "object", "required": [], "properties": {}}	{"kind": "rust"}	1790506719106	1790506719106
+1784300000002	cmdb_instance_query	按模型编码查询 CMDB 配置项实例，可带关键词过滤实例属性内容	1	{"type": "object", "required": ["model_code"], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "keyword": {"type": "string", "description": "属性内容关键词，可选"}, "model_code": {"type": "string", "description": "CMDB 模型编码，如 server / cloud_ecs"}}}	{"kind": "rust"}	1790506719106	1790506719106
+1784300000003	asset_query	查询资产采集台账（infra_asset），支持名称/IP/单位/应用关键词	1	{"type": "object", "required": [], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "keyword": {"type": "string", "description": "名称、IP、单位或应用关键词，可选"}}}	{"kind": "rust"}	1790506719106	1790506719106
+1784300000004	ticket_query	查询资源开通工单，可按状态（pending_approval/pending_provision/pending_delivery/delivered/rejected）和关键词过滤	1	{"type": "object", "required": [], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "status": {"type": "string", "description": "工单状态，可选"}, "keyword": {"type": "string", "description": "主机名或应用名关键词，可选"}}}	{"kind": "rust"}	1790506719106	1790506719106
+1784300000005	ticket_create	创建云主机开通工单（ecs）。命中自动审批规则时会直接进入待配置状态；开通执行需在工单页进行或由自动规则触发	1	{"type": "object", "required": ["ecs_name"], "properties": {"ecs_os": {"type": "string", "description": "操作系统镜像，可选"}, "ecs_name": {"type": "string", "description": "主机名"}, "ecs_type": {"type": "string", "description": "规格，可选"}, "applicant": {"type": "string", "description": "申请人，可选"}, "cpu_cores": {"type": "integer", "description": "CPU 核数，默认 4"}, "memory_gb": {"type": "integer", "description": "内存 GB，默认 8"}, "cloud_region": {"type": "string", "description": "地域，可选"}, "cloud_category": {"type": "string", "description": "云类别（demo/aliyun/tencent），可选"}, "resource_count": {"type": "integer", "description": "数量，默认 1"}, "application_name": {"type": "string", "description": "所属应用，可选"}}}	{"kind": "rust"}	1790506719106	1790506719106
 \.
 
 
@@ -3317,6 +3491,44 @@ COPY ai.tools (id, name, description, status, input_schema, executor, create_tim
 --
 
 COPY ai.writes (id, user_id, model_id, type, prompt, original_content, length, format, tone, language, platform, model, generated_content, error_message, create_time, finish_time) FROM stdin;
+\.
+
+
+--
+-- Data for Name: _sqlx_migrations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public._sqlx_migrations (version, description, installed_on, success, checksum, execution_time) FROM stdin;
+1	initial	2026-09-27 18:58:38.514056+08	t	\\x8860dd58a2513c79f25b099e1d588be3498805ab6669631aee10cde0fca29f295b9c3034c032e242659903866fcb0692	485362225
+2	asset management	2026-09-27 18:58:39.001811+08	t	\\xe05a530c57ef242cfeea36462a3eea8fb8fbd23632897e6edf94848e30157ff4cc0628ffb2364c007aa0a55c65774a21	22741866
+3	kairos asset permissions	2026-09-27 18:58:39.025521+08	t	\\xc66a44c1446984d92c51f282d1e55f28c56bfd9ef6556bc377303aacbaaaf0d1e4e2d1517673213818dd0d94acdcc342	8654655
+4	remove baseline runtime messages	2026-09-27 18:58:39.034748+08	t	\\x75f1d354d4cfd4101236a4099b430401a5e3223328b6f695b3eb70f804fa2cf42bd1a6ea9174988d80d1b9c7c7fe2913	2726417
+5	kairos ticket workflow fields	2026-09-27 18:58:39.038088+08	t	\\x15445c4f9dd94234ffb3ebfe67028537228d3b0c940848c3c0dca6727e7ba0a4c78e65820e7105e30262dd0dc5746d16	5075526
+6	grant asset ops to super admin	2026-09-27 18:58:39.043865+08	t	\\xaf8d8b195f38d418d2696fb7d43ec43492571bcd668361f6f7f2b3dc4ab0dbcaa9598c90fd4116006da12ab55ccd00c3	8275821
+7	asset inventory and network policy	2026-09-27 18:58:39.052932+08	t	\\x7a7d6850f0c5082ec1b40f22770709cf77b94e76fc6a982cecb37f9dea8ce85bd22faa4437361e040ce89591619505ef	8616933
+8	drop toonflow business	2026-09-27 18:58:39.062029+08	t	\\x5c9e7c3801e2ee15aa0be2d126315084abd2ddddce5960981c4bac67387e7d990face46fbf49a1c98d1b847d69eae796	25272000
+9	cmdb core	2026-09-27 18:58:39.088447+08	t	\\x964cc976706a22a71d731783025e59f01e0974f95b0005c84619699196a744fcde8429ee10abe0b921fd1edc398db195	11618086
+10	tofu provision and approval rules	2026-09-27 18:58:39.100851+08	t	\\x07e0b0b93635741b5e45af5b4a51141ef1b384c68c2f629c794c72f5a64bcc934e671cf4f3d6b9c35b3bdf493bcdd946	4389655
+11	ops agent tools	2026-09-27 18:58:39.105822+08	t	\\x17af5b9061d91050b559037d50909ef5db69b6eef5c39586dd40badd39ace9f085613c44c70ad68a0a4c6fc01be1b7cd	4277843
+12	approval rule menu	2026-09-27 18:58:39.110657+08	t	\\x37aa46690fb6afed5c745d21c502dfdbe37e02c20c3b55e7fc28ba7cbe7345cf707cfa31ff49b0baad6abc35c9b0c202	3666956
+13	cmdb roles and net zones	2026-09-27 18:58:39.114963+08	t	\\x45df944c33090eb9c89ffac693808faa98895ed0d24d3bacf12b1a454e7d648649352dec2f049bb8a54721c8710ebcf3	7420398
+14	fix cmdb permission codes	2026-09-27 18:58:39.12294+08	t	\\xf7960334257fbb6ae9098d0cd9767c97b0de7eb043f0ba9d0e2875a31916b04c23125c7194aae747e4af0feb46c8a158	4036817
+15	split asset operations menu	2026-09-27 18:58:39.127499+08	t	\\xbdc020e1be29c25139ebc1949a8ad93610c7e337e5ffbe204b900716f78f7603d6da90d04c04e6ed284dbd042b8e48d8	6745503
+16	remove bpm and scope tenant net zones	2026-09-27 18:58:39.135334+08	t	\\x02321d041095fdf24d09ec2e7e7a91956f4f537ed03da6284fc5765b3ac50b5022bd0098748fd683510098d6dcc8abea	6111214
+17	rebrand baseline data	2026-09-27 18:58:39.141962+08	t	\\xda12a4845170ff9ed12ebf191e155426723b5e125b782bc66e44be082e18e4f7bfbcc9233502da26b65223e1d4094ad2	3343297
+18	gm crypto and identity	2026-09-27 18:58:39.145854+08	t	\\x7ac129ddfca4d58aa79a57557a14258c30e3865f1d405f6d873455e35873dd47c5cabfdd5ff91281bddccd5f38f76282	5046955
+19	remove demo analytics menu	2026-09-27 18:58:39.151558+08	t	\\xd5694bb55a38446f2217c3818018d59c898b8c2b3b8bbd95d16fa4f9d69a6261e1855f32079d396f72a68643a39c8a09	2459789
+20	split business resource menu	2026-09-27 18:58:39.154658+08	t	\\xdd2c4d9600e424923d3c256dd4c56d281d0a1ac84ef7c749d19006a050c17c3541a2dd59d3eba5f0efc3d21a302b1cbd	2861578
+21	split resource tables	2026-09-27 18:58:39.158178+08	t	\\x7a3109c40576cab6b36ac1e1736d6ef67e3a1bf260080719e93ba0be7b0d607b29b907484a0767712684348c8b697ec6	11755213
+22	asset inspection	2026-09-27 18:58:39.170703+08	t	\\x4c01a6eb663e1bf4d6269e373ebebf14049784cbf8cff77fcd0b44a49c69584f9606ebb44d0e1d69903ab7e34fc64d4d	6716990
+23	retire codegen demo menus	2026-09-27 18:58:39.178077+08	t	\\x14079da493e20ac0f88225d5d3d31841219de31da8653d284b45e1eba126a64713cfd2311f1147c519cdf16f47f64b28	3857790
+24	rename api docs menu	2026-09-27 18:58:39.182363+08	t	\\xe63206d0221c83250952ea7a67a597856e6060dcf1162a6244acf7ddc2ebda878e6b26fd94016ae38a9a3f335d097460	1978579
+25	cmdb instance unique values	2026-09-27 18:58:39.184996+08	t	\\x7906d8d2d2cb9e2f35f3cebfc10e8facc24524d20cd56b06d55ff4caf2fac58c3b86ee3672287240f11ad25ba5e01fc9	4362530
+26	cmdb tenant isolation	2026-09-27 18:58:39.190046+08	t	\\xcee55302d791554220b47bbc9eaf69bd5c919233c0f13bfc432f71e95b53518bc521ca7176cc00d813deaafb96e5d4a1	6438170
+27	asset policy tenants	2026-09-27 18:58:39.197156+08	t	\\x38e8de9796c33ac2eb60e20c3ad2f1d47d6be3f4d3d87780c933d1142a9a68a34ae521eaf092af501941c9a819c6a070	7700627
+28	network policy port risk	2026-09-27 18:58:39.205511+08	t	\\x4e753d6453de580ffcf03fdc31017e391ff138a7947ed2865c6a1d74bdbf1c82bef17176d1c956ce04d1340fe6a1a3a8	7215128
+29	asset tenant unique ip	2026-09-27 18:58:39.213446+08	t	\\x2d8f6ad857dace6e18957d630c8b65ba618230a9a3815c63368269342008244f2458b2debf68ccf4c435c1521d6b68ac	2535109
+30	recoverable scan tasks	2026-09-27 18:58:39.216496+08	t	\\x4f7980409db12c481c63eb474da1890adf58ac4d2c16621121e91faef755227ba774738899d035172f99c7e2797120b3	4908573
 \.
 
 
@@ -3332,7 +3544,15 @@ COPY public.cmdb_attribute (id, model_id, name, code, attr_type, required, choic
 -- Data for Name: cmdb_instance; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.cmdb_instance (id, model_id, attributes, creator, create_time, updater, update_time, deleted) FROM stdin;
+COPY public.cmdb_instance (id, model_id, attributes, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: cmdb_instance_unique_value; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.cmdb_instance_unique_value (instance_id, model_id, value, tenant_id) FROM stdin;
 \.
 
 
@@ -3356,7 +3576,7 @@ COPY public.cmdb_net_zone (id, name, parent_id, zone_type, cidr, sort, descripti
 -- Data for Name: cmdb_relation; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.cmdb_relation (id, source_id, target_id, relation, creator, create_time, updater, update_time, deleted) FROM stdin;
+COPY public.cmdb_relation (id, source_id, target_id, relation, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
 \.
 
 
@@ -3396,7 +3616,7 @@ COPY public.infra_approval_rule (id, name, resource_type, max_cpu_cores, max_mem
 -- Data for Name: infra_asset; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_asset (id, name, ip, zone, ports, last_scanned, contact_person, contact_phone, created_by, updated_by, owner, weight, labels, os, device_type, creator, create_time, updater, update_time, deleted, city, district, organization_name, business_department, department_contact, application_name, server_name, hardware_configuration, operating_system, database_type, launch_date, decommission_date, application_type, network_environment, internet_ipv4, internet_ipv6, domain_address, internal_network_ip, government_extranet_ip, open_ports, publishing_endpoint, publishes_other_endpoint, other_endpoint_name, security_product_installation, development_vendor, development_vendor_contact, security_vendor, security_vendor_contact, operations_vendor, operations_vendor_contact, classified_protection_level, classified_protection_assessed, classified_protection_assessor, classified_protection_assessment_date, classified_protection_score, classified_protection_filed, classified_protection_filing_date, classified_protection_filing_number, classified_protection_filing_authority, cryptography_assessed, cryptography_assessment_level, cryptography_assessment_date, cryptography_assessment_number, net_zone_id, ownership_source) FROM stdin;
+COPY public.infra_asset (id, name, ip, zone, ports, last_scanned, contact_person, contact_phone, created_by, updated_by, owner, weight, labels, os, device_type, creator, create_time, updater, update_time, deleted, city, district, organization_name, business_department, department_contact, application_name, server_name, hardware_configuration, operating_system, database_type, launch_date, decommission_date, application_type, network_environment, internet_ipv4, internet_ipv6, domain_address, internal_network_ip, government_extranet_ip, open_ports, publishing_endpoint, publishes_other_endpoint, other_endpoint_name, security_product_installation, development_vendor, development_vendor_contact, security_vendor, security_vendor_contact, operations_vendor, operations_vendor_contact, classified_protection_level, classified_protection_assessed, classified_protection_assessor, classified_protection_assessment_date, classified_protection_score, classified_protection_filed, classified_protection_filing_date, classified_protection_filing_number, classified_protection_filing_authority, cryptography_assessed, cryptography_assessment_level, cryptography_assessment_date, cryptography_assessment_number, net_zone_id, ownership_source, tenant_id) FROM stdin;
 \.
 
 
@@ -3534,10 +3754,36 @@ COPY public.infra_file_config (id, name, storage, master, config, remark, creato
 
 
 --
+-- Data for Name: infra_high_risk_port_rule; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.infra_high_risk_port_rule (id, name, protocol, port_start, port_end, severity, description, solution, enabled, creator, create_time, updater, update_time, deleted) FROM stdin;
+1	FTP 明文服务	tcp	21	21	High	FTP 使用明文认证与传输，暴露后易造成凭据和数据泄露。	关闭公网访问；确需使用时限制可信源地址并迁移到 SFTP。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+2	SSH 远程管理	tcp	22	22	High	远程管理端口暴露会增加口令爆破和未授权访问风险。	限制到运维网或堡垒机，启用密钥认证和多因素认证。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+3	Telnet 明文管理	tcp	23	23	Critical	Telnet 以明文传输认证信息，不应跨不可信网络开放。	立即关闭 Telnet 并迁移到 SSH，通过管理网或堡垒机访问。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+4	Windows RPC	tcp	135	135	High	RPC 端口暴露可能泄露主机信息并扩大远程攻击面。	限制到必要的管理网段，并通过主机和边界防火墙双重控制。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+5	NetBIOS	any	137	139	High	NetBIOS 服务暴露会泄露名称与共享信息，并增加横向移动风险。	关闭跨安全域访问；无法关闭时仅允许受控内网源地址。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+6	SMB 文件共享	tcp	445	445	Critical	SMB 暴露存在勒索软件传播、凭据窃取和远程利用风险。	禁止公网和非必要跨域访问，限制可信源并及时修补系统。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+7	Microsoft SQL Server	tcp	1433	1433	High	数据库端口暴露会增加爆破、数据泄露和漏洞利用风险。	仅允许应用服务器网段访问，禁止用户网与公网直连。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+8	Oracle Database	tcp	1521	1521	High	数据库监听端口暴露会增加未授权访问和数据泄露风险。	仅允许指定应用源地址访问，并启用数据库访问审计。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+9	NFS 文件共享	any	2049	2049	High	NFS 暴露可能导致未授权挂载和敏感文件泄露。	限制到必要的受控主机，核查导出权限并禁用匿名映射。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+10	Docker Remote API	tcp	2375	2375	Critical	未加密 Docker API 可能允许直接控制主机和容器。	关闭 2375；如需远程管理，使用双向 TLS 的 2376 并限制源地址。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+11	MySQL	tcp	3306	3306	High	数据库端口暴露会增加爆破、数据泄露和漏洞利用风险。	仅允许指定应用网段访问，使用最小权限账号并启用审计。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+12	RDP 远程桌面	tcp	3389	3389	Critical	远程桌面暴露容易遭受口令爆破、凭据攻击和远程利用。	仅通过 VPN 或堡垒机访问，限制源地址并启用网络级认证和多因素认证。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+13	PostgreSQL	tcp	5432	5432	High	数据库端口暴露会增加未授权访问和数据泄露风险。	仅允许指定应用服务器访问，并核查 pg_hba.conf 与账号权限。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+14	VNC 远程控制	tcp	5900	5900	Critical	VNC 暴露可能导致弱口令攻击、会话窃听和远程控制。	关闭直接暴露，通过堡垒机或 VPN 访问并启用强认证。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+15	Redis	tcp	6379	6379	Critical	Redis 暴露可能导致未授权读写、数据泄露或主机命令执行。	绑定内网地址，启用认证和 ACL，仅允许必要应用源地址访问。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+16	Elasticsearch	tcp	9200	9200	High	Elasticsearch 接口暴露可能导致索引数据泄露和未授权操作。	启用认证与 TLS，仅允许受控应用和运维网段访问。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+17	Memcached	any	11211	11211	Critical	Memcached 暴露可能泄露缓存数据，并被用于反射放大攻击。	绑定内网地址，关闭 UDP，并限制为必要应用源地址。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+18	MongoDB	tcp	27017	27017	Critical	MongoDB 暴露可能导致未授权访问和业务数据泄露。	启用认证与 TLS，仅允许指定应用服务器访问。	t		2026-09-27 10:58:39.205511		2026-09-27 10:58:39.205511	0
+\.
+
+
+--
 -- Data for Name: infra_inspection_baseline; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_inspection_baseline (ip, allowed_ports, reason, updated_by, update_time) FROM stdin;
+COPY public.infra_inspection_baseline (ip, allowed_ports, reason, updated_by, update_time, tenant_id) FROM stdin;
 \.
 
 
@@ -3545,7 +3791,7 @@ COPY public.infra_inspection_baseline (ip, allowed_ports, reason, updated_by, up
 -- Data for Name: infra_inspection_result; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_inspection_result (id, task_id, ip, registered, baseline_ports, open_ports, uncertain_ports, differences, risk_ids, create_time) FROM stdin;
+COPY public.infra_inspection_result (id, task_id, ip, registered, baseline_ports, open_ports, uncertain_ports, differences, risk_ids, create_time, tenant_id) FROM stdin;
 \.
 
 
@@ -3582,7 +3828,7 @@ COPY public.infra_machine_room (id, room_name, room_code, facility_type, address
 -- Data for Name: infra_network_policy; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_network_policy (id, firewall_name, destination_organization, destination_project, source_organization, source_project, source_security_zone, source_ip, destination_security_zone, destination_ip, service_port, applicant, application_date, traffic_direction, action, implementer, implementation_date, delivery_date, creator, create_time, updater, update_time, deleted) FROM stdin;
+COPY public.infra_network_policy (id, firewall_name, destination_organization, destination_project, source_organization, source_project, source_security_zone, source_ip, destination_security_zone, destination_ip, service_port, applicant, application_date, traffic_direction, action, implementer, implementation_date, delivery_date, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
 \.
 
 
@@ -3606,7 +3852,7 @@ COPY public.infra_physical_resource (id, ecs_name, ecs_status, cloud_region, clo
 -- Data for Name: infra_resource_ticket; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_resource_ticket (id, resource_type, ecs_name, ticket_status, provider_id, provider_name, cloud_platform_id, cloud_platform_name, machine_room_id, machine_room_name, cloud_region, cloud_category, zone_name, zone_cabinet, rack_units, customer_name, application_name, application_endpoint_id, application_domain, contract_name, ecs_type, ecs_os, resource_count, cpu_cores, memory_gb, system_disk, system_disk_size_gb, data_disk, expire_at, has_security_product, security_products, ip_address, delivery_status, remarks, created_by, applicant_name, organization_id, organization_name, department_id, department_name, approver, approve_time, approve_comment, provisioner, provision_time, provision_details, deliverer, deliver_time, deliver_comment, fw_source_zone, fw_source_address, fw_source_port, fw_dest_zone, fw_dest_address, fw_dest_port, fw_protocol, fw_port, fw_direction, fw_valid_until, fw_firewall_name, creator, create_time, updater, update_time, deleted, ticket_type, risk_level, target_resource_id, target_config, maintenance_window, allow_interruption, backup_confirmed, rollback_plan, retention_until, approval_stage, approval_total, current_approval_role, apply_status, apply_log, tf_outputs, tofu_workspace, target_resource_type) FROM stdin;
+COPY public.infra_resource_ticket (id, resource_type, ecs_name, ticket_status, provider_id, provider_name, cloud_platform_id, cloud_platform_name, machine_room_id, machine_room_name, cloud_region, cloud_category, zone_name, zone_cabinet, rack_units, customer_name, application_name, application_endpoint_id, application_domain, contract_name, ecs_type, ecs_os, resource_count, cpu_cores, memory_gb, system_disk, system_disk_size_gb, data_disk, expire_at, has_security_product, security_products, ip_address, delivery_status, remarks, created_by, applicant_name, organization_id, organization_name, department_id, department_name, approver, approve_time, approve_comment, provisioner, provision_time, provision_details, deliverer, deliver_time, deliver_comment, fw_source_zone, fw_source_address, fw_source_port, fw_dest_zone, fw_dest_address, fw_dest_port, fw_protocol, fw_port, fw_direction, fw_valid_until, fw_firewall_name, creator, create_time, updater, update_time, deleted, ticket_type, risk_level, target_resource_id, target_config, maintenance_window, allow_interruption, backup_confirmed, rollback_plan, retention_until, approval_stage, approval_total, current_approval_role, apply_status, apply_log, tf_outputs, tofu_workspace, target_resource_type, tenant_id) FROM stdin;
 \.
 
 
@@ -3614,7 +3860,7 @@ COPY public.infra_resource_ticket (id, resource_type, ecs_name, ticket_status, p
 -- Data for Name: infra_risk; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_risk (id, asset_ip, port, severity, description, solution, status, assigned_to, creator, create_time, updater, update_time, deleted, inspection_key) FROM stdin;
+COPY public.infra_risk (id, asset_ip, port, severity, description, solution, status, assigned_to, creator, create_time, updater, update_time, deleted, inspection_key, tenant_id, source_type, source_id, rule_id) FROM stdin;
 \.
 
 
@@ -3638,7 +3884,7 @@ COPY public.infra_service_provider (id, provider_name, provider_code, short_name
 -- Data for Name: infra_task; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_task (id, name, target, status, start_time, end_time, found_assets, found_risks, port_policy, domain_brute, service_detection, os_detection, site_identify, created_by, creator, create_time, updater, update_time, deleted, task_kind, scan_ports, total_targets, completed_targets, error_message) FROM stdin;
+COPY public.infra_task (id, name, target, status, start_time, end_time, found_assets, found_risks, port_policy, domain_brute, service_detection, os_detection, site_identify, created_by, creator, create_time, updater, update_time, deleted, task_kind, scan_ports, total_targets, completed_targets, error_message, tenant_id, payload, idempotency_key, attempt_count, max_attempts, timeout_seconds, next_attempt_at, lease_owner, lease_expires_at, heartbeat_at, cancel_requested) FROM stdin;
 \.
 
 
@@ -3653,16 +3899,16 @@ COPY public.system_dept (id, name, parent_id, sort, leader_user_id, phone, email
 113	支持部门	102	3	104	\N	\N	1	1	2023-12-02 09:47:38	1	2025-03-29 15:00:56	0	1
 116	某个子部门	0	1	\N	\N	\N	0	1	2025-12-08 14:51:12	1	2025-12-08 14:51:12	0	1
 117	某个子部门 2	0	2	\N	\N	\N	0	1	2025-12-08 14:51:25	1	2025-12-08 14:51:25	0	1
-101	深圳总公司	100	1	104	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-102	长沙分公司	100	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-103	研发部门	101	1	104	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-104	市场部门	101	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-105	测试部门	101	3	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-106	财务部门	101	4	103	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-107	运维部门	101	5	1	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-108	市场部门	102	1	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-109	财务部门	102	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
-100	RustSet	0	0	1	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:04.034944	0	1
+101	深圳总公司	100	1	104	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+102	长沙分公司	100	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+103	研发部门	101	1	104	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+104	市场部门	101	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+105	测试部门	101	3	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+106	财务部门	101	4	103	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+107	运维部门	101	5	1	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+108	市场部门	102	1	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+109	财务部门	102	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
+100	RustSet	0	0	1	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1
 \.
 
 
@@ -4838,7 +5084,6 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 110	定时任务		2	7	2	job	fa-solid:tasks	infra/job/index	InfraJob	0	t	t	t	admin	2021-01-05 17:03:48	1	2024-02-29 08:57:36	0	\N
 114	表单构建	infra:build:list	2	2	2	build	fa:wpforms	infra/build/index	InfraBuild	0	t	t	t	admin	2021-01-05 17:03:48	1	2024-02-29 08:51:35	0	\N
 115	代码生成	infra:codegen:query	2	1	2	codegen	ep:document-copy	infra/codegen/index	InfraCodegen	0	t	t	t	admin	2021-01-05 17:03:48	1	2024-02-29 08:51:06	0	\N
-116	API 接口	infra:swagger:list	2	3	2	swagger	fa:fighter-jet	infra/swagger/index	InfraSwagger	0	t	t	t	admin	2021-01-05 17:03:48	1	2024-04-23 00:01:24	0	\N
 1001	用户查询	system:user:query	3	1	100		#		\N	0	t	t	t	admin	2021-01-05 17:03:48		2022-04-20 17:03:10	0	\N
 1002	用户新增	system:user:create	3	2	100				\N	0	t	t	t	admin	2021-01-05 17:03:48	1	2022-04-20 17:03:10	0	\N
 1003	用户修改	system:user:update	3	3	100				\N	0	t	t	t	admin	2021-01-05 17:03:48	1	2022-04-20 17:03:10	0	\N
@@ -5016,7 +5261,7 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 2762	API 密钥查询	ai:api-key:query	3	1	2761					0	t	t	t		2024-05-09 14:52:56	system	2026-07-17 01:44:04.417394	1	\N
 2763	API 密钥创建	ai:api-key:create	3	2	2761					0	t	t	t		2024-05-09 14:52:56	system	2026-07-17 01:44:04.417394	1	\N
 2764	API 密钥更新	ai:api-key:update	3	3	2761					0	t	t	t		2024-05-09 14:52:56	system	2026-07-17 01:44:04.417394	1	\N
-2497	主子表（ERP）		2	11	1070	demo03-erp	ep:calendar	infra/demo/demo03/erp/index	Demo03StudentERP	0	t	t	t		2023-11-16 15:50:59	migration	2026-09-25 07:39:05.428924	1	\N
+2497	主子表（ERP）		2	11	1070	demo03-erp	ep:calendar	infra/demo/demo03/erp/index	Demo03StudentERP	0	t	t	t		2023-11-16 15:50:59	migration	2026-09-27 10:58:39.178077	1	\N
 2765	API 密钥删除	ai:api-key:delete	3	4	2761					0	t	t	t		2024-05-09 14:52:56	system	2026-07-17 01:44:04.417394	1	\N
 2794	AI 写作查询	ai:write:query	3	1	2793				\N	0	t	t	t		2024-07-10 13:24:34		2024-07-10 13:24:34	0	\N
 2795	AI 写作删除	ai:write:delete	3	4	2793				\N	0	t	t	t		2024-07-10 13:24:34		2024-07-10 13:24:34	0	\N
@@ -5047,7 +5292,7 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 30007	聊天角色	ai:chat-role:query	2	7	30000	model/chat-role	lucide:bot	ai/model/chatRole/index	AiModelChatRole	0	t	t	t	system	2026-07-16 05:03:23.711366	system	2026-07-16 08:12:35.316268	1	\N
 30008	工具管理	ai:tool:query	2	8	30000	model/tool	lucide:wrench	ai/model/tool/index	AiModelTool	0	t	t	t	system	2026-07-16 05:03:23.711366	system	2026-07-16 08:12:35.316268	1	\N
 2760	控制台		1	100	2758	console	lucide:settings-2			0	t	t	t	1	2024-05-09 22:39:09	system	2026-07-17 01:13:48.097106	0	\N
-2913	流程清理	bpm:model:clean	3	7	1193					0	t	t	t	1	2025-01-17 19:32:06	migration	2026-09-25 07:39:03.444065	1	\N
+2913	流程清理	bpm:model:clean	3	7	1193					0	t	t	t	1	2025-01-17 19:32:06	migration	2026-09-27 10:58:39.135334	1	\N
 2767	模型配置		2	0	2760	model	lucide:brain-circuit	ai/model/model/index.vue	AiModel	0	t	t	t		2024-05-10 14:42:48	system	2026-07-17 01:13:48.097106	0	\N
 2773	聊天角色		2	0	2760	chat-role	lucide:bot	ai/model/chatRole/index.vue	AiChatRole	0	t	t	t		2024-05-13 12:39:28	system	2026-07-17 01:13:48.097106	0	\N
 2778	聊天管理		2	10	2760	chat-conversation	lucide:messages-square	ai/chat/manager/index.vue	AiChatManager	0	t	t	t		2024-05-24 15:39:18	system	2026-07-17 01:13:48.097106	0	\N
@@ -5088,11 +5333,8 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 2151	站内信消息		2	2	30241	/system/notify-message-list	fa:edit	system/notify/message/index	SystemNotifyMessage	0	t	t	t		2023-01-28 04:28:22	1	2026-07-17 01:35:39.386526	0	\N
 2131	邮箱账号		2	3	30241	/system/mail-account	fa:universal-access	system/mail/account/index	SystemMailAccount	0	t	t	t		2023-01-25 09:33:48	1	2026-07-17 01:35:39.386526	0	\N
 2136	邮件模板		2	4	30241	/system/mail-template	fa:tag	system/mail/template/index	SystemMailTemplate	0	t	t	t		2023-01-25 12:05:31	1	2026-07-17 01:35:39.386526	0	\N
-30240	基础设置		1	21	0	/system/basic	lucide:sliders-horizontal		SystemBasic	0	t	t	t	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	\N
-30241	信息中心		1	22	0	/system/message	lucide:mail		SystemMessage	0	t	t	t	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	\N
-2	基础功能		1	25	0	/infra	lucide:blocks	\N	Infra	0	t	t	t	admin	2021-01-05 17:03:48	1	2026-07-17 01:35:39.386526	0	\N
-1185	工作流		1	50	0	/bpm	fa:medium	\N	bpm	0	t	t	t	1	2021-12-30 20:26:36	migration	2026-09-25 07:39:03.444065	1	\N
-30202	分析页		2	2	30200	/analytics	lucide:area-chart	dashboard/analytics/index	Analytics	0	t	t	t	system	2026-07-17 01:29:09.910057	migration	2026-09-25 07:39:04.297157	1	\N
+1185	工作流		1	50	0	/bpm	fa:medium	\N	bpm	0	t	t	t	1	2021-12-30 20:26:36	migration	2026-09-27 10:58:39.135334	1	\N
+30202	分析页		2	2	30200	/analytics	lucide:area-chart	dashboard/analytics/index	Analytics	0	t	t	t	system	2026-07-17 01:29:09.910057	migration	2026-09-27 10:58:39.151558	1	\N
 2141	邮件日志		2	5	30241	/system/mail-log	fa:edit	system/mail/log/index	SystemMailLog	0	t	t	t		2023-01-26 02:16:50	1	2026-07-17 01:35:39.386526	0	\N
 1094	短信渠道		2	6	30241	/system/sms-channel	fa:stack-exchange	system/sms/channel/index	SystemSmsChannel	0	t	t	t		2021-04-01 11:07:15	1	2026-07-17 01:35:39.386526	0	\N
 1100	短信模板		2	7	30241	/system/sms-template	ep:connection	system/sms/template/index	SystemSmsTemplate	0	t	t	t		2021-04-01 17:35:17	1	2026-07-17 01:35:39.386526	0	\N
@@ -5131,195 +5373,199 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 30230	调度日志	infra:job:query	2	90	2	/infra/job/log	lucide:scroll-text	infra/job/logger/index	InfraJobLog	0	f	f	f	system	2026-07-17 01:29:09.910057	system	2026-07-17 02:02:24.52913	0	110
 30231	生成配置修改	infra:codegen:update	2	91	2	/infra/codegen/edit	lucide:file-cog	infra/codegen/edit/index	InfraCodegenEdit	0	f	f	f	system	2026-07-17 01:29:09.910057	system	2026-07-17 02:02:24.52913	0	115
 30232	我的站内信	system:notify-message:query	2	90	1	/system/notify-message	lucide:mail	system/notify/my/index	MyNotifyMessage	0	f	f	f	system	2026-07-17 01:29:09.910057	system	2026-07-17 02:02:24.52913	0	2151
-1192	表单导出	bpm:form:export	3	5	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-25 07:39:03.444065	1	\N
-30256	资产查询	infra:asset:query	3	1	30243					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30257	资产创建	infra:asset:create	3	2	30243					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30258	资产更新	infra:asset:update	3	3	30243					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30259	资产删除	infra:asset:delete	3	4	30243					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30260	服务商查询	infra:service-provider:query	3	1	30244					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30261	服务商创建	infra:service-provider:create	3	2	30244					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30262	服务商更新	infra:service-provider:update	3	3	30244					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30263	服务商删除	infra:service-provider:delete	3	4	30244					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30264	机房查询	infra:machine-room:query	3	1	30245					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30265	机房创建	infra:machine-room:create	3	2	30245					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30266	机房更新	infra:machine-room:update	3	3	30245					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30267	机房删除	infra:machine-room:delete	3	4	30245					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30268	云资源区查询	infra:cloud-zone:query	3	1	30246					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30269	云资源区创建	infra:cloud-zone:create	3	2	30246					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30270	云资源区更新	infra:cloud-zone:update	3	3	30246					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30271	云资源区删除	infra:cloud-zone:delete	3	4	30246					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30272	云平台查询	infra:cloud-platform:query	3	1	30247					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30273	云平台创建	infra:cloud-platform:create	3	2	30247					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30274	云平台更新	infra:cloud-platform:update	3	3	30247					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30275	云平台删除	infra:cloud-platform:delete	3	4	30247					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30276	云对接查询	infra:cloud-provider-config:query	3	1	30248					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30277	云对接创建	infra:cloud-provider-config:create	3	2	30248					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30278	云对接更新	infra:cloud-provider-config:update	3	3	30248					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30279	云对接删除	infra:cloud-provider-config:delete	3	4	30248					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30280	网络区域查询	infra:network-zone:query	3	1	30249					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30281	网络区域创建	infra:network-zone:create	3	2	30249					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30282	网络区域更新	infra:network-zone:update	3	3	30249					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30283	网络区域删除	infra:network-zone:delete	3	4	30249					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30284	安全产品查询	infra:security-product:query	3	1	30250					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30285	安全产品创建	infra:security-product:create	3	2	30250					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30242	资产运营		1	35	0	/asset-ops	lucide:boxes		AssetOps	0	t	t	t	migration	2026-09-25 07:39:00.214124	migration	2026-09-25 07:39:03.139133	1	\N
-30286	安全产品更新	infra:security-product:update	3	3	30250					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30287	安全产品删除	infra:security-product:delete	3	4	30250					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30288	业务应用查询	infra:business-application:query	3	1	30251					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30289	业务应用创建	infra:business-application:create	3	2	30251					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30290	业务应用更新	infra:business-application:update	3	3	30251					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30291	业务应用删除	infra:business-application:delete	3	4	30251					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30296	资源工单查询	infra:resource-ticket:query	3	1	30253					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30297	资源工单创建	infra:resource-ticket:create	3	2	30253					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30298	资源工单更新	infra:resource-ticket:update	3	3	30253					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30299	资源工单删除	infra:resource-ticket:delete	3	4	30253					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30300	资源工单审批	infra:resource-ticket:approve	3	5	30253					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30301	资源工单配置	infra:resource-ticket:provision	3	6	30253					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30302	资源工单交付	infra:resource-ticket:deliver	3	7	30253					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30303	任务查询	infra:task:query	3	1	30254					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30304	任务创建	infra:task:create	3	2	30254					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30305	任务更新	infra:task:update	3	3	30254					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30306	任务删除	infra:task:delete	3	4	30254					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30307	任务执行	infra:task:execute	3	5	30254					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30308	风险查询	infra:risk:query	3	1	30255					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30309	风险更新	infra:risk:update	3	2	30255					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30310	风险处置	infra:risk:resolve	3	3	30255					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:00.223239	0	\N
-30312	网络策略更新	infra:network-policy:update	3	3	30311					0	t	t	t	migration	2026-09-25 07:39:01.14695	migration	2026-09-25 07:39:01.14695	0	\N
-30313	网络策略创建	infra:network-policy:create	3	2	30311					0	t	t	t	migration	2026-09-25 07:39:01.14695	migration	2026-09-25 07:39:01.14695	0	\N
-30314	网络策略查询	infra:network-policy:query	3	1	30311					0	t	t	t	migration	2026-09-25 07:39:01.14695	migration	2026-09-25 07:39:01.14695	0	\N
-30315	网络策略删除	infra:network-policy:delete	3	4	30311					0	t	t	t	migration	2026-09-25 07:39:01.14695	migration	2026-09-25 07:39:01.14695	0	\N
-30317	模型管理		2	1	30316	model	lucide:shapes	cmdb/model/index	CmdbModelManagement	0	t	t	t	migration	2026-09-25 07:39:01.722113	migration	2026-09-25 07:39:01.722113	0	\N
-30318	实例管理		2	2	30316	instance	lucide:shapes	cmdb/instance/index	CmdbInstanceManagement	0	t	t	t	migration	2026-09-25 07:39:01.722113	migration	2026-09-25 07:39:01.722113	0	\N
-30323	属性创建	cmdb:attribute:create	3	5	30317					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30324	属性更新	cmdb:attribute:update	3	6	30317					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30325	属性删除	cmdb:attribute:delete	3	7	30317					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30331	审批规则查询	infra:approval-rule:query	3	1	30330					0	t	t	t	migration	2026-09-25 07:39:02.413	migration	2026-09-25 07:39:02.413	0	\N
-30332	审批规则创建	infra:approval-rule:create	3	2	30330					0	t	t	t	migration	2026-09-25 07:39:02.413	migration	2026-09-25 07:39:02.413	0	\N
-30333	审批规则更新	infra:approval-rule:update	3	3	30330					0	t	t	t	migration	2026-09-25 07:39:02.413	migration	2026-09-25 07:39:02.413	0	\N
-30326	实例查询	cmdb:instance:query	3	1	30318					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30327	实例创建	cmdb:instance:create	3	2	30318					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30328	实例更新	cmdb:instance:update	3	3	30318					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30329	实例删除	cmdb:instance:delete	3	4	30318					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30316	配置管理		1	10	0	/cmdb	lucide:database			0	t	t	t	migration	2026-09-25 07:39:01.718121	migration	2026-09-25 07:39:01.718121	0	\N
-30311	网络策略		2	2	30342	network-policy	lucide:shield-check	asset-ops/network-policy/index	AssetOpsNetworkPolicy	0	t	t	t	migration	2026-09-25 07:39:01.144038	migration	2026-09-25 07:39:03.134135	0	\N
-30330	审批规则		2	2	30344	approval-rule	lucide:git-pull-request-arrow	asset-ops/approval-rule/index	AssetOpsApprovalRule	0	t	t	t	migration	2026-09-25 07:39:02.409919	migration	2026-09-25 07:39:03.134135	0	\N
-30292	云资源查询	infra:cloud-resource:query	3	1	30252					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:04.890761	0	\N
-30293	云资源创建	infra:cloud-resource:create	3	2	30252					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:04.890761	0	\N
-30294	云资源更新	infra:cloud-resource:update	3	3	30252					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:04.890761	0	\N
-30334	审批规则删除	infra:approval-rule:delete	3	4	30330					0	t	t	t	migration	2026-09-25 07:39:02.413	migration	2026-09-25 07:39:02.413	0	\N
-30319	模型查询	cmdb:model:query	3	1	30317					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30320	模型创建	cmdb:model:create	3	2	30317					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30321	模型更新	cmdb:model:update	3	3	30317					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30322	模型删除	cmdb:model:delete	3	4	30317					0	t	t	t	migration	2026-09-25 07:39:01.725998	migration	2026-09-25 07:39:01.725998	0	\N
-30340	基础设施		1	11	0	/infra-center	lucide:server-cog			0	t	t	t	migration	2026-09-25 07:39:03.125996	migration	2026-09-25 07:39:03.132221	0	\N
-30341	云管中心		1	12	0	/cloud-center	lucide:cloud-cog			0	t	t	t	migration	2026-09-25 07:39:03.125996	migration	2026-09-25 07:39:03.132221	0	\N
-30342	资产中心		1	13	0	/asset-center	lucide:boxes			0	t	t	t	migration	2026-09-25 07:39:03.125996	migration	2026-09-25 07:39:03.132221	0	\N
-30343	业务管理		1	14	0	/biz-center	lucide:briefcase			0	t	t	t	migration	2026-09-25 07:39:03.125996	migration	2026-09-25 07:39:03.132221	0	\N
-30344	运营流程		1	15	0	/ops-center	lucide:workflow			0	t	t	t	migration	2026-09-25 07:39:03.125996	migration	2026-09-25 07:39:03.132221	0	\N
-30243	资产管理		2	1	30342	assets	lucide:hard-drive	asset-ops/asset/index	AssetOpsAsset	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30244	服务商		2	1	30340	service-provider	lucide:briefcase-business	asset-ops/service-provider/index	AssetOpsServiceProvider	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30245	物理机房		2	2	30340	machine-room	lucide:warehouse	asset-ops/machine-room/index	AssetOpsMachineRoom	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30246	云资源区		2	2	30341	cloud-zone	lucide:map-pin	asset-ops/cloud-platform/zone	AssetOpsCloudZone	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30247	云平台		2	1	30341	cloud-platform	lucide:cloud-cog	asset-ops/cloud-platform/platform	AssetOpsCloudPlatform	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30248	云厂商对接		2	3	30341	cloud-provider-config	lucide:plug-zap	asset-ops/cloud-provider-config/index	AssetOpsCloudProviderConfig	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30249	网络区域		2	3	30340	zone	lucide:globe	asset-ops/zone/index	AssetOpsNetworkZone	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30250	安全产品		2	4	30340	security-product	lucide:shield	asset-ops/security-product/index	AssetOpsSecurityProduct	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30251	业务应用		2	1	30343	business-application	lucide:layout-grid	asset-ops/business-application/index	AssetOpsBusinessApplication	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30253	资源工单		2	1	30344	resource-ticket	lucide:ticket	asset-ops/resource-ticket/index	AssetOpsResourceTicket	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30254	扫描任务		2	3	30342	task	lucide:list-checks	asset-ops/task/index	AssetOpsTask	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
-30255	风险管理		2	4	30342	risk	lucide:triangle-alert	asset-ops/risk/index	AssetOpsRisk	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:03.134135	0	\N
+1189	表单创建	bpm:form:create	3	2	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-27 10:58:39.135334	1	\N
+30256	资产查询	infra:asset:query	3	1	30243					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30257	资产创建	infra:asset:create	3	2	30243					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30258	资产更新	infra:asset:update	3	3	30243					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30259	资产删除	infra:asset:delete	3	4	30243					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30260	服务商查询	infra:service-provider:query	3	1	30244					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30261	服务商创建	infra:service-provider:create	3	2	30244					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30262	服务商更新	infra:service-provider:update	3	3	30244					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30263	服务商删除	infra:service-provider:delete	3	4	30244					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30264	机房查询	infra:machine-room:query	3	1	30245					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30265	机房创建	infra:machine-room:create	3	2	30245					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30266	机房更新	infra:machine-room:update	3	3	30245					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30267	机房删除	infra:machine-room:delete	3	4	30245					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30268	云资源区查询	infra:cloud-zone:query	3	1	30246					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30269	云资源区创建	infra:cloud-zone:create	3	2	30246					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30270	云资源区更新	infra:cloud-zone:update	3	3	30246					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30271	云资源区删除	infra:cloud-zone:delete	3	4	30246					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30272	云平台查询	infra:cloud-platform:query	3	1	30247					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30273	云平台创建	infra:cloud-platform:create	3	2	30247					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30274	云平台更新	infra:cloud-platform:update	3	3	30247					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30275	云平台删除	infra:cloud-platform:delete	3	4	30247					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30276	云对接查询	infra:cloud-provider-config:query	3	1	30248					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30277	云对接创建	infra:cloud-provider-config:create	3	2	30248					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30278	云对接更新	infra:cloud-provider-config:update	3	3	30248					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30279	云对接删除	infra:cloud-provider-config:delete	3	4	30248					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30280	网络区域查询	infra:network-zone:query	3	1	30249					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30281	网络区域创建	infra:network-zone:create	3	2	30249					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30282	网络区域更新	infra:network-zone:update	3	3	30249					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30283	网络区域删除	infra:network-zone:delete	3	4	30249					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30284	安全产品查询	infra:security-product:query	3	1	30250					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30285	安全产品创建	infra:security-product:create	3	2	30250					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30286	安全产品更新	infra:security-product:update	3	3	30250					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30287	安全产品删除	infra:security-product:delete	3	4	30250					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30288	业务应用查询	infra:business-application:query	3	1	30251					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30289	业务应用创建	infra:business-application:create	3	2	30251					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30290	业务应用更新	infra:business-application:update	3	3	30251					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30291	业务应用删除	infra:business-application:delete	3	4	30251					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30296	资源工单查询	infra:resource-ticket:query	3	1	30253					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30297	资源工单创建	infra:resource-ticket:create	3	2	30253					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30298	资源工单更新	infra:resource-ticket:update	3	3	30253					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30299	资源工单删除	infra:resource-ticket:delete	3	4	30253					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30300	资源工单审批	infra:resource-ticket:approve	3	5	30253					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30301	资源工单配置	infra:resource-ticket:provision	3	6	30253					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30302	资源工单交付	infra:resource-ticket:deliver	3	7	30253					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30303	任务查询	infra:task:query	3	1	30254					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30304	任务创建	infra:task:create	3	2	30254					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30305	任务更新	infra:task:update	3	3	30254					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30306	任务删除	infra:task:delete	3	4	30254					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30307	任务执行	infra:task:execute	3	5	30254					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30308	风险查询	infra:risk:query	3	1	30255					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30309	风险更新	infra:risk:update	3	2	30255					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30310	风险处置	infra:risk:resolve	3	3	30255					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.025521	0	\N
+30312	网络策略更新	infra:network-policy:update	3	3	30311					0	t	t	t	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	\N
+30313	网络策略创建	infra:network-policy:create	3	2	30311					0	t	t	t	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	\N
+30314	网络策略查询	infra:network-policy:query	3	1	30311					0	t	t	t	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	\N
+30315	网络策略删除	infra:network-policy:delete	3	4	30311					0	t	t	t	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	\N
+30317	模型管理		2	1	30316	model	lucide:shapes	cmdb/model/index	CmdbModelManagement	0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30318	实例管理		2	2	30316	instance	lucide:shapes	cmdb/instance/index	CmdbInstanceManagement	0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30323	属性创建	cmdb:attribute:create	3	5	30317					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30324	属性更新	cmdb:attribute:update	3	6	30317					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30325	属性删除	cmdb:attribute:delete	3	7	30317					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30331	审批规则查询	infra:approval-rule:query	3	1	30330					0	t	t	t	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	\N
+30332	审批规则创建	infra:approval-rule:create	3	2	30330					0	t	t	t	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	\N
+30333	审批规则更新	infra:approval-rule:update	3	3	30330					0	t	t	t	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	\N
+30316	配置管理		1	10	0	/cmdb	lucide:database			0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30311	网络策略		2	2	30342	network-policy	lucide:shield-check	asset-ops/network-policy/index	AssetOpsNetworkPolicy	0	t	t	t	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.127499	0	\N
+30330	审批规则		2	2	30344	approval-rule	lucide:git-pull-request-arrow	asset-ops/approval-rule/index	AssetOpsApprovalRule	0	t	t	t	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.127499	0	\N
+30292	云资源查询	infra:cloud-resource:query	3	1	30252					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.158178	0	\N
+30293	云资源创建	infra:cloud-resource:create	3	2	30252					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.158178	0	\N
+30294	云资源更新	infra:cloud-resource:update	3	3	30252					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.158178	0	\N
+30295	云资源删除	infra:cloud-resource:delete	3	4	30252					0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.158178	0	\N
+30334	审批规则删除	infra:approval-rule:delete	3	4	30330					0	t	t	t	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	\N
+30319	模型查询	cmdb:model:query	3	1	30317					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30320	模型创建	cmdb:model:create	3	2	30317					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30321	模型更新	cmdb:model:update	3	3	30317					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30322	模型删除	cmdb:model:delete	3	4	30317					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30326	实例查询	cmdb:instance:query	3	1	30318					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30327	实例创建	cmdb:instance:create	3	2	30318					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30328	实例更新	cmdb:instance:update	3	3	30318					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30329	实例删除	cmdb:instance:delete	3	4	30318					0	t	t	t	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	\N
+30340	基础设施		1	11	0	/infra-center	lucide:server-cog			0	t	t	t	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	\N
+30341	云管中心		1	12	0	/cloud-center	lucide:cloud-cog			0	t	t	t	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	\N
+30342	资产中心		1	13	0	/asset-center	lucide:boxes			0	t	t	t	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	\N
+30343	业务管理		1	14	0	/biz-center	lucide:briefcase			0	t	t	t	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	\N
+30344	运营流程		1	15	0	/ops-center	lucide:workflow			0	t	t	t	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	\N
+30243	资产管理		2	1	30342	assets	lucide:hard-drive	asset-ops/asset/index	AssetOpsAsset	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30244	服务商		2	1	30340	service-provider	lucide:briefcase-business	asset-ops/service-provider/index	AssetOpsServiceProvider	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30245	物理机房		2	2	30340	machine-room	lucide:warehouse	asset-ops/machine-room/index	AssetOpsMachineRoom	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30246	云资源区		2	2	30341	cloud-zone	lucide:map-pin	asset-ops/cloud-platform/zone	AssetOpsCloudZone	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30247	云平台		2	1	30341	cloud-platform	lucide:cloud-cog	asset-ops/cloud-platform/platform	AssetOpsCloudPlatform	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30248	云厂商对接		2	3	30341	cloud-provider-config	lucide:plug-zap	asset-ops/cloud-provider-config/index	AssetOpsCloudProviderConfig	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30249	网络区域		2	3	30340	zone	lucide:globe	asset-ops/zone/index	AssetOpsNetworkZone	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30250	安全产品		2	4	30340	security-product	lucide:shield	asset-ops/security-product/index	AssetOpsSecurityProduct	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30251	业务应用		2	1	30343	business-application	lucide:layout-grid	asset-ops/business-application/index	AssetOpsBusinessApplication	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30253	资源工单		2	1	30344	resource-ticket	lucide:ticket	asset-ops/resource-ticket/index	AssetOpsResourceTicket	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30254	扫描任务		2	3	30342	task	lucide:list-checks	asset-ops/task/index	AssetOpsTask	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30255	风险管理		2	4	30342	risk	lucide:triangle-alert	asset-ops/risk/index	AssetOpsRisk	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	0	\N
+30242	资产运营		1	35	0	/asset-ops	lucide:boxes		AssetOps	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.127499	1	\N
 1	系统功能		1	20	0	/system	lucide:settings	\N	System	0	t	t	t	admin	2021-01-05 17:03:48	1	2026-07-17 01:35:39.386526	0	\N
-30336	组织网段查询	cmdb:net-zone:query	3	1	1138					0	t	t	t	migration	2026-09-25 07:39:02.673923	migration	2026-09-25 07:39:03.434995	0	\N
-30337	组织网段创建	cmdb:net-zone:create	3	2	1138					0	t	t	t	migration	2026-09-25 07:39:02.673923	migration	2026-09-25 07:39:03.434995	0	\N
-30338	组织网段更新	cmdb:net-zone:update	3	3	1138					0	t	t	t	migration	2026-09-25 07:39:02.673923	migration	2026-09-25 07:39:03.434995	0	\N
-30339	组织网段删除	cmdb:net-zone:delete	3	4	1138					0	t	t	t	migration	2026-09-25 07:39:02.673923	migration	2026-09-25 07:39:03.434995	0	\N
-30335	组织网段		2	3	30316	net-zone	lucide:network	cmdb/net-zone/index	CmdbNetZone	0	t	t	t	migration	2026-09-25 07:39:02.670886	migration	2026-09-25 07:39:03.44011	1	\N
-1186	流程管理		1	10	1185	manager	fa:dedent	\N	\N	0	t	t	t	1	2021-12-30 20:28:30	migration	2026-09-25 07:39:03.444065	1	\N
-1187	流程表单		2	2	1186	form	fa:hdd-o	bpm/form/index	BpmForm	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-25 07:39:03.444065	1	\N
-1188	表单查询	bpm:form:query	3	1	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-25 07:39:03.444065	1	\N
-1189	表单创建	bpm:form:create	3	2	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-25 07:39:03.444065	1	\N
-1190	表单更新	bpm:form:update	3	3	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-25 07:39:03.444065	1	\N
-1191	表单删除	bpm:form:delete	3	4	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-25 07:39:03.444065	1	\N
-30252	云资源		2	2	30343	cloud-resource	lucide:cloud	asset-ops/business-resource/cloud/index	AssetOpsCloudResource	0	t	t	t	migration	2026-09-25 07:39:00.21798	migration	2026-09-25 07:39:04.546975	0	\N
-1193	流程模型		2	1	1186	model	fa-solid:project-diagram	bpm/model/index	BpmModel	0	t	t	t	1	2021-12-31 23:24:58	migration	2026-09-25 07:39:03.444065	1	\N
-1194	模型查询	bpm:model:query	3	1	1193				\N	0	t	t	t	1	2022-01-03 19:01:10	migration	2026-09-25 07:39:03.444065	1	\N
-1195	模型创建	bpm:model:create	3	2	1193				\N	0	t	t	t	1	2022-01-03 19:01:24	migration	2026-09-25 07:39:03.444065	1	\N
-1197	模型更新	bpm:model:update	3	4	1193				\N	0	t	t	t	1	2022-01-03 19:02:28	migration	2026-09-25 07:39:03.444065	1	\N
-1198	模型删除	bpm:model:delete	3	5	1193				\N	0	t	t	t	1	2022-01-03 19:02:43	migration	2026-09-25 07:39:03.444065	1	\N
-1199	模型发布	bpm:model:deploy	3	6	1193				\N	0	t	t	t	1	2022-01-03 19:03:24	migration	2026-09-25 07:39:03.444065	1	\N
-1200	审批中心		2	20	1185	task	fa:tasks	\N	\N	0	t	t	t	1	2022-01-07 23:51:48	migration	2026-09-25 07:39:03.444065	1	\N
-1201	我的流程		2	1	1200	my	fa-solid:book	bpm/processInstance/index	BpmProcessInstanceMy	0	t	t	t		2022-01-07 15:53:44	migration	2026-09-25 07:39:03.444065	1	\N
-1202	流程实例的查询	bpm:process-instance:query	3	1	1201				\N	0	t	t	t		2022-01-07 15:53:44	migration	2026-09-25 07:39:03.444065	1	\N
-1207	待办任务		2	10	1200	todo	fa:slack	bpm/task/todo/index	BpmTodoTask	0	t	t	t	1	2022-01-08 10:33:37	migration	2026-09-25 07:39:03.444065	1	\N
-1208	已办任务		2	20	1200	done	fa:delicious	bpm/task/done/index	BpmDoneTask	0	t	t	t	1	2022-01-08 10:34:13	migration	2026-09-25 07:39:03.444065	1	\N
-1209	用户分组		2	4	1186	user-group	fa:user-secret	bpm/group/index	BpmUserGroup	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-25 07:39:03.444065	1	\N
-1210	用户组查询	bpm:user-group:query	3	1	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-25 07:39:03.444065	1	\N
-1211	用户组创建	bpm:user-group:create	3	2	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-25 07:39:03.444065	1	\N
-1212	用户组更新	bpm:user-group:update	3	3	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-25 07:39:03.444065	1	\N
-1213	用户组删除	bpm:user-group:delete	3	4	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-25 07:39:03.444065	1	\N
-1215	流程定义查询	bpm:process-definition:query	3	10	1193				\N	0	t	t	t	1	2022-01-23 00:21:43	migration	2026-09-25 07:39:03.444065	1	\N
-1216	流程任务分配规则查询	bpm:task-assign-rule:query	3	20	1193				\N	0	t	t	t	1	2022-01-23 00:26:53	migration	2026-09-25 07:39:03.444065	1	\N
-1217	流程任务分配规则创建	bpm:task-assign-rule:create	3	21	1193				\N	0	t	t	t	1	2022-01-23 00:28:15	migration	2026-09-25 07:39:03.444065	1	\N
-1218	流程任务分配规则更新	bpm:task-assign-rule:update	3	22	1193				\N	0	t	t	t	1	2022-01-23 00:28:41	migration	2026-09-25 07:39:03.444065	1	\N
-1219	流程实例的创建	bpm:process-instance:create	3	2	1201				\N	0	t	t	t	1	2022-01-23 00:36:15	migration	2026-09-25 07:39:03.444065	1	\N
-1220	流程实例的取消	bpm:process-instance:cancel	3	3	1201				\N	0	t	t	t	1	2022-01-23 00:36:33	migration	2026-09-25 07:39:03.444065	1	\N
-1221	流程任务的查询	bpm:task:query	3	1	1207				\N	0	t	t	t	1	2022-01-23 00:38:52	migration	2026-09-25 07:39:03.444065	1	\N
-1222	流程任务的更新	bpm:task:update	3	2	1207				\N	0	t	t	t	1	2022-01-23 00:39:24	migration	2026-09-25 07:39:03.444065	1	\N
-2713	抄送我的	bpm:process-instance-cc:query	2	30	1200	copy	ep:copy-document	bpm/task/copy/index	BpmProcessInstanceCopy	0	t	t	t	1	2024-03-17 21:50:23	migration	2026-09-25 07:39:03.444065	1	\N
-2714	流程分类		2	3	1186	category	fa:object-ungroup	bpm/category/index	BpmCategory	0	t	t	t		2024-03-08 02:00:51	migration	2026-09-25 07:39:03.444065	1	\N
-2715	分类查询	bpm:category:query	3	1	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-09-25 07:39:03.444065	1	\N
-2716	分类创建	bpm:category:create	3	2	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-09-25 07:39:03.444065	1	\N
-2717	分类更新	bpm:category:update	3	3	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-09-25 07:39:03.444065	1	\N
-2718	分类删除	bpm:category:delete	3	4	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-09-25 07:39:03.444065	1	\N
-2720	发起流程		2	0	1200	create	fa-solid:grin-stars	bpm/processInstance/create/index	BpmProcessInstanceCreate	0	t	f	t	1	2024-03-19 19:46:05	migration	2026-09-25 07:39:03.444065	1	\N
-2721	流程实例		2	10	1186	process-instance/manager	fa:square	bpm/processInstance/manager/index	BpmProcessInstanceManager	0	t	t	t	1	2024-03-21 23:57:30	migration	2026-09-25 07:39:03.444065	1	\N
-2722	流程实例的查询（管理员）	bpm:process-instance:manager-query	3	1	2721					0	t	t	t	1	2024-03-22 08:18:27	migration	2026-09-25 07:39:03.444065	1	\N
-2723	流程实例的取消（管理员）	bpm:process-instance:cancel-by-admin	3	2	2721					0	t	t	t	1	2024-03-22 08:19:25	migration	2026-09-25 07:39:03.444065	1	\N
-2724	流程任务		2	11	1186	process-tasnk	ep:collection-tag	bpm/task/manager/index	BpmManagerTask	0	t	t	t	1	2024-03-22 08:43:22	migration	2026-09-25 07:39:03.444065	1	\N
-2725	流程任务的查询（管理员）	bpm:task:manager-query	3	1	2724					0	t	t	t	1	2024-03-22 08:43:49	migration	2026-09-25 07:39:03.444065	1	\N
-2726	流程监听器		2	5	1186	process-listener	fa:assistive-listening-systems	bpm/processListener/index	BpmProcessListener	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-25 07:39:03.444065	1	\N
-2727	流程监听器查询	bpm:process-listener:query	3	1	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-25 07:39:03.444065	1	\N
-2728	流程监听器创建	bpm:process-listener:create	3	2	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-25 07:39:03.444065	1	\N
-2729	流程监听器更新	bpm:process-listener:update	3	3	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-25 07:39:03.444065	1	\N
-2730	流程监听器删除	bpm:process-listener:delete	3	4	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-25 07:39:03.444065	1	\N
-2731	流程表达式		2	6	1186	process-expression	fa:wpexplorer	bpm/processExpression/index	BpmProcessExpression	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-25 07:39:03.444065	1	\N
-2732	流程表达式查询	bpm:process-expression:query	3	1	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-25 07:39:03.444065	1	\N
-2733	流程表达式创建	bpm:process-expression:create	3	2	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-25 07:39:03.444065	1	\N
-2734	流程表达式更新	bpm:process-expression:update	3	3	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-25 07:39:03.444065	1	\N
-2735	流程表达式删除	bpm:process-expression:delete	3	4	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-25 07:39:03.444065	1	\N
-30220	流程详情	bpm:process-instance:query	2	90	1185	process-instance/detail	lucide:file-search	bpm/processInstance/detail/index	BpmProcessInstanceDetail	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-25 07:39:03.444065	1	1201
-30221	设计流程表单	bpm:form:update	2	91	1185	manager/form/edit	lucide:file-pen-line	bpm/form/designer/index	BpmFormEditor	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-25 07:39:03.444065	1	1187
-30222	创建流程	bpm:model:create	2	92	1185	manager/model/create	lucide:workflow	bpm/model/form/index	BpmModelCreate	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-25 07:39:03.444065	1	1193
-30223	修改流程	bpm:model:update	2	93	1185	manager/model/:type/:id	lucide:workflow	bpm/model/form/index	BpmModelUpdate	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-25 07:39:03.444065	1	1193
-30224	流程定义	bpm:definition:query	2	94	1185	manager/definition	lucide:file-cog	bpm/model/definition/index	BpmProcessDefinition	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-25 07:39:03.444065	1	1193
-30225	流程数据报表	bpm:process-instance:query	2	95	1185	process-instance/report	lucide:chart-no-axes-combined	bpm/processInstance/report/index	BpmProcessInstanceReport	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-25 07:39:03.444065	1	1193
-30345	物理资源		2	3	30343	physical-resource	lucide:hard-drive	asset-ops/business-resource/physical/index	AssetOpsPhysicalResource	0	t	t	t	migration	2026-09-25 07:39:04.55714	migration	2026-09-25 07:39:04.55714	0	\N
-30295	云资源删除	infra:cloud-resource:delete	3	4	30252					0	t	t	t	migration	2026-09-25 07:39:00.223239	migration	2026-09-25 07:39:04.890761	0	\N
-30349	物理资源删除	infra:physical-resource:delete	3	4	30345				\N	0	t	t	t	migration	2026-09-25 07:39:04.894203	migration	2026-09-25 07:39:04.894203	0	\N
-30346	物理资源查询	infra:physical-resource:query	3	1	30345				\N	0	t	t	t	migration	2026-09-25 07:39:04.894203	migration	2026-09-25 07:39:04.894203	0	\N
-30348	物理资源更新	infra:physical-resource:update	3	3	30345				\N	0	t	t	t	migration	2026-09-25 07:39:04.894203	migration	2026-09-25 07:39:04.894203	0	\N
-30347	物理资源创建	infra:physical-resource:create	3	2	30345				\N	0	t	t	t	migration	2026-09-25 07:39:04.894203	migration	2026-09-25 07:39:04.894203	0	\N
-30350	资产核查		2	5	30342	inspection	lucide:scan-search	asset-ops/inspection/index	AssetInspection	0	t	t	t	migration	2026-09-25 07:39:05.169257	migration	2026-09-25 07:39:05.169257	0	\N
-1070	代码生成案例		1	1	2	demo	ep:aim	infra/testDemo/index	\N	0	t	t	t		2021-02-06 12:42:49	migration	2026-09-25 07:39:05.428924	1	\N
-2472	主子表（内嵌）		2	12	1070	demo03-inner	fa:power-off	infra/demo/demo03/inner/index	Demo03StudentInner	0	t	t	t		2023-11-13 04:39:51	migration	2026-09-25 07:39:05.428924	1	\N
-2478	单表（增删改查）		2	1	1070	demo01-contact	ep:bicycle	infra/demo/demo01/index	Demo01Contact	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-25 07:39:05.428924	1	\N
-2479	示例联系人查询	infra:demo01-contact:query	3	1	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-25 07:39:05.428924	1	\N
-2480	示例联系人创建	infra:demo01-contact:create	3	2	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-25 07:39:05.428924	1	\N
-2481	示例联系人更新	infra:demo01-contact:update	3	3	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-25 07:39:05.428924	1	\N
-2482	示例联系人删除	infra:demo01-contact:delete	3	4	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-25 07:39:05.428924	1	\N
-2483	示例联系人导出	infra:demo01-contact:export	3	5	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-25 07:39:05.428924	1	\N
-2484	树表（增删改查）		2	2	1070	demo02-category	fa:tree	infra/demo/demo02/index	Demo02Category	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-25 07:39:05.428924	1	\N
-2485	示例分类查询	infra:demo02-category:query	3	1	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-25 07:39:05.428924	1	\N
-2486	示例分类创建	infra:demo02-category:create	3	2	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-25 07:39:05.428924	1	\N
-2487	示例分类更新	infra:demo02-category:update	3	3	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-25 07:39:05.428924	1	\N
-2488	示例分类删除	infra:demo02-category:delete	3	4	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-25 07:39:05.428924	1	\N
-2489	示例分类导出	infra:demo02-category:export	3	5	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-25 07:39:05.428924	1	\N
-2490	主子表（标准）		2	10	1070	demo03-normal	fa:battery-3	infra/demo/demo03/normal/index	Demo03StudentNormal	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-25 07:39:05.428924	1	\N
-2491	学生查询	infra:demo03-student:query	3	1	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-25 07:39:05.428924	1	\N
-2492	学生创建	infra:demo03-student:create	3	2	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-25 07:39:05.428924	1	\N
-2493	学生更新	infra:demo03-student:update	3	3	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-25 07:39:05.428924	1	\N
-2494	学生删除	infra:demo03-student:delete	3	4	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-25 07:39:05.428924	1	\N
-2495	学生导出	infra:demo03-student:export	3	5	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-25 07:39:05.428924	1	\N
+30240	基础设置		1	21	0	/system/basic	lucide:sliders-horizontal		SystemBasic	0	t	t	t	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	\N
+30241	信息中心		1	22	0	/system/message	lucide:mail		SystemMessage	0	t	t	t	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	\N
+2	基础功能		1	25	0	/infra	lucide:blocks	\N	Infra	0	t	t	t	admin	2021-01-05 17:03:48	1	2026-07-17 01:35:39.386526	0	\N
+30336	组织网段查询	cmdb:net-zone:query	3	1	1138					0	t	t	t	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.135334	0	\N
+30337	组织网段创建	cmdb:net-zone:create	3	2	1138					0	t	t	t	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.135334	0	\N
+30338	组织网段更新	cmdb:net-zone:update	3	3	1138					0	t	t	t	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.135334	0	\N
+30339	组织网段删除	cmdb:net-zone:delete	3	4	1138					0	t	t	t	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.135334	0	\N
+30335	组织网段		2	3	30316	net-zone	lucide:network	cmdb/net-zone/index	CmdbNetZone	0	t	t	t	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.135334	1	\N
+1186	流程管理		1	10	1185	manager	fa:dedent	\N	\N	0	t	t	t	1	2021-12-30 20:28:30	migration	2026-09-27 10:58:39.135334	1	\N
+1187	流程表单		2	2	1186	form	fa:hdd-o	bpm/form/index	BpmForm	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-27 10:58:39.135334	1	\N
+1188	表单查询	bpm:form:query	3	1	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-27 10:58:39.135334	1	\N
+30252	云资源		2	2	30343	cloud-resource	lucide:cloud	asset-ops/business-resource/cloud/index	AssetOpsCloudResource	0	t	t	t	migration	2026-09-27 10:58:39.025521	migration	2026-09-27 10:58:39.154658	0	\N
+1190	表单更新	bpm:form:update	3	3	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-27 10:58:39.135334	1	\N
+1191	表单删除	bpm:form:delete	3	4	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-27 10:58:39.135334	1	\N
+1192	表单导出	bpm:form:export	3	5	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-09-27 10:58:39.135334	1	\N
+1193	流程模型		2	1	1186	model	fa-solid:project-diagram	bpm/model/index	BpmModel	0	t	t	t	1	2021-12-31 23:24:58	migration	2026-09-27 10:58:39.135334	1	\N
+1194	模型查询	bpm:model:query	3	1	1193				\N	0	t	t	t	1	2022-01-03 19:01:10	migration	2026-09-27 10:58:39.135334	1	\N
+1195	模型创建	bpm:model:create	3	2	1193				\N	0	t	t	t	1	2022-01-03 19:01:24	migration	2026-09-27 10:58:39.135334	1	\N
+1197	模型更新	bpm:model:update	3	4	1193				\N	0	t	t	t	1	2022-01-03 19:02:28	migration	2026-09-27 10:58:39.135334	1	\N
+1198	模型删除	bpm:model:delete	3	5	1193				\N	0	t	t	t	1	2022-01-03 19:02:43	migration	2026-09-27 10:58:39.135334	1	\N
+1199	模型发布	bpm:model:deploy	3	6	1193				\N	0	t	t	t	1	2022-01-03 19:03:24	migration	2026-09-27 10:58:39.135334	1	\N
+1200	审批中心		2	20	1185	task	fa:tasks	\N	\N	0	t	t	t	1	2022-01-07 23:51:48	migration	2026-09-27 10:58:39.135334	1	\N
+1201	我的流程		2	1	1200	my	fa-solid:book	bpm/processInstance/index	BpmProcessInstanceMy	0	t	t	t		2022-01-07 15:53:44	migration	2026-09-27 10:58:39.135334	1	\N
+1202	流程实例的查询	bpm:process-instance:query	3	1	1201				\N	0	t	t	t		2022-01-07 15:53:44	migration	2026-09-27 10:58:39.135334	1	\N
+1207	待办任务		2	10	1200	todo	fa:slack	bpm/task/todo/index	BpmTodoTask	0	t	t	t	1	2022-01-08 10:33:37	migration	2026-09-27 10:58:39.135334	1	\N
+1208	已办任务		2	20	1200	done	fa:delicious	bpm/task/done/index	BpmDoneTask	0	t	t	t	1	2022-01-08 10:34:13	migration	2026-09-27 10:58:39.135334	1	\N
+1209	用户分组		2	4	1186	user-group	fa:user-secret	bpm/group/index	BpmUserGroup	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-27 10:58:39.135334	1	\N
+1210	用户组查询	bpm:user-group:query	3	1	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-27 10:58:39.135334	1	\N
+1211	用户组创建	bpm:user-group:create	3	2	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-27 10:58:39.135334	1	\N
+1212	用户组更新	bpm:user-group:update	3	3	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-27 10:58:39.135334	1	\N
+1213	用户组删除	bpm:user-group:delete	3	4	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-09-27 10:58:39.135334	1	\N
+1215	流程定义查询	bpm:process-definition:query	3	10	1193				\N	0	t	t	t	1	2022-01-23 00:21:43	migration	2026-09-27 10:58:39.135334	1	\N
+1216	流程任务分配规则查询	bpm:task-assign-rule:query	3	20	1193				\N	0	t	t	t	1	2022-01-23 00:26:53	migration	2026-09-27 10:58:39.135334	1	\N
+1217	流程任务分配规则创建	bpm:task-assign-rule:create	3	21	1193				\N	0	t	t	t	1	2022-01-23 00:28:15	migration	2026-09-27 10:58:39.135334	1	\N
+1218	流程任务分配规则更新	bpm:task-assign-rule:update	3	22	1193				\N	0	t	t	t	1	2022-01-23 00:28:41	migration	2026-09-27 10:58:39.135334	1	\N
+1219	流程实例的创建	bpm:process-instance:create	3	2	1201				\N	0	t	t	t	1	2022-01-23 00:36:15	migration	2026-09-27 10:58:39.135334	1	\N
+1220	流程实例的取消	bpm:process-instance:cancel	3	3	1201				\N	0	t	t	t	1	2022-01-23 00:36:33	migration	2026-09-27 10:58:39.135334	1	\N
+1221	流程任务的查询	bpm:task:query	3	1	1207				\N	0	t	t	t	1	2022-01-23 00:38:52	migration	2026-09-27 10:58:39.135334	1	\N
+1222	流程任务的更新	bpm:task:update	3	2	1207				\N	0	t	t	t	1	2022-01-23 00:39:24	migration	2026-09-27 10:58:39.135334	1	\N
+2713	抄送我的	bpm:process-instance-cc:query	2	30	1200	copy	ep:copy-document	bpm/task/copy/index	BpmProcessInstanceCopy	0	t	t	t	1	2024-03-17 21:50:23	migration	2026-09-27 10:58:39.135334	1	\N
+2714	流程分类		2	3	1186	category	fa:object-ungroup	bpm/category/index	BpmCategory	0	t	t	t		2024-03-08 02:00:51	migration	2026-09-27 10:58:39.135334	1	\N
+2715	分类查询	bpm:category:query	3	1	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-09-27 10:58:39.135334	1	\N
+2716	分类创建	bpm:category:create	3	2	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-09-27 10:58:39.135334	1	\N
+2717	分类更新	bpm:category:update	3	3	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-09-27 10:58:39.135334	1	\N
+2718	分类删除	bpm:category:delete	3	4	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-09-27 10:58:39.135334	1	\N
+2720	发起流程		2	0	1200	create	fa-solid:grin-stars	bpm/processInstance/create/index	BpmProcessInstanceCreate	0	t	f	t	1	2024-03-19 19:46:05	migration	2026-09-27 10:58:39.135334	1	\N
+2721	流程实例		2	10	1186	process-instance/manager	fa:square	bpm/processInstance/manager/index	BpmProcessInstanceManager	0	t	t	t	1	2024-03-21 23:57:30	migration	2026-09-27 10:58:39.135334	1	\N
+2722	流程实例的查询（管理员）	bpm:process-instance:manager-query	3	1	2721					0	t	t	t	1	2024-03-22 08:18:27	migration	2026-09-27 10:58:39.135334	1	\N
+2723	流程实例的取消（管理员）	bpm:process-instance:cancel-by-admin	3	2	2721					0	t	t	t	1	2024-03-22 08:19:25	migration	2026-09-27 10:58:39.135334	1	\N
+2724	流程任务		2	11	1186	process-tasnk	ep:collection-tag	bpm/task/manager/index	BpmManagerTask	0	t	t	t	1	2024-03-22 08:43:22	migration	2026-09-27 10:58:39.135334	1	\N
+2725	流程任务的查询（管理员）	bpm:task:manager-query	3	1	2724					0	t	t	t	1	2024-03-22 08:43:49	migration	2026-09-27 10:58:39.135334	1	\N
+2726	流程监听器		2	5	1186	process-listener	fa:assistive-listening-systems	bpm/processListener/index	BpmProcessListener	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-27 10:58:39.135334	1	\N
+2727	流程监听器查询	bpm:process-listener:query	3	1	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-27 10:58:39.135334	1	\N
+2728	流程监听器创建	bpm:process-listener:create	3	2	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-27 10:58:39.135334	1	\N
+2729	流程监听器更新	bpm:process-listener:update	3	3	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-27 10:58:39.135334	1	\N
+2730	流程监听器删除	bpm:process-listener:delete	3	4	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-09-27 10:58:39.135334	1	\N
+2731	流程表达式		2	6	1186	process-expression	fa:wpexplorer	bpm/processExpression/index	BpmProcessExpression	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-27 10:58:39.135334	1	\N
+2732	流程表达式查询	bpm:process-expression:query	3	1	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-27 10:58:39.135334	1	\N
+2733	流程表达式创建	bpm:process-expression:create	3	2	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-27 10:58:39.135334	1	\N
+2734	流程表达式更新	bpm:process-expression:update	3	3	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-27 10:58:39.135334	1	\N
+2735	流程表达式删除	bpm:process-expression:delete	3	4	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-09-27 10:58:39.135334	1	\N
+30220	流程详情	bpm:process-instance:query	2	90	1185	process-instance/detail	lucide:file-search	bpm/processInstance/detail/index	BpmProcessInstanceDetail	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-27 10:58:39.135334	1	1201
+30221	设计流程表单	bpm:form:update	2	91	1185	manager/form/edit	lucide:file-pen-line	bpm/form/designer/index	BpmFormEditor	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-27 10:58:39.135334	1	1187
+30222	创建流程	bpm:model:create	2	92	1185	manager/model/create	lucide:workflow	bpm/model/form/index	BpmModelCreate	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-27 10:58:39.135334	1	1193
+30223	修改流程	bpm:model:update	2	93	1185	manager/model/:type/:id	lucide:workflow	bpm/model/form/index	BpmModelUpdate	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-27 10:58:39.135334	1	1193
+30224	流程定义	bpm:definition:query	2	94	1185	manager/definition	lucide:file-cog	bpm/model/definition/index	BpmProcessDefinition	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-27 10:58:39.135334	1	1193
+30225	流程数据报表	bpm:process-instance:query	2	95	1185	process-instance/report	lucide:chart-no-axes-combined	bpm/processInstance/report/index	BpmProcessInstanceReport	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-09-27 10:58:39.135334	1	1193
+30345	物理资源		2	3	30343	physical-resource	lucide:hard-drive	asset-ops/business-resource/physical/index	AssetOpsPhysicalResource	0	t	t	t	migration	2026-09-27 10:58:39.154658	migration	2026-09-27 10:58:39.154658	0	\N
+30349	物理资源删除	infra:physical-resource:delete	3	4	30345				\N	0	t	t	t	migration	2026-09-27 10:58:39.158178	migration	2026-09-27 10:58:39.158178	0	\N
+30346	物理资源查询	infra:physical-resource:query	3	1	30345				\N	0	t	t	t	migration	2026-09-27 10:58:39.158178	migration	2026-09-27 10:58:39.158178	0	\N
+30348	物理资源更新	infra:physical-resource:update	3	3	30345				\N	0	t	t	t	migration	2026-09-27 10:58:39.158178	migration	2026-09-27 10:58:39.158178	0	\N
+30347	物理资源创建	infra:physical-resource:create	3	2	30345				\N	0	t	t	t	migration	2026-09-27 10:58:39.158178	migration	2026-09-27 10:58:39.158178	0	\N
+30350	资产核查		2	5	30342	inspection	lucide:scan-search	asset-ops/inspection/index	AssetInspection	0	t	t	t	migration	2026-09-27 10:58:39.170703	migration	2026-09-27 10:58:39.170703	0	\N
+1070	代码生成案例		1	1	2	demo	ep:aim	infra/testDemo/index	\N	0	t	t	t		2021-02-06 12:42:49	migration	2026-09-27 10:58:39.178077	1	\N
+2472	主子表（内嵌）		2	12	1070	demo03-inner	fa:power-off	infra/demo/demo03/inner/index	Demo03StudentInner	0	t	t	t		2023-11-13 04:39:51	migration	2026-09-27 10:58:39.178077	1	\N
+2478	单表（增删改查）		2	1	1070	demo01-contact	ep:bicycle	infra/demo/demo01/index	Demo01Contact	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-27 10:58:39.178077	1	\N
+2479	示例联系人查询	infra:demo01-contact:query	3	1	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-27 10:58:39.178077	1	\N
+2480	示例联系人创建	infra:demo01-contact:create	3	2	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-27 10:58:39.178077	1	\N
+2481	示例联系人更新	infra:demo01-contact:update	3	3	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-27 10:58:39.178077	1	\N
+2482	示例联系人删除	infra:demo01-contact:delete	3	4	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-27 10:58:39.178077	1	\N
+2483	示例联系人导出	infra:demo01-contact:export	3	5	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-09-27 10:58:39.178077	1	\N
+2484	树表（增删改查）		2	2	1070	demo02-category	fa:tree	infra/demo/demo02/index	Demo02Category	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-27 10:58:39.178077	1	\N
+2485	示例分类查询	infra:demo02-category:query	3	1	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-27 10:58:39.178077	1	\N
+2486	示例分类创建	infra:demo02-category:create	3	2	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-27 10:58:39.178077	1	\N
+2487	示例分类更新	infra:demo02-category:update	3	3	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-27 10:58:39.178077	1	\N
+2488	示例分类删除	infra:demo02-category:delete	3	4	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-27 10:58:39.178077	1	\N
+2489	示例分类导出	infra:demo02-category:export	3	5	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-09-27 10:58:39.178077	1	\N
+2490	主子表（标准）		2	10	1070	demo03-normal	fa:battery-3	infra/demo/demo03/normal/index	Demo03StudentNormal	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-27 10:58:39.178077	1	\N
+2491	学生查询	infra:demo03-student:query	3	1	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-27 10:58:39.178077	1	\N
+2492	学生创建	infra:demo03-student:create	3	2	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-27 10:58:39.178077	1	\N
+2493	学生更新	infra:demo03-student:update	3	3	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-27 10:58:39.178077	1	\N
+2494	学生删除	infra:demo03-student:delete	3	4	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-27 10:58:39.178077	1	\N
+2495	学生导出	infra:demo03-student:export	3	5	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-09-27 10:58:39.178077	1	\N
+116	API 接口	infra:swagger:list	2	3	2	api-docs	fa:fighter-jet	infra/api-docs/index	InfraApiDocs	0	t	t	t	admin	2021-01-05 17:03:48	migration	2026-09-27 10:58:39.182363	0	\N
 \.
 
 
@@ -5329,8 +5575,8 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 
 COPY public.system_notice (id, title, content, type, status, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
 4	我是测试标题	<p>哈哈哈哈123</p>	1	0	110	2022-02-22 01:01:25	110	2022-02-22 01:01:46	0	121
-1	芋道的公众	<p>新版本内容133222</p>	1	0	admin	2021-01-05 17:03:48	migration	2026-09-25 07:39:03.722912	1	1
-2	维护通知：2018-07-01 系统凌晨维护	<p><img src="http://test.yudao.iocoder.cn/b7cb3cf49b4b3258bf7309a09dd2f4e5.jpg" alt="" data-href="">11112222<img src="http://test.yudao.iocoder.cn/fe44fc7bdb82ca421184b2eebbaee9e2148d4a1827479a4eb4521e11d2a062ba.png" alt="image" data-href="http://test.yudao.iocoder.cn/fe44fc7bdb82ca421184b2eebbaee9e2148d4a1827479a4eb4521e11d2a062ba.png">3333</p>	2	1	admin	2021-01-05 17:03:48	migration	2026-09-25 07:39:03.722912	1	1
+1	芋道的公众	<p>新版本内容133222</p>	1	0	admin	2021-01-05 17:03:48	migration	2026-09-27 10:58:39.141962	1	1
+2	维护通知：2018-07-01 系统凌晨维护	<p><img src="http://test.yudao.iocoder.cn/b7cb3cf49b4b3258bf7309a09dd2f4e5.jpg" alt="" data-href="">11112222<img src="http://test.yudao.iocoder.cn/fe44fc7bdb82ca421184b2eebbaee9e2148d4a1827479a4eb4521e11d2a062ba.png" alt="image" data-href="http://test.yudao.iocoder.cn/fe44fc7bdb82ca421184b2eebbaee9e2148d4a1827479a4eb4521e11d2a062ba.png">3333</p>	2	1	admin	2021-01-05 17:03:48	migration	2026-09-27 10:58:39.141962	1	1
 \.
 
 
@@ -5371,10 +5617,10 @@ COPY public.system_oauth2_approve (id, user_id, user_type, client_id, scope, app
 --
 
 COPY public.system_oauth2_client (id, client_id, secret, name, logo, description, status, access_token_validity_seconds, refresh_token_validity_seconds, redirect_uris, authorized_grant_types, scopes, auto_approve_scopes, authorities, resource_ids, additional_information, creator, create_time, updater, update_time, deleted) FROM stdin;
-1	default	admin123	RustSet		RustSet 默认 OAuth2 客户端	0	1800	2592000	["http://127.0.0.1:5666"]	["password","authorization_code","implicit","refresh_token","client_credentials"]	["user.read","user.write"]	[]	["user.read","user.write"]	[]	{}	1	2022-05-11 21:47:12	migration	2026-09-25 07:39:03.726139	0
-40	test	test2	biubiu	http://test.yudao.iocoder.cn/20251227/javayuanma_1766829882970.jpg	啦啦啦啦	0	1800	43200	["https://www.iocoder.cn"]	["password","authorization_code","implicit"]	["user_info","projects"]	["user_info"]	[]	[]	{}	1	2022-05-12 00:28:20	migration	2026-09-25 07:39:03.73003	1
-41	yudao-sso-demo-by-code	test	基于授权码模式，如何实现 SSO 单点登录？	http://test.yudao.iocoder.cn/it/20250502/sign_1746181948685.png	\N	0	1800	43200	["http://127.0.0.1:18080"]	["authorization_code","refresh_token"]	["user.read","user.write"]	[]	[]	[]	\N	1	2022-09-29 13:28:31	migration	2026-09-25 07:39:03.73003	1
-42	yudao-sso-demo-by-password	test	基于密码模式，如何实现 SSO 单点登录？	http://test.yudao.iocoder.cn/20251025/images (3)_1761360515810.jpeg	\N	0	1800	43200	["http://127.0.0.1:18080"]	["password","refresh_token"]	["user.read","user.write"]	[]	[]	[]	\N	1	2022-10-04 17:40:16	migration	2026-09-25 07:39:03.73003	1
+1	default	admin123	RustSet		RustSet 默认 OAuth2 客户端	0	1800	2592000	["http://127.0.0.1:5666"]	["password","authorization_code","implicit","refresh_token","client_credentials"]	["user.read","user.write"]	[]	["user.read","user.write"]	[]	{}	1	2022-05-11 21:47:12	migration	2026-09-27 10:58:39.141962	0
+40	test	test2	biubiu	http://test.yudao.iocoder.cn/20251227/javayuanma_1766829882970.jpg	啦啦啦啦	0	1800	43200	["https://www.iocoder.cn"]	["password","authorization_code","implicit"]	["user_info","projects"]	["user_info"]	[]	[]	{}	1	2022-05-12 00:28:20	migration	2026-09-27 10:58:39.141962	1
+41	yudao-sso-demo-by-code	test	基于授权码模式，如何实现 SSO 单点登录？	http://test.yudao.iocoder.cn/it/20250502/sign_1746181948685.png	\N	0	1800	43200	["http://127.0.0.1:18080"]	["authorization_code","refresh_token"]	["user.read","user.write"]	[]	[]	[]	\N	1	2022-09-29 13:28:31	migration	2026-09-27 10:58:39.141962	1
+42	yudao-sso-demo-by-password	test	基于密码模式，如何实现 SSO 单点登录？	http://test.yudao.iocoder.cn/20251025/images (3)_1761360515810.jpeg	\N	0	1800	43200	["http://127.0.0.1:18080"]	["password","refresh_token"]	["user.read","user.write"]	[]	[]	[]	\N	1	2022-10-04 17:40:16	migration	2026-09-27 10:58:39.141962	1
 \.
 
 
@@ -5425,8 +5671,8 @@ COPY public.system_role (id, name, code, sort, data_scope, data_scope_dept_ids, 
 109	租户管理员	tenant_admin	0	1		0	1	系统自动生成	1	2022-02-22 00:56:14	1	2022-02-22 00:56:14	0	121
 111	租户管理员	tenant_admin	0	1		0	1	系统自动生成	1	2022-03-07 21:37:58	1	2022-03-07 21:37:58	0	122
 155	测试数据权限1	test-dp	4	2	[112,100,102,103,104,105,107,108]	0	2	1111	1	2025-03-31 14:58:06	1	2025-12-04 23:29:40	0	1
-157	CMDB 管理员	cmdb_admin	20	1		0	1	\N	migration	2026-09-25 07:39:02.634008	migration	2026-09-25 07:39:02.634008	0	0
-158	CMDB 用户	cmdb_user	21	1		0	1	\N	migration	2026-09-25 07:39:02.639121	migration	2026-09-25 07:39:02.639121	0	0
+157	CMDB 管理员	cmdb_admin	20	1		0	1	\N	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+158	CMDB 用户	cmdb_user	21	1		0	1	\N	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
 \.
 
 
@@ -5860,22 +6106,22 @@ COPY public.system_role_menu (id, role_id, menu_id, creator, create_time, update
 4164	109	1118	1	2024-03-30 17:53:17	1	2024-03-30 17:53:17	0	121
 4165	109	1119	1	2024-03-30 17:53:17	1	2024-03-30 17:53:17	0	121
 4166	109	1120	1	2024-03-30 17:53:17	1	2024-03-30 17:53:17	0	121
-3130	111	2497	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3111	111	2472	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3112	111	2478	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3118	111	2484	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3124	111	2490	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3113	111	2479	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3114	111	2480	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3115	111	2481	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3116	111	2482	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3117	111	2483	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3119	111	2485	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3120	111	2486	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3121	111	2487	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3122	111	2488	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3123	111	2489	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3125	111	2491	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
+3130	111	2497	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3111	111	2472	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3112	111	2478	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3118	111	2484	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3124	111	2490	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3113	111	2479	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3114	111	2480	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3115	111	2481	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3116	111	2482	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3117	111	2483	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3119	111	2485	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3120	111	2486	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3121	111	2487	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3122	111	2488	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3123	111	2489	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3125	111	2491	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
 4222	111	5	1	2024-03-30 17:53:18	1	2024-03-30 17:53:18	0	122
 4223	111	1118	1	2024-03-30 17:53:18	1	2024-03-30 17:53:18	0	122
 4224	111	1119	1	2024-03-30 17:53:18	1	2024-03-30 17:53:18	0	122
@@ -5921,326 +6167,326 @@ COPY public.system_role_menu (id, role_id, menu_id, creator, create_time, update
 330137	2	30241	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	0
 330138	109	30241	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	0
 330139	111	30241	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	0
-330140	1	30242	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330141	1	30243	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330142	1	30244	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330143	1	30245	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330144	1	30246	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330145	1	30247	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330146	1	30248	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330147	1	30249	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330148	1	30250	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330149	1	30251	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330150	1	30252	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330151	1	30253	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330152	1	30254	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330153	1	30255	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330154	1	30256	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330155	1	30257	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330156	1	30258	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330157	1	30259	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330158	1	30260	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330159	1	30261	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330160	1	30262	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330161	1	30263	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330162	1	30264	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330163	1	30265	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330164	1	30266	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330165	1	30267	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330166	1	30268	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330167	1	30269	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330168	1	30270	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330169	1	30271	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330170	1	30272	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330171	1	30273	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330172	1	30274	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330173	1	30275	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330174	1	30276	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330175	1	30277	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330176	1	30278	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330177	1	30279	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330178	1	30280	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330179	1	30281	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330180	1	30282	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330181	1	30283	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330182	1	30284	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330183	1	30285	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330184	1	30286	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330185	1	30287	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330186	1	30288	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330187	1	30289	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330188	1	30290	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330189	1	30291	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330190	1	30292	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330191	1	30293	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330192	1	30294	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330193	1	30295	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330194	1	30296	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330195	1	30297	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330196	1	30298	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330197	1	30299	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330198	1	30300	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330199	1	30301	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330200	1	30302	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330201	1	30303	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330202	1	30304	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330203	1	30305	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330204	1	30306	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330205	1	30307	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330206	1	30308	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330207	1	30309	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330208	1	30310	migration	2026-09-25 07:39:00.90509	migration	2026-09-25 07:39:00.90509	0	1
-330209	1	30311	migration	2026-09-25 07:39:01.152944	migration	2026-09-25 07:39:01.152944	0	1
-330210	1	30312	migration	2026-09-25 07:39:01.152944	migration	2026-09-25 07:39:01.152944	0	1
-330211	1	30313	migration	2026-09-25 07:39:01.152944	migration	2026-09-25 07:39:01.152944	0	1
-330212	1	30314	migration	2026-09-25 07:39:01.152944	migration	2026-09-25 07:39:01.152944	0	1
-330213	1	30315	migration	2026-09-25 07:39:01.152944	migration	2026-09-25 07:39:01.152944	0	1
-330214	1	30316	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330215	1	30317	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330216	1	30318	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330217	1	30319	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330218	1	30320	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330219	1	30321	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330220	1	30322	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330221	1	30323	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330222	1	30324	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330223	1	30325	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330224	1	30326	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330225	1	30327	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330226	1	30328	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330227	1	30329	migration	2026-09-25 07:39:01.734277	migration	2026-09-25 07:39:01.734277	0	1
-330228	1	30330	migration	2026-09-25 07:39:02.419102	migration	2026-09-25 07:39:02.419102	0	1
-330229	1	30331	migration	2026-09-25 07:39:02.419102	migration	2026-09-25 07:39:02.419102	0	1
-330230	1	30332	migration	2026-09-25 07:39:02.419102	migration	2026-09-25 07:39:02.419102	0	1
-330231	1	30333	migration	2026-09-25 07:39:02.419102	migration	2026-09-25 07:39:02.419102	0	1
-330232	1	30334	migration	2026-09-25 07:39:02.419102	migration	2026-09-25 07:39:02.419102	0	1
-330233	157	30319	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330234	157	30320	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330235	157	30321	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330236	157	30322	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330237	157	30323	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330238	157	30324	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330239	157	30325	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330240	157	30326	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330241	157	30327	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330242	157	30328	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330243	157	30329	migration	2026-09-25 07:39:02.641882	migration	2026-09-25 07:39:02.641882	0	0
-330244	1	30335	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	1
-330245	1	30336	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	1
-330246	1	30337	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	1
-330247	1	30338	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	1
-330248	1	30339	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	1
-330249	157	30335	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	0
-330250	157	30336	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	0
-330251	157	30337	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	0
-330252	157	30338	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	0
-330253	157	30339	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	0
-330254	158	30335	migration	2026-09-25 07:39:02.676864	migration	2026-09-25 07:39:02.676864	0	0
-330259	158	30326	migration	2026-09-25 07:39:02.882041	migration	2026-09-25 07:39:02.882041	0	0
-330260	158	30327	migration	2026-09-25 07:39:02.882041	migration	2026-09-25 07:39:02.882041	0	0
-330261	158	30328	migration	2026-09-25 07:39:02.882041	migration	2026-09-25 07:39:02.882041	0	0
-330262	158	30319	migration	2026-09-25 07:39:02.882041	migration	2026-09-25 07:39:02.882041	0	0
-330263	1	30340	migration	2026-09-25 07:39:03.15409	migration	2026-09-25 07:39:03.15409	0	1
-330264	1	30341	migration	2026-09-25 07:39:03.15409	migration	2026-09-25 07:39:03.15409	0	1
-330265	1	30342	migration	2026-09-25 07:39:03.15409	migration	2026-09-25 07:39:03.15409	0	1
-330266	1	30343	migration	2026-09-25 07:39:03.15409	migration	2026-09-25 07:39:03.15409	0	1
-330267	1	30344	migration	2026-09-25 07:39:03.15409	migration	2026-09-25 07:39:03.15409	0	1
-4167	109	2713	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4168	109	2714	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4169	109	2715	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4170	109	2716	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4171	109	2717	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4172	109	2718	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4173	109	2720	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4174	109	1185	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4175	109	2721	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4176	109	1186	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4177	109	2722	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4178	109	1187	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4179	109	2723	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4180	109	1188	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4181	109	2724	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4182	109	1189	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4183	109	2725	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4184	109	1190	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4185	109	2726	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4186	109	1191	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4187	109	2727	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4188	109	1192	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4189	109	2728	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4190	109	1193	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4191	109	2729	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4192	109	1194	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4193	109	2730	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4194	109	1195	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4195	109	2731	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4197	109	2732	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4198	109	1197	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4199	109	2733	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4200	109	1198	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4201	109	2734	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4202	109	1199	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4203	109	2735	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4204	109	1200	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4205	109	1201	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4206	109	1202	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4207	109	1207	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4208	109	1208	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4209	109	1209	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4210	109	1210	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4211	109	1211	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4212	109	1212	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4213	109	1213	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4214	109	1215	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4215	109	1216	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4216	109	1217	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4217	109	1218	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4218	109	1219	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4219	109	1220	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4220	109	1221	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4221	109	1222	1	2024-03-30 17:53:17	migration	2026-09-25 07:39:03.444065	1	121
-4226	111	2713	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4227	111	2714	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4228	111	2715	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4229	111	2716	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4230	111	2717	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4231	111	2718	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4232	111	2720	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4233	111	1185	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4234	111	2721	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4235	111	1186	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4236	111	2722	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4237	111	1187	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4238	111	2723	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4239	111	1188	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4240	111	2724	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4241	111	1189	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4242	111	2725	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4243	111	1190	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4244	111	2726	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4245	111	1191	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4246	111	2727	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4247	111	1192	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4248	111	2728	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4249	111	1193	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4250	111	2729	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4251	111	1194	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4252	111	2730	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4253	111	1195	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4254	111	2731	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4256	111	2732	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4257	111	1197	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4258	111	2733	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4259	111	1198	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4260	111	2734	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4261	111	1199	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4262	111	2735	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4263	111	1200	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4264	111	1201	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4265	111	1202	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4266	111	1207	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4267	111	1208	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4268	111	1209	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4269	111	1210	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4270	111	1211	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4271	111	1212	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4272	111	1213	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4273	111	1215	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4274	111	1216	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4275	111	1217	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4276	111	1218	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4277	111	1219	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4278	111	1220	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4279	111	1221	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-4280	111	1222	1	2024-03-30 17:53:18	migration	2026-09-25 07:39:03.444065	1	122
-6297	2	2713	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6298	2	2714	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6299	2	2715	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6300	2	2716	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6301	2	2717	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6302	2	2718	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6303	2	2720	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6304	2	1185	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6305	2	2721	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6306	2	1186	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6307	2	2722	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6308	2	1187	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6309	2	2723	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6310	2	1188	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6311	2	2724	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6312	2	1189	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6313	2	2725	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6314	2	1190	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6315	2	2726	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6316	2	1191	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6317	2	2727	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6318	2	1192	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6319	2	2728	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6320	2	1193	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6321	2	2729	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6322	2	1194	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6323	2	2730	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6324	2	1195	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6325	2	2731	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6326	2	2732	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6327	2	1197	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6328	2	2733	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6329	2	1198	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6330	2	2734	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6331	2	1199	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6332	2	2735	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6333	2	1200	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6334	2	1201	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6335	2	1202	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6336	2	1207	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6337	2	1208	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6338	2	1209	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6339	2	1210	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6340	2	1211	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6341	2	1212	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6342	2	1213	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6343	2	1215	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6344	2	1216	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6345	2	1217	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6346	2	1218	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6347	2	1219	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6348	2	1220	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6349	2	1221	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6350	2	1222	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-6351	2	2913	1	2026-01-04 18:09:41	migration	2026-09-25 07:39:03.444065	1	1
-330268	1	30345	migration	2026-09-25 07:39:04.561222	migration	2026-09-25 07:39:04.561222	0	1
-330269	1	30346	migration	2026-09-25 07:39:04.898194	migration	2026-09-25 07:39:04.898194	0	1
-330270	1	30347	migration	2026-09-25 07:39:04.898194	migration	2026-09-25 07:39:04.898194	0	1
-330271	1	30348	migration	2026-09-25 07:39:04.898194	migration	2026-09-25 07:39:04.898194	0	1
-330272	1	30349	migration	2026-09-25 07:39:04.898194	migration	2026-09-25 07:39:04.898194	0	1
-330273	1	30350	migration	2026-09-25 07:39:05.176235	migration	2026-09-25 07:39:05.176235	0	1
-3087	111	1070	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3011	109	1070	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-2029	2	1070	1	2023-01-25 08:42:52	migration	2026-09-25 07:39:05.438429	1	1
-3054	109	2497	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3035	109	2472	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3036	109	2478	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3042	109	2484	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3048	109	2490	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3037	109	2479	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3038	109	2480	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3039	109	2481	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3040	109	2482	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3041	109	2483	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3043	109	2485	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3044	109	2486	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3045	109	2487	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3046	109	2488	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3047	109	2489	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3049	109	2491	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3126	111	2492	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3050	109	2492	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3127	111	2493	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3051	109	2493	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3128	111	2494	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3052	109	2494	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
-3129	111	2495	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	122
-3053	109	2495	1	2023-12-02 23:41:02	migration	2026-09-25 07:39:05.438429	1	121
+330140	1	30242	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330141	1	30243	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330142	1	30244	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330143	1	30245	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330144	1	30246	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330145	1	30247	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330146	1	30248	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330147	1	30249	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330148	1	30250	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330149	1	30251	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330150	1	30252	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330151	1	30253	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330152	1	30254	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330153	1	30255	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330154	1	30256	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330155	1	30257	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330156	1	30258	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330157	1	30259	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330158	1	30260	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330159	1	30261	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330160	1	30262	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330161	1	30263	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330162	1	30264	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330163	1	30265	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330164	1	30266	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330165	1	30267	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330166	1	30268	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330167	1	30269	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330168	1	30270	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330169	1	30271	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330170	1	30272	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330171	1	30273	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330172	1	30274	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330173	1	30275	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330174	1	30276	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330175	1	30277	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330176	1	30278	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330177	1	30279	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330178	1	30280	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330179	1	30281	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330180	1	30282	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330181	1	30283	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330182	1	30284	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330183	1	30285	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330184	1	30286	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330185	1	30287	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330186	1	30288	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330187	1	30289	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330188	1	30290	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330189	1	30291	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330190	1	30292	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330191	1	30293	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330192	1	30294	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330193	1	30295	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330194	1	30296	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330195	1	30297	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330196	1	30298	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330197	1	30299	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330198	1	30300	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330199	1	30301	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330200	1	30302	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330201	1	30303	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330202	1	30304	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330203	1	30305	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330204	1	30306	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330205	1	30307	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330206	1	30308	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330207	1	30309	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330208	1	30310	migration	2026-09-27 10:58:39.043865	migration	2026-09-27 10:58:39.043865	0	1
+330209	1	30311	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	1
+330210	1	30312	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	1
+330211	1	30313	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	1
+330212	1	30314	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	1
+330213	1	30315	migration	2026-09-27 10:58:39.052932	migration	2026-09-27 10:58:39.052932	0	1
+330214	1	30316	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330215	1	30317	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330216	1	30318	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330217	1	30319	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330218	1	30320	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330219	1	30321	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330220	1	30322	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330221	1	30323	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330222	1	30324	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330223	1	30325	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330224	1	30326	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330225	1	30327	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330226	1	30328	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330227	1	30329	migration	2026-09-27 10:58:39.088447	migration	2026-09-27 10:58:39.088447	0	1
+330228	1	30330	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	1
+330229	1	30331	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	1
+330230	1	30332	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	1
+330231	1	30333	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	1
+330232	1	30334	migration	2026-09-27 10:58:39.110657	migration	2026-09-27 10:58:39.110657	0	1
+330233	157	30319	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330234	157	30320	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330235	157	30321	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330236	157	30322	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330237	157	30323	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330238	157	30324	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330239	157	30325	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330240	157	30326	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330241	157	30327	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330242	157	30328	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330243	157	30329	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330244	1	30335	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	1
+330245	1	30336	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	1
+330246	1	30337	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	1
+330247	1	30338	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	1
+330248	1	30339	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	1
+330249	157	30335	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330250	157	30336	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330251	157	30337	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330252	157	30338	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330253	157	30339	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330254	158	30335	migration	2026-09-27 10:58:39.114963	migration	2026-09-27 10:58:39.114963	0	0
+330259	158	30319	migration	2026-09-27 10:58:39.12294	migration	2026-09-27 10:58:39.12294	0	0
+330260	158	30326	migration	2026-09-27 10:58:39.12294	migration	2026-09-27 10:58:39.12294	0	0
+330261	158	30327	migration	2026-09-27 10:58:39.12294	migration	2026-09-27 10:58:39.12294	0	0
+330262	158	30328	migration	2026-09-27 10:58:39.12294	migration	2026-09-27 10:58:39.12294	0	0
+330263	1	30340	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	1
+330264	1	30341	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	1
+330265	1	30342	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	1
+330266	1	30343	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	1
+330267	1	30344	migration	2026-09-27 10:58:39.127499	migration	2026-09-27 10:58:39.127499	0	1
+4167	109	2713	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4168	109	2714	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4169	109	2715	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4170	109	2716	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4171	109	2717	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4172	109	2718	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4173	109	2720	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4174	109	1185	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4175	109	2721	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4176	109	1186	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4177	109	2722	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4178	109	1187	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4179	109	2723	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4180	109	1188	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4181	109	2724	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4182	109	1189	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4183	109	2725	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4184	109	1190	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4185	109	2726	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4186	109	1191	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4187	109	2727	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4188	109	1192	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4189	109	2728	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4190	109	1193	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4191	109	2729	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4192	109	1194	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4193	109	2730	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4194	109	1195	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4195	109	2731	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4197	109	2732	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4198	109	1197	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4199	109	2733	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4200	109	1198	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4201	109	2734	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4202	109	1199	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4203	109	2735	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4204	109	1200	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4205	109	1201	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4206	109	1202	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4207	109	1207	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4208	109	1208	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4209	109	1209	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4210	109	1210	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4211	109	1211	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4212	109	1212	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4213	109	1213	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4214	109	1215	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4215	109	1216	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4216	109	1217	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4217	109	1218	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4218	109	1219	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4219	109	1220	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4220	109	1221	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4221	109	1222	1	2024-03-30 17:53:17	migration	2026-09-27 10:58:39.135334	1	121
+4226	111	2713	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4227	111	2714	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4228	111	2715	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4229	111	2716	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4230	111	2717	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4231	111	2718	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4232	111	2720	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4233	111	1185	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4234	111	2721	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4235	111	1186	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4236	111	2722	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4237	111	1187	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4238	111	2723	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4239	111	1188	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4240	111	2724	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4241	111	1189	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4242	111	2725	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4243	111	1190	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4244	111	2726	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4245	111	1191	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4246	111	2727	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4247	111	1192	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4248	111	2728	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4249	111	1193	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4250	111	2729	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4251	111	1194	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4252	111	2730	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4253	111	1195	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4254	111	2731	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4256	111	2732	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4257	111	1197	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4258	111	2733	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4259	111	1198	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4260	111	2734	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4261	111	1199	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4262	111	2735	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4263	111	1200	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4264	111	1201	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4265	111	1202	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4266	111	1207	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4267	111	1208	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4268	111	1209	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4269	111	1210	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4270	111	1211	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4271	111	1212	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4272	111	1213	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4273	111	1215	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4274	111	1216	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4275	111	1217	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4276	111	1218	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4277	111	1219	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4278	111	1220	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4279	111	1221	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+4280	111	1222	1	2024-03-30 17:53:18	migration	2026-09-27 10:58:39.135334	1	122
+6297	2	2713	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6298	2	2714	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6299	2	2715	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6300	2	2716	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6301	2	2717	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6302	2	2718	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6303	2	2720	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6304	2	1185	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6305	2	2721	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6306	2	1186	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6307	2	2722	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6308	2	1187	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6309	2	2723	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6310	2	1188	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6311	2	2724	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6312	2	1189	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6313	2	2725	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6314	2	1190	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6315	2	2726	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6316	2	1191	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6317	2	2727	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6318	2	1192	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6319	2	2728	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6320	2	1193	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6321	2	2729	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6322	2	1194	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6323	2	2730	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6324	2	1195	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6325	2	2731	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6326	2	2732	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6327	2	1197	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6328	2	2733	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6329	2	1198	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6330	2	2734	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6331	2	1199	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6332	2	2735	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6333	2	1200	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6334	2	1201	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6335	2	1202	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6336	2	1207	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6337	2	1208	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6338	2	1209	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6339	2	1210	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6340	2	1211	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6341	2	1212	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6342	2	1213	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6343	2	1215	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6344	2	1216	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6345	2	1217	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6346	2	1218	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6347	2	1219	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6348	2	1220	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6349	2	1221	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6350	2	1222	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+6351	2	2913	1	2026-01-04 18:09:41	migration	2026-09-27 10:58:39.135334	1	1
+330268	1	30345	migration	2026-09-27 10:58:39.154658	migration	2026-09-27 10:58:39.154658	0	1
+330269	1	30346	migration	2026-09-27 10:58:39.158178	migration	2026-09-27 10:58:39.158178	0	1
+330270	1	30347	migration	2026-09-27 10:58:39.158178	migration	2026-09-27 10:58:39.158178	0	1
+330271	1	30348	migration	2026-09-27 10:58:39.158178	migration	2026-09-27 10:58:39.158178	0	1
+330272	1	30349	migration	2026-09-27 10:58:39.158178	migration	2026-09-27 10:58:39.158178	0	1
+330273	1	30350	migration	2026-09-27 10:58:39.170703	migration	2026-09-27 10:58:39.170703	0	1
+3087	111	1070	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3011	109	1070	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+2029	2	1070	1	2023-01-25 08:42:52	migration	2026-09-27 10:58:39.178077	1	1
+3054	109	2497	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3035	109	2472	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3036	109	2478	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3042	109	2484	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3048	109	2490	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3037	109	2479	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3038	109	2480	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3039	109	2481	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3040	109	2482	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3041	109	2483	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3043	109	2485	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3044	109	2486	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3045	109	2487	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3046	109	2488	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3047	109	2489	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3049	109	2491	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3126	111	2492	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3050	109	2492	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3127	111	2493	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3051	109	2493	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3128	111	2494	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3052	109	2494	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
+3129	111	2495	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	122
+3053	109	2495	1	2023-12-02 23:41:02	migration	2026-09-27 10:58:39.178077	1	121
 \.
 
 
@@ -6331,9 +6577,9 @@ COPY public.system_social_user_bind (id, user_id, user_type, social_type, social
 --
 
 COPY public.system_tenant (id, name, contact_user_id, contact_name, contact_mobile, status, websites, package_id, expire_time, account_count, creator, create_time, updater, update_time, deleted) FROM stdin;
-1	RustSet	\N	管理员	17321315478	0		0	2099-02-19 17:14:16	9999	1	2021-01-05 17:03:47	migration	2026-09-25 07:39:03.710631	0
-121	小租户	110	小王2	15601691300	0		111	2026-07-10 00:00:00	30	1	2022-02-22 00:56:14	migration	2026-09-25 07:39:03.710631	0
-122	测试租户	113	管理员	15601691300	0		111	2023-04-29 00:00:00	50	1	2022-03-07 21:37:58	migration	2026-09-25 07:39:03.710631	0
+1	RustSet	\N	管理员	17321315478	0		0	2099-02-19 17:14:16	9999	1	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.141962	0
+121	小租户	110	小王2	15601691300	0		111	2026-07-10 00:00:00	30	1	2022-02-22 00:56:14	migration	2026-09-27 10:58:39.141962	0
+122	测试租户	113	管理员	15601691300	0		111	2023-04-29 00:00:00	50	1	2022-03-07 21:37:58	migration	2026-09-27 10:58:39.141962	0
 \.
 
 
@@ -6400,26 +6646,26 @@ COPY public.system_user_role (id, user_id, role_id, creator, create_time, update
 --
 
 COPY public.system_users (id, username, password, nickname, remark, dept_id, post_ids, email, mobile, sex, avatar, status, login_ip, login_date, creator, create_time, updater, update_time, deleted, tenant_id, identity_uuid) FROM stdin;
-1	admin	$sm3$16384$7a7092f2a3f9a71facbcb3a1666a9110$f5e509bec314404aa6f771a1378b9e6645f386b88c692675267f89789ebc5010	RustSet 管理员	管理员	103	[1,2]	13aoteman@126.com	18818260272	1		0		\N	admin	2021-01-05 17:03:47	migration	2026-09-25 07:39:03.991117	0	1	4003435d-fee2-433d-8288-8bd84101bf16
-107	admin107	$2a$10$dYOOBKMO93v/.ReCqzyFg.o67Tqk.bbc2bhrpyBGkIw9aypCtr2pm	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 22:59:33	migration	2026-09-25 07:39:04.021957	0	118	dfdc2f63-0643-4bf7-996e-d66b197ade02
-108	admin108	$2a$10$y6mfvKoNYL1GXWak8nYwVOH.kCWqjactkzdoIDgiKl93WN3Ejg.Lu	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 23:00:50	migration	2026-09-25 07:39:04.021957	0	119	34001a93-ad57-4df9-b797-86810bc7c88d
-109	admin109	$2a$10$JAqvH0tEc0I7dfDVBI7zyuB4E3j.uH6daIjV53.vUS6PknFkDJkuK	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 23:11:50	migration	2026-09-25 07:39:04.021957	0	120	3e44df26-102a-4bb6-8b4c-1c06acee548b
+1	admin	$sm3$16384$7a7092f2a3f9a71facbcb3a1666a9110$f5e509bec314404aa6f771a1378b9e6645f386b88c692675267f89789ebc5010	RustSet 管理员	管理员	103	[1,2]	13aoteman@126.com	18818260272	1		0		\N	admin	2021-01-05 17:03:47	migration	2026-09-27 10:58:39.145854	0	1	4003435d-fee2-433d-8288-8bd84101bf16
 104	test	$2a$04$BrwaYn303hjA/6TnXqdGoOLhyHOAA0bVrAFu6.1dJKycqKUnIoRz2	测试号	\N	107	[1,2]	111@qq.com	15601691200	1	\N	0		\N		2021-01-21 02:13:53	\N	2026-01-04 18:09:54	0	1	2d10acdc-a623-4526-822f-295b76331f61
 110	admin110	$2a$10$mRMIYLDtRHlf6.9ipiqH1.Z.bh/R9dO9d5iHiGYPigi6r5KOoR2Wm	小王	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-22 00:56:14	\N	2026-07-16 06:25:39.039366	0	121	9c330aef-242c-4349-8f10-e9f8a4f27a4d
 111	test	$2a$10$mRMIYLDtRHlf6.9ipiqH1.Z.bh/R9dO9d5iHiGYPigi6r5KOoR2Wm	测试用户	\N	\N	[]			0	\N	0		\N	110	2022-02-23 13:14:33	\N	2026-07-16 06:12:57.86539	0	121	d81ad3bf-9a1f-4420-97f1-11e17779468c
 112	newobject	$2a$04$dB0z8Q819fJWz0hbaLe6B.VfHCjYgWx6LFfET5lyz3JwcqlyCkQ4C	新对象	\N	100	[]		15601691235	1	\N	0		\N	1	2022-02-23 19:08:03	\N	2025-04-21 14:23:08	0	1	56c8c8f0-832e-4bcf-a4de-cb6d3f9b317f
-113	aoteman	$2a$10$0acJOIk2D25/oC87nyclE..0lzeu9DtQ/n3geP4fkun/zIVRhHJIO	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-03-07 21:37:58	migration	2026-09-25 07:39:03.720001	0	122	f762824c-863d-4d6a-9652-d67d07dff70d
+113	aoteman	$2a$10$0acJOIk2D25/oC87nyclE..0lzeu9DtQ/n3geP4fkun/zIVRhHJIO	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-03-07 21:37:58	migration	2026-09-27 10:58:39.141962	0	122	f762824c-863d-4d6a-9652-d67d07dff70d
 114	hrmgr	$2a$10$TR4eybBioGRhBmDBWkqWLO6NIh3mzYa8KBKDDB5woiGYFVlRAi.fu	hr 小姐姐	\N	\N	[5]		15601691236	1	\N	0		\N	1	2022-03-19 21:50:58	\N	2026-01-04 18:16:01	0	1	d1bdf970-446b-4dc2-abf4-2f4c969d2298
 115	aotemane	$2a$04$GcyP0Vyzb2F2Yni5PuIK9ueGxM0tkZGMtDwVRwrNbtMvorzbpNsV2	阿呆	11222	102	[1,2]	7648@qq.com	15601691229	2	\N	0		\N	1	2022-04-30 02:55:43	1	2025-04-21 14:23:08	0	1	23c9ef7b-1947-4f3a-a06e-71488de6b507
 117	admin123	$2a$04$sEtimsHu9YCkYY4/oqElHem2Ijc9ld20eYO6lN.g/21NfLUTDLB9W	测试号02	1111	100	[2]		15601691234	1	\N	0		\N	1	2022-07-09 17:40:26	1	2025-05-14 09:56:04	0	1	783c8126-ed7b-4f47-b01c-74bfc7358601
 118	goudan	$2a$04$3suGZjnA6rM5bErf38u1felbgqbsPHGdRG3l9NkxPCEt2ah9Y6aJi	狗蛋	\N	103	[1]		15601691239	1	\N	0		\N	1	2022-07-09 17:44:43	\N	2025-11-23 15:28:25	0	1	1337338d-a3ec-4b36-9489-61bc4deb8c8a
-100	rustset-demo	$2a$04$h.aaPKgO.odHepnk5PCsWeEwKdojFWdTItxGKfx1r0e1CSeBzsTJ6	RustSet 用户	\N	104	[1]		15601691300	1	\N	0		\N		2021-01-07 09:07:17	migration	2026-09-25 07:39:04.031989	0	1	0ba69165-1297-4983-a7e3-bbc36cf3b3a5
-103	yuanma	$2a$04$fUBSmjKCPYAUmnMzOb6qE.eZCGPhHi1JmAKclODbfS/O7fHOl2bH6	示例用户	\N	106	\N		15601701300	0	\N	0		\N		2021-01-13 23:50:35	migration	2026-09-25 07:39:04.031989	0	1	b20b44a9-e18e-4a7b-824d-e50b779fa649
+107	admin107	$2a$10$dYOOBKMO93v/.ReCqzyFg.o67Tqk.bbc2bhrpyBGkIw9aypCtr2pm	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 22:59:33	migration	2026-09-27 10:58:39.145854	0	118	dfdc2f63-0643-4bf7-996e-d66b197ade02
+108	admin108	$2a$10$y6mfvKoNYL1GXWak8nYwVOH.kCWqjactkzdoIDgiKl93WN3Ejg.Lu	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 23:00:50	migration	2026-09-27 10:58:39.145854	0	119	34001a93-ad57-4df9-b797-86810bc7c88d
 139	wwbwwb	$2a$04$FJLIyg8lbPytP29pbZaiU.LesJvCsYfEaHqQfB0pGQhK3e9BeZmLy	小秃头	123	108	[2,4]			1	\N	0		\N	\N	2024-09-10 21:03:58	1	2025-12-15 22:38:15	0	1	51591a2c-4497-46d5-9158-f9d3a61220d6
 141	admin1	$2a$04$oj6F6d7HrZ70kYVD3TNzEu.m3TPUzajOVuC66zdKna8KRerK1FmVa	新用户	\N	\N	\N			0		0		\N	1	2025-04-08 13:09:07	1	2025-05-14 19:11:48	0	1	445f0226-93a6-44ab-9553-61304601f847
 142	test01	$2a$04$4bCYWZkjxxOC4QE0LY2M9uEEKWeJbLfs489NFtQoyidL5I0FndRaO	test01		\N	[]		19021719925	1		0		\N	1	2025-07-09 21:07:10	\N	2025-12-02 13:23:11	0	1	a11d3ba6-9ddc-4914-816e-1d1b0f63423e
 143	a00001	$2a$04$GhVHFviOw/SsTmiQtifHJesDYFlHMeGK7OWh7aGCCjGGVCmbHVAwa	a00001	\N	104	\N			0		0		\N	\N	2025-12-01 16:10:13	1	2025-12-05 21:34:05	0	1	4f0cadfd-bd5e-4ed2-aa93-92eff0caff71
 144	aoteman001	$2a$04$omQOmhz8OyUFBKw77nr8KOtMp6xdvoQ1gWStjk9r8.OYT3Bv6oEYe	aoteman001	\N	116	\N			0		1		\N	1	2025-12-01 17:05:27	1	2025-12-15 15:55:54	0	1	a4edfe32-96f1-4a81-84d3-59553729bb02
+109	admin109	$2a$10$JAqvH0tEc0I7dfDVBI7zyuB4E3j.uH6daIjV53.vUS6PknFkDJkuK	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 23:11:50	migration	2026-09-27 10:58:39.145854	0	120	3e44df26-102a-4bb6-8b4c-1c06acee548b
+100	rustset-demo	$2a$04$h.aaPKgO.odHepnk5PCsWeEwKdojFWdTItxGKfx1r0e1CSeBzsTJ6	RustSet 用户	\N	104	[1]		15601691300	1	\N	0		\N		2021-01-07 09:07:17	migration	2026-09-27 10:58:39.145854	0	1	0ba69165-1297-4983-a7e3-bbc36cf3b3a5
+103	yuanma	$2a$04$fUBSmjKCPYAUmnMzOb6qE.eZCGPhHi1JmAKclODbfS/O7fHOl2bH6	示例用户	\N	106	\N		15601701300	0	\N	0		\N		2021-01-13 23:50:35	migration	2026-09-27 10:58:39.145854	0	1	b20b44a9-e18e-4a7b-824d-e50b779fa649
 \.
 
 
@@ -6615,6 +6861,13 @@ SELECT pg_catalog.setval('public.infra_file_config_seq', 3, true);
 --
 
 SELECT pg_catalog.setval('public.infra_file_seq', 3, true);
+
+
+--
+-- Name: infra_high_risk_port_rule_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.infra_high_risk_port_rule_seq', 36, true);
 
 
 --
@@ -7074,6 +7327,14 @@ ALTER TABLE ONLY ai.writes
 
 
 --
+-- Name: _sqlx_migrations _sqlx_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public._sqlx_migrations
+    ADD CONSTRAINT _sqlx_migrations_pkey PRIMARY KEY (version);
+
+
+--
 -- Name: cmdb_attribute cmdb_attribute_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7087,6 +7348,22 @@ ALTER TABLE ONLY public.cmdb_attribute
 
 ALTER TABLE ONLY public.cmdb_instance
     ADD CONSTRAINT cmdb_instance_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cmdb_instance_unique_value cmdb_instance_unique_value_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cmdb_instance_unique_value
+    ADD CONSTRAINT cmdb_instance_unique_value_key UNIQUE NULLS NOT DISTINCT (tenant_id, model_id, value);
+
+
+--
+-- Name: cmdb_instance_unique_value cmdb_instance_unique_value_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cmdb_instance_unique_value
+    ADD CONSTRAINT cmdb_instance_unique_value_pkey PRIMARY KEY (instance_id);
 
 
 --
@@ -7186,11 +7463,11 @@ ALTER TABLE ONLY public.infra_file
 
 
 --
--- Name: infra_inspection_baseline infra_inspection_baseline_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: infra_high_risk_port_rule infra_high_risk_port_rule_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.infra_inspection_baseline
-    ADD CONSTRAINT infra_inspection_baseline_pkey PRIMARY KEY (ip);
+ALTER TABLE ONLY public.infra_high_risk_port_rule
+    ADD CONSTRAINT infra_high_risk_port_rule_pkey PRIMARY KEY (id);
 
 
 --
@@ -7628,6 +7905,20 @@ CREATE INDEX idx_ai_writes_user_time ON ai.writes USING btree (user_id, id DESC)
 
 
 --
+-- Name: cmdb_instance_tenant_id_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cmdb_instance_tenant_id_key ON public.cmdb_instance USING btree (tenant_id, id);
+
+
+--
+-- Name: cmdb_net_zone_tenant_id_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cmdb_net_zone_tenant_id_key ON public.cmdb_net_zone USING btree (tenant_id, id);
+
+
+--
 -- Name: idx_app_endpoint_business; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7642,10 +7933,10 @@ CREATE INDEX idx_asset_ip ON public.infra_asset USING btree (ip) WHERE (deleted 
 
 
 --
--- Name: idx_asset_ip_unique; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_asset_tenant_ip_unique; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_asset_ip_unique ON public.infra_asset USING btree (ip) WHERE (deleted = 0);
+CREATE UNIQUE INDEX idx_asset_tenant_ip_unique ON public.infra_asset USING btree (tenant_id, ip) WHERE ((deleted = 0) AND (tenant_id IS NOT NULL));
 
 
 --
@@ -7733,6 +8024,13 @@ CREATE INDEX idx_cmdb_instance_model ON public.cmdb_instance USING btree (model_
 
 
 --
+-- Name: idx_cmdb_instance_tenant_model; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cmdb_instance_tenant_model ON public.cmdb_instance USING btree (tenant_id, model_id, id) WHERE (deleted = 0);
+
+
+--
 -- Name: idx_cmdb_model_code; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7768,6 +8066,20 @@ CREATE INDEX idx_cmdb_relation_target ON public.cmdb_relation USING btree (targe
 
 
 --
+-- Name: idx_cmdb_relation_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cmdb_relation_tenant ON public.cmdb_relation USING btree (tenant_id) WHERE (deleted = 0);
+
+
+--
+-- Name: idx_high_risk_port_rule_identity; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_high_risk_port_rule_identity ON public.infra_high_risk_port_rule USING btree (protocol, port_start, port_end) WHERE (deleted = 0);
+
+
+--
 -- Name: idx_infra_api_access_log_time; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7796,10 +8108,31 @@ CREATE INDEX idx_infra_asset_inventory_org ON public.infra_asset USING btree (or
 
 
 --
+-- Name: idx_infra_asset_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_asset_tenant ON public.infra_asset USING btree (tenant_id);
+
+
+--
 -- Name: idx_infra_codegen_column_table; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_codegen_column_table ON public.infra_codegen_column USING btree (table_id, ordinal_position, id) WHERE (deleted = 0);
+
+
+--
+-- Name: idx_infra_inspection_baseline_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_inspection_baseline_tenant ON public.infra_inspection_baseline USING btree (tenant_id);
+
+
+--
+-- Name: idx_infra_inspection_result_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_inspection_result_tenant ON public.infra_inspection_result USING btree (tenant_id);
 
 
 --
@@ -7842,6 +8175,69 @@ CREATE INDEX idx_infra_network_policy_endpoints ON public.infra_network_policy U
 --
 
 CREATE INDEX idx_infra_network_policy_source_ip ON public.infra_network_policy USING btree (source_ip) WHERE (deleted = 0);
+
+
+--
+-- Name: idx_infra_network_policy_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_network_policy_tenant ON public.infra_network_policy USING btree (tenant_id);
+
+
+--
+-- Name: idx_infra_resource_ticket_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_resource_ticket_tenant ON public.infra_resource_ticket USING btree (tenant_id, id) WHERE (deleted = 0);
+
+
+--
+-- Name: idx_infra_risk_policy_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_risk_policy_source ON public.infra_risk USING btree (tenant_id, source_type, source_id) WHERE (deleted = 0);
+
+
+--
+-- Name: idx_infra_risk_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_risk_tenant ON public.infra_risk USING btree (tenant_id);
+
+
+--
+-- Name: idx_infra_task_expired_lease; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_task_expired_lease ON public.infra_task USING btree (lease_expires_at) WHERE ((deleted = 0) AND ((status)::text = 'running'::text));
+
+
+--
+-- Name: idx_infra_task_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_task_tenant ON public.infra_task USING btree (tenant_id);
+
+
+--
+-- Name: idx_infra_task_tenant_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_infra_task_tenant_idempotency ON public.infra_task USING btree (tenant_id, idempotency_key) WHERE ((deleted = 0) AND (idempotency_key IS NOT NULL));
+
+
+--
+-- Name: idx_infra_task_worker_queue; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_task_worker_queue ON public.infra_task USING btree (next_attempt_at, create_time) WHERE ((deleted = 0) AND ((status)::text = ANY ((ARRAY['queued'::character varying, 'retrying'::character varying])::text[])));
+
+
+--
+-- Name: idx_inspection_baseline_tenant_ip; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_inspection_baseline_tenant_ip ON public.infra_inspection_baseline USING btree (tenant_id, ip) NULLS NOT DISTINCT;
 
 
 --
@@ -7925,7 +8321,7 @@ CREATE INDEX idx_risk_asset_ip ON public.infra_risk USING btree (asset_ip) WHERE
 -- Name: idx_risk_inspection_key; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_risk_inspection_key ON public.infra_risk USING btree (inspection_key) WHERE ((deleted = 0) AND (inspection_key IS NOT NULL));
+CREATE UNIQUE INDEX idx_risk_inspection_key ON public.infra_risk USING btree (tenant_id, inspection_key) WHERE ((deleted = 0) AND (inspection_key IS NOT NULL));
 
 
 --
@@ -8167,6 +8563,83 @@ CREATE UNIQUE INDEX system_users_identity_uuid_key ON public.system_users USING 
 
 
 --
+-- Name: cmdb_instance cmdb_instance_require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER cmdb_instance_require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.cmdb_instance FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: cmdb_instance cmdb_instance_unique_value_sync; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER cmdb_instance_unique_value_sync AFTER INSERT OR DELETE OR UPDATE OF id, tenant_id, model_id, attributes, deleted ON public.cmdb_instance FOR EACH ROW EXECUTE FUNCTION public.cmdb_sync_instance_unique_value();
+
+
+--
+-- Name: cmdb_model cmdb_model_unique_value_sync; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER cmdb_model_unique_value_sync AFTER UPDATE OF unique_key ON public.cmdb_model FOR EACH ROW EXECUTE FUNCTION public.cmdb_rebuild_model_unique_values();
+
+
+--
+-- Name: cmdb_relation cmdb_relation_require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER cmdb_relation_require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.cmdb_relation FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: infra_resource_ticket infra_ticket_require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER infra_ticket_require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_resource_ticket FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: infra_asset require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_asset FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: infra_inspection_baseline require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_inspection_baseline FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: infra_inspection_result require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_inspection_result FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: infra_network_policy require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_network_policy FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: infra_risk require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_risk FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: infra_task require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_task FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
 -- Name: chat_conversations chat_conversations_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
@@ -8271,8 +8744,128 @@ ALTER TABLE ONLY ai.writes
 
 
 --
+-- Name: cmdb_instance cmdb_instance_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cmdb_instance
+    ADD CONSTRAINT cmdb_instance_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: cmdb_instance_unique_value cmdb_instance_unique_value_instance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cmdb_instance_unique_value
+    ADD CONSTRAINT cmdb_instance_unique_value_instance_id_fkey FOREIGN KEY (instance_id) REFERENCES public.cmdb_instance(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cmdb_instance_unique_value cmdb_instance_unique_value_model_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cmdb_instance_unique_value
+    ADD CONSTRAINT cmdb_instance_unique_value_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.cmdb_model(id);
+
+
+--
+-- Name: cmdb_relation cmdb_relation_source_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cmdb_relation
+    ADD CONSTRAINT cmdb_relation_source_tenant_fk FOREIGN KEY (tenant_id, source_id) REFERENCES public.cmdb_instance(tenant_id, id);
+
+
+--
+-- Name: cmdb_relation cmdb_relation_target_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cmdb_relation
+    ADD CONSTRAINT cmdb_relation_target_tenant_fk FOREIGN KEY (tenant_id, target_id) REFERENCES public.cmdb_instance(tenant_id, id);
+
+
+--
+-- Name: cmdb_relation cmdb_relation_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cmdb_relation
+    ADD CONSTRAINT cmdb_relation_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: infra_asset infra_asset_net_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_asset
+    ADD CONSTRAINT infra_asset_net_zone_tenant_fk FOREIGN KEY (tenant_id, net_zone_id) REFERENCES public.cmdb_net_zone(tenant_id, id);
+
+
+--
+-- Name: infra_asset infra_asset_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_asset
+    ADD CONSTRAINT infra_asset_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: infra_inspection_baseline infra_inspection_baseline_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_inspection_baseline
+    ADD CONSTRAINT infra_inspection_baseline_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: infra_inspection_result infra_inspection_result_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_inspection_result
+    ADD CONSTRAINT infra_inspection_result_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: infra_network_policy infra_network_policy_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_network_policy
+    ADD CONSTRAINT infra_network_policy_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: infra_resource_ticket infra_resource_ticket_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_resource_ticket
+    ADD CONSTRAINT infra_resource_ticket_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: infra_risk infra_risk_high_risk_rule_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_risk
+    ADD CONSTRAINT infra_risk_high_risk_rule_fk FOREIGN KEY (rule_id) REFERENCES public.infra_high_risk_port_rule(id);
+
+
+--
+-- Name: infra_risk infra_risk_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_risk
+    ADD CONSTRAINT infra_risk_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: infra_task infra_task_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_task
+    ADD CONSTRAINT infra_task_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict n7kqBceqPRZAz65IUrkz1D9w5ERddlSqmnobizMD7MjjDVSBfJvRAOFjcMScAMS
+\unrestrict O11kQ74k2KCb73stt2JlE8yvRaKwWt5cSHy1KaavgPkPrE4pMJF15fbbx63PsTZ
 

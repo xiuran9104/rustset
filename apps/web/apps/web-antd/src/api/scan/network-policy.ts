@@ -5,6 +5,7 @@ import {
   infraList,
   infraUpdate,
 } from './compat';
+import { requestClient } from '#/api/request';
 
 export interface NetworkPolicy {
   id?: number;
@@ -27,6 +28,12 @@ export interface NetworkPolicy {
   delivery_date?: string;
   create_time?: string;
   update_time?: string;
+  high_risk_count?: number;
+}
+
+export interface NetworkPolicyRiskMatchSummary {
+  policiesChecked: number;
+  warningsMatched: number;
 }
 
 const resource = 'network-policy';
@@ -61,4 +68,22 @@ export function updateNetworkPolicy(id: number, data: NetworkPolicy) {
 
 export function deleteNetworkPolicy(id: number) {
   return infraDelete(resource, id);
+}
+
+export function recheckNetworkPolicyRisks() {
+  return requestClient.post<NetworkPolicyRiskMatchSummary>(
+    '/infra/network-policy/recheck-risks',
+  );
+}
+
+export function exportNetworkPolicyCsv() {
+  return requestClient.download('/infra/network-policy/export-csv');
+}
+
+export function downloadNetworkPolicyImportTemplate() {
+  return requestClient.download('/infra/network-policy/import-template');
+}
+
+export function importNetworkPolicyCsv(file: File) {
+  return requestClient.upload('/infra/network-policy/import-csv', { file });
 }

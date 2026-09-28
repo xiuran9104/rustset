@@ -20,15 +20,21 @@ const searchText = ref('');
 
 const stColor: Record<string, string> = {
   pending: 'default',
+  queued: 'blue',
+  retrying: 'orange',
   running: 'processing',
   completed: 'green',
   failed: 'red',
+  cancelled: 'default',
 };
 const stLabel: Record<string, string> = {
   pending: '待执行',
+  queued: '排队中',
+  retrying: '等待重试',
   running: '运行中',
   completed: '已完成',
   failed: '失败',
+  cancelled: '已取消',
 };
 
 const diffLabel: Record<string, string> = {
@@ -74,9 +80,9 @@ const taskColumns = [
   { title: '目标', dataIndex: 'target', ellipsis: true },
   { title: '状态', key: 'status', width: 100 },
   { title: '进度', key: 'progress', width: 110 },
-  { title: '在线', dataIndex: 'found_assets', width: 70 },
-  { title: '预警', dataIndex: 'found_risks', width: 70 },
-  { title: '开始时间', dataIndex: 'start_time', width: 160 },
+  { title: '在线', dataIndex: 'foundAssets', width: 70 },
+  { title: '预警', dataIndex: 'foundRisks', width: 70 },
+  { title: '开始时间', dataIndex: 'startTime', width: 160 },
   { title: '操作', key: 'actions', width: 170, fixed: 'right' },
 ];
 
@@ -97,7 +103,9 @@ fetchData();
 // results appear without manual polling by the user.
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 function schedulePoll() {
-  const active = tasks.value.some((task) => task.status === 'running');
+  const active = tasks.value.some((task) =>
+    ['queued', 'retrying', 'running'].includes(task.status),
+  );
   if (active && pollTimer === null) {
     pollTimer = setInterval(async () => {
       if (loading.value) return;
@@ -123,7 +131,7 @@ const runForm = ref({ name: '', targetIps: '', ports: [] as string[] });
 
 async function openRun(task?: InspectionApi.InspectionTask) {
   let ips = task?.target ?? '';
-  if (task && task.status !== 'running' && task.completed_targets > 0) {
+  if (task && task.status !== 'running' && task.completedTargets > 0) {
     // The task row only keeps a summary for multi-IP targets; recover the
     // exact list from the stored results so a re-check covers the same IPs.
     try {
@@ -136,7 +144,7 @@ async function openRun(task?: InspectionApi.InspectionTask) {
   runForm.value = {
     name: task ? `${task.name}（复核）` : '',
     targetIps: ips,
-    ports: (task?.scan_ports ?? []).map(String),
+    ports: (task?.scanPorts ?? []).map(String),
   };
   runVisible.value = true;
 }
@@ -186,7 +194,7 @@ async function handleRun() {
       ports,
       targetIps: ips,
     });
-    message.success('核查任务已启动');
+    message.success('核查任务已排队');
     runVisible.value = false;
     await fetchData();
   } catch {
@@ -262,7 +270,7 @@ const baselineForm = ref({
 async function openBaseline(result: InspectionApi.InspectionResult) {
   baselineForm.value = {
     ip: result.ip,
-    allowedPorts: (result.baseline_ports ?? result.open_ports).map(String),
+    allowedPorts: (result.baselinePorts ?? result.openPorts).map(String),
     reason: '',
     updateTime: '',
     updatedBy: '',
@@ -271,10 +279,10 @@ async function openBaseline(result: InspectionApi.InspectionResult) {
   try {
     const existing = await getInspectionBaseline(result.ip);
     if (existing) {
-      baselineForm.value.allowedPorts = existing.allowed_ports.map(String);
+      baselineForm.value.allowedPorts = existing.allowedPorts.map(String);
       baselineForm.value.reason = existing.reason;
-      baselineForm.value.updateTime = existing.update_time ?? '';
-      baselineForm.value.updatedBy = existing.updated_by;
+      baselineForm.value.updateTime = existing.updateTime ?? '';
+      baselineForm.value.updatedBy = existing.updatedBy;
     }
   } catch {
     message.error('加载端口基线失败');
@@ -358,7 +366,7 @@ async function handleBaseline() {
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'status'">
-              <a-tooltip v-if="record.status === 'failed' && record.error_message" :title="record.error_message">
+              <a-tooltip v-if="record.status === 'failed' && record.errorMessage" :title="record.errorMessage">
                 <a-badge status="error" /><a-tag color="red">失败</a-tag>
               </a-tooltip>
               <template v-else>
@@ -367,18 +375,18 @@ async function handleBaseline() {
               </template>
             </template>
             <template v-if="column.key === 'progress'">
-              {{ record.completed_targets }}/{{ record.total_targets }}
+              {{ record.completedTargets }}/{{ record.totalTargets }}
             </template>
             <template v-if="column.key === 'actions'">
               <a-space>
-                <a-button type="link" size="small" :disabled="record.total_targets === 0" @click="openDetail(record)">
+                <a-button type="link" size="small" :disabled="record.totalTargets === 0" @click="openDetail(record)">
                   查看结果
                 </a-button>
                 <a-button
                   v-access:code="['infra:task:execute']"
                   type="link"
                   size="small"
-                  :disabled="record.status === 'running'"
+                  :disabled="['queued','retrying','running'].includes(record.status)"
                   @click="openRun(record)"
                 >
                   重新核查
@@ -425,12 +433,12 @@ async function handleBaseline() {
             <a-descriptions-item label="状态">
               <a-tag :color="stColor[detailTask.status]">{{ stLabel[detailTask.status] || detailTask.status }}</a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="开始时间">{{ detailTask.start_time || '—' }}</a-descriptions-item>
+            <a-descriptions-item label="开始时间">{{ detailTask.startTime || '—' }}</a-descriptions-item>
           </a-descriptions>
           <a-alert
-            v-if="detailTask.status === 'failed' && detailTask.error_message"
+            v-if="detailTask.status === 'failed' && detailTask.errorMessage"
             type="error"
-            :message="detailTask.error_message"
+            :message="detailTask.errorMessage"
             style="margin-bottom:12px"
           />
           <a-alert
@@ -462,10 +470,10 @@ async function handleBaseline() {
                 <a-tag v-if="record.registered" color="green">已登记</a-tag>
                 <a-tag v-else color="red">未登记</a-tag>
               </template>
-              <template v-if="column.key === 'open'">{{ portText(record.open_ports) }}</template>
-              <template v-if="column.key === 'uncertain'">{{ portText(record.uncertain_ports) }}</template>
+              <template v-if="column.key === 'open'">{{ portText(record.openPorts) }}</template>
+              <template v-if="column.key === 'uncertain'">{{ portText(record.uncertainPorts) }}</template>
               <template v-if="column.key === 'baseline'">
-                <a-tag v-if="record.baseline_ports" color="blue">{{ record.baseline_ports.length }} 个已确认</a-tag>
+                <a-tag v-if="record.baselinePorts" color="blue">{{ record.baselinePorts.length }} 个已确认</a-tag>
                 <a-tag v-else>未确认</a-tag>
               </template>
               <template v-if="column.key === 'differences'">

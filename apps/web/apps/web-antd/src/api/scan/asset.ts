@@ -104,9 +104,6 @@ export async function getAsset(id: number) {
 export function createAsset(data: ScanAssetApi.Asset) { return infraCreate('asset', serializeCollections(data)); }
 export function updateAsset(id: number, data: ScanAssetApi.Asset) { return infraUpdate('asset', id, serializeCollections(data)); }
 export function deleteAsset(id: number) { return infraDelete('asset', id); }
-export function syncAssetInventoryToCmdb() {
-  return requestClient.post<ScanAssetApi.CmdbSyncSummary>('/infra/asset/sync-cmdb');
-}
-export function discoverAssets(data: { ips: string[]; ports: number[] }) {
-  return requestClient.post('/infra/asset/discover', data);
-}
+export function exportAssetCsv() { return requestClient.download('/infra/asset/export-csv'); }
+export function downloadAssetImportTemplate() { return requestClient.download('/infra/asset/import-template'); }
+export function importAssetCsv(file: File) { return requestClient.upload('/infra/asset/import-csv', { file }); }

@@ -271,7 +271,13 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         "/infra/approval-rule/page",
         Some("infra:approval-rule:query"),
     ),
+    ("GET", "/infra/asset/export-csv", Some("infra:asset:query")),
     ("GET", "/infra/asset/get", Some("infra:asset:query")),
+    (
+        "GET",
+        "/infra/asset/import-template",
+        Some("infra:asset:create"),
+    ),
     ("GET", "/infra/asset/list", Some("infra:asset:query")),
     ("GET", "/infra/asset/page", Some("infra:asset:query")),
     (
@@ -469,8 +475,18 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ("GET", "/infra/monitor/traces", None),
     (
         "GET",
+        "/infra/network-policy/export-csv",
+        Some("infra:network-policy:query"),
+    ),
+    (
+        "GET",
         "/infra/network-policy/get",
         Some("infra:network-policy:query"),
+    ),
+    (
+        "GET",
+        "/infra/network-policy/import-template",
+        Some("infra:network-policy:create"),
     ),
     (
         "GET",
@@ -579,6 +595,11 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ("POST", "/infra/asset/sync-cmdb", Some("infra:asset:update")),
     (
         "POST",
+        "/infra/asset/import-csv",
+        Some("infra:asset:create"),
+    ),
+    (
+        "POST",
         "/infra/asset/{id}/port/add",
         Some("infra:asset:update"),
     ),
@@ -655,6 +676,16 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     (
         "POST",
+        "/infra/network-policy/import-csv",
+        Some("infra:network-policy:create"),
+    ),
+    (
+        "POST",
+        "/infra/network-policy/recheck-risks",
+        Some("infra:network-policy:update"),
+    ),
+    (
+        "POST",
         "/infra/network-zone/create",
         Some("infra:network-zone:create"),
     ),
@@ -694,6 +725,7 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         Some("infra:service-provider:create"),
     ),
     ("POST", "/infra/task/create", Some("infra:task:create")),
+    ("POST", "/infra/task/retry", Some("infra:task:execute")),
     (
         "POST",
         "/infra/task/trigger-scan",
@@ -825,6 +857,7 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         "/infra/service-provider/update",
         Some("infra:service-provider:update"),
     ),
+    ("PUT", "/infra/task/cancel", Some("infra:task:execute")),
     ("PUT", "/infra/task/update", Some("infra:task:update")),
 ];
 
@@ -879,7 +912,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 201);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 207);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

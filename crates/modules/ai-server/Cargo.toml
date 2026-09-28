@@ -6,6 +6,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+rustset-framework-tenant.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 aide.workspace = true

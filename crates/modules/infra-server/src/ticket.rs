@@ -1,6 +1,8 @@
+mod repository;
+
 use crate::{
-    InfraState, QueryParams, TableSpec, id_param, ids_param, opt_str_field, soft_delete,
-    table_create, table_get, table_page, table_update,
+    InfraState, QueryParams, TableSpec, id_param, opt_str_field, soft_delete, table_create,
+    table_page, table_update,
 };
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -11,6 +13,7 @@ use axum::{
 use chrono::Utc;
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_tofu::{
     CloudTarget, DEMO_PROVIDER, TofuExecutor, credential_env, provider_source, render_main_tf,
     render_tfvars,
@@ -51,15 +54,19 @@ pub fn routes() -> ApiRouter<InfraState> {
 
 async fn page(
     State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&s.pool, TICKET, p).await
+    repository::page(&s.pool, &TenantContext::from_user(&user)?, p).await
 }
 async fn get_one(
     State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&s.pool, TICKET, id_param(&p)?).await
+    Ok(Json(ApiResponse::new(
+        repository::get(&s.pool, &TenantContext::from_user(&user)?, id_param(&p)?).await?,
+    )))
 }
 
 async fn create(
@@ -67,6 +74,7 @@ async fn create(
     user: CurrentUser,
     Json(mut payload): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
     if let Some(obj) = payload.as_object_mut() {
         if let Some(Value::Bool(enabled)) = obj.get("hasSecurityProduct").cloned() {
             obj.insert(
@@ -98,20 +106,24 @@ async fn create(
         obj.entry("applicantName".to_string())
             .or_insert(Value::String(user.username));
     }
-    let Json(created) = table_create(&s.pool, TICKET, payload).await?;
+    let Json(created) = repository::create(&s.pool, &tenant, payload).await?;
     let Ok(id) = created.data.parse::<i64>() else {
         return Ok(Json(created));
     };
-    if let Some(rule) = match_approval_rule(&s, id).await? {
-        apply_auto_approval(&s, id, &rule).await?;
+    if let Some(rule) = match_approval_rule(&s, &tenant, id).await? {
+        apply_auto_approval(&s, &tenant, id, &rule).await?;
     }
     Ok(Json(created))
 }
 
 /// The first enabled rule whose resource type matches (empty = any) and
 /// whose thresholds all cover the ticket.
-async fn match_approval_rule(s: &InfraState, ticket_id: i64) -> Result<Option<Value>, AppError> {
-    let ticket = crate::table_get_value(&s.pool, TICKET, ticket_id).await?;
+async fn match_approval_rule(
+    s: &InfraState,
+    tenant: &TenantContext,
+    ticket_id: i64,
+) -> Result<Option<Value>, AppError> {
+    let ticket = repository::get(&s.pool, &tenant, ticket_id).await?;
     let rows = sqlx::query(
         "SELECT id, name, resource_type, max_cpu_cores, max_memory_gb, max_resource_count, auto_provision
          FROM infra_approval_rule WHERE deleted = 0 AND status = 0 ORDER BY id",
@@ -155,10 +167,15 @@ async fn match_approval_rule(s: &InfraState, ticket_id: i64) -> Result<Option<Va
     Ok(None)
 }
 
-async fn apply_auto_approval(s: &InfraState, id: i64, rule: &Value) -> Result<(), AppError> {
+async fn apply_auto_approval(
+    s: &InfraState,
+    tenant: &TenantContext,
+    id: i64,
+    rule: &Value,
+) -> Result<(), AppError> {
     let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
     let rule_name = rule.get("name").and_then(Value::as_str).unwrap_or("rule");
-    let ticket = crate::table_get_value(&s.pool, TICKET, id).await?;
+    let ticket = repository::get(&s.pool, &tenant, id).await?;
     // 新建类工单走开通/交付流水线；针对既有资源的工单（变更/停机/回收）
     // 没有开通环节，审批通过即为执行完成，并立即回写台账状态形成闭环。
     let new_status = approved_next_status(&ticket);
@@ -166,13 +183,14 @@ async fn apply_auto_approval(s: &InfraState, id: i64, rule: &Value) -> Result<()
         "UPDATE infra_resource_ticket
          SET ticket_status=$2, approver=$3, approve_time=$4,
              approve_comment=$5, update_time=now()
-         WHERE id=$1 AND deleted=0",
+         WHERE id=$1 AND tenant_id=$6 AND deleted=0",
     )
     .bind(id)
     .bind(new_status)
     .bind(format!("auto:{rule_name}"))
     .bind(&now)
     .bind(format!("命中自动审批规则 {rule_name}"))
+    .bind(tenant.id())
     .execute(&s.pool)
     .await
     .map_err(|_| AppError::internal("failed to auto-approve"))?;
@@ -188,7 +206,9 @@ async fn apply_auto_approval(s: &InfraState, id: i64, rule: &Value) -> Result<()
     {
         // A failed auto-provision must not fail ticket creation; the
         // ticket stays pending_provision with the failure recorded.
-        if let Err(error) = run_provision(s, id, &format!("auto:{rule_name}"), &json!({})).await {
+        if let Err(error) =
+            run_provision(s, tenant, id, &format!("auto:{rule_name}"), &json!({})).await
+        {
             warn!(error = ?error, ticket = id, "auto-provision failed");
         }
     }
@@ -197,6 +217,7 @@ async fn apply_auto_approval(s: &InfraState, id: i64, rule: &Value) -> Result<()
 
 async fn update(
     State(s): State<InfraState>,
+    user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     if let Some(object) = p.as_object_mut()
@@ -207,19 +228,28 @@ async fn update(
             Value::Number((enabled as i32).into()),
         );
     }
-    table_update(&s.pool, TICKET, p).await
+    repository::update(&s.pool, &TenantContext::from_user(&user)?, p).await
 }
 async fn delete_one(
     State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&s.pool, TICKET.table, id_param(&p)?).await
+    repository::delete(&s.pool, &TenantContext::from_user(&user)?, &[id_param(&p)?]).await
 }
 async fn delete_list(
     State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    crate::soft_delete_list(&s.pool, TICKET.table, ids_param(&p)).await
+    let ids = p
+        .get("ids")
+        .ok_or_else(|| AppError::bad_request("ids are required"))?
+        .split(',')
+        .map(|id| id.trim().parse::<i64>())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| AppError::bad_request("invalid ticket IDs"))?;
+    repository::delete(&s.pool, &TenantContext::from_user(&user)?, &ids).await
 }
 
 async fn approve(
@@ -228,9 +258,10 @@ async fn approve(
     user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
     let approved = crate::bool_field(&payload, "approved", false);
     let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
-    let ticket = crate::table_get_value(&s.pool, TICKET, id).await?;
+    let ticket = repository::get(&s.pool, &tenant, id).await?;
     if ticket.get("ticketStatus").and_then(|v| v.as_str()) != Some("pending_approval") {
         return Err(AppError::bad_request("只能审批待审批状态的工单"));
     }
@@ -241,9 +272,9 @@ async fn approve(
     } else {
         approved_next_status(&ticket)
     };
-    sqlx::query("UPDATE infra_resource_ticket SET ticket_status=$2, approver=$3, approve_time=$4, approve_comment=$5, update_time=now() WHERE id=$1 AND deleted=0")
+    sqlx::query("UPDATE infra_resource_ticket SET ticket_status=$2, approver=$3, approve_time=$4, approve_comment=$5, update_time=now() WHERE id=$1 AND tenant_id=$6 AND deleted=0")
         .bind(id).bind(new_status).bind(&user.username).bind(&now).bind(opt_str_field(&payload, "comment"))
-        .execute(&s.pool).await.map_err(|_| AppError::internal("failed"))?;
+        .bind(tenant.id()).execute(&s.pool).await.map_err(|_| AppError::internal("failed"))?;
     if approved && new_status == "delivered" {
         apply_resource_side_effect(&s, &ticket).await;
     }
@@ -334,7 +365,8 @@ async fn provision(
     user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    run_provision(&s, id, &user.username, &payload).await
+    let tenant = TenantContext::from_user(&user)?;
+    run_provision(&s, &tenant, id, &user.username, &payload).await
 }
 
 /// Real provisioning: resolve cloud credentials, render the tofu workspace,
@@ -342,6 +374,7 @@ async fn provision(
 /// CMDB, and advance the ticket on success.
 async fn run_provision(
     s: &InfraState,
+    tenant: &TenantContext,
     id: i64,
     operator: &str,
     payload: &Value,
@@ -363,7 +396,7 @@ async fn run_provision(
     if !acquired {
         return Err(AppError::bad_request("该工单正在开通，请勿重复执行"));
     }
-    let mut ticket = crate::table_get_value(&s.pool, TICKET, id).await?;
+    let mut ticket = repository::get(&s.pool, &tenant, id).await?;
     let status = ticket
         .get("ticketStatus")
         .and_then(Value::as_str)
@@ -387,7 +420,13 @@ async fn run_provision(
     let (target, config_id) = match load_platform_target(s, &ticket, config_id).await {
         Ok(target) => target,
         Err(error) => {
-            record_failure(s, id, "无法加载开通凭据：请检查厂商、平台、状态和区域").await?;
+            record_failure(
+                s,
+                tenant,
+                id,
+                "无法加载开通凭据：请检查厂商、平台、状态和区域",
+            )
+            .await?;
             return Err(error);
         }
     };
@@ -416,7 +455,7 @@ async fn run_provision(
     let main_tf = match render_main_tf(&target, &spec) {
         Ok(template) => template,
         Err(reason) => {
-            record_failure(s, id, &reason).await?;
+            record_failure(s, tenant, id, &reason).await?;
             return Err(AppError::bad_request(reason));
         }
     };
@@ -437,7 +476,7 @@ async fn run_provision(
     let executor = TofuExecutor::from_env();
     if !executor.available().await {
         let reason = "OpenTofu binary not found: install it (opentofu.org) and/or set TOFU_BINARY";
-        record_failure(s, id, reason).await?;
+        record_failure(s, tenant, id, reason).await?;
         return Err(AppError::bad_request(reason));
     }
 
@@ -459,10 +498,10 @@ async fn run_provision(
             effective.insert(api.into(), value.clone());
         }
     }
-    sqlx::query("UPDATE infra_resource_ticket SET target_config=$2, cloud_category=$3, cloud_region=$4, tofu_workspace=$5, ecs_type=$6, update_time=now() WHERE id=$1 AND deleted=0")
+    sqlx::query("UPDATE infra_resource_ticket SET target_config=$2, cloud_category=$3, cloud_region=$4, tofu_workspace=$5, ecs_type=$6, update_time=now() WHERE id=$1 AND tenant_id=$7 AND deleted=0")
         .bind(id).bind(Value::Object(effective).to_string()).bind(&cloud_category).bind(&region).bind(&workspace_name)
         .bind(spec.get("ecs_type").and_then(Value::as_str).unwrap_or_default())
-        .execute(&s.pool).await.map_err(|_| AppError::internal("failed to save provision parameters"))?;
+        .bind(tenant.id()).execute(&s.pool).await.map_err(|_| AppError::internal("failed to save provision parameters"))?;
     ticket["cloudCategory"] = json!(cloud_category);
     ticket["cloudRegion"] = json!(region);
     ticket["ecsType"] = spec.get("ecs_type").cloned().unwrap_or(Value::Null);
@@ -478,7 +517,7 @@ async fn run_provision(
     let init = executor.init(&workspace).await;
     log.push_str(&init.combined_log());
     if !init.success {
-        record_failure(s, id, &log).await?;
+        record_failure(s, tenant, id, &log).await?;
         return Err(AppError::bad_request(format!(
             "tofu init failed: {}",
             tail(&init.stderr)
@@ -489,7 +528,7 @@ async fn run_provision(
     let apply = executor.apply(&env, &workspace).await;
     log.push_str(&apply.combined_log());
     if !apply.success {
-        record_failure(s, id, &log).await?;
+        record_failure(s, tenant, id, &log).await?;
         return Err(AppError::bad_request(format!(
             "tofu apply failed: {}",
             tail(&apply.stderr)
@@ -499,13 +538,21 @@ async fn run_provision(
     let outputs = match executor.outputs(&workspace).await {
         Ok(outputs) => outputs,
         Err(reason) => {
-            record_failure(s, id, &reason).await?;
+            record_failure(s, tenant, id, &reason).await?;
             return Err(AppError::bad_request(reason));
         }
     };
     let tf_outputs = Value::Object(outputs.clone().into_iter().collect());
-    if let Err(error) = upsert_cmdb_instance(s, id, &ticket, &cloud_category, &tf_outputs).await {
-        record_failure(s, id, "云资源已开通，但 CMDB 回写失败；保留工作区后重试").await?;
+    if let Err(error) =
+        upsert_cmdb_instance(s, tenant, id, &ticket, &cloud_category, &tf_outputs).await
+    {
+        record_failure(
+            s,
+            tenant,
+            id,
+            "云资源已开通，但 CMDB 回写失败；保留工作区后重试",
+        )
+        .await?;
         return Err(error);
     }
     sqlx::query(
@@ -513,7 +560,7 @@ async fn run_provision(
          SET ticket_status='pending_delivery', provisioner=$2, provision_time=$3,
              provision_details='OpenTofu apply 完成', apply_status='applied',
              apply_log=$4, tf_outputs=$5, tofu_workspace=$6, update_time=now()
-         WHERE id=$1 AND deleted=0",
+         WHERE id=$1 AND tenant_id=$7 AND deleted=0",
     )
     .bind(id)
     .bind(operator)
@@ -521,6 +568,7 @@ async fn run_provision(
     .bind(truncate_log(&log))
     .bind(&tf_outputs)
     .bind(&workspace_name)
+    .bind(tenant.id())
     .execute(&s.pool)
     .await
     .map_err(|_| AppError::internal("failed"))?;
@@ -530,13 +578,19 @@ async fn run_provision(
     )))
 }
 
-async fn record_failure(s: &InfraState, id: i64, log: &str) -> Result<(), AppError> {
+async fn record_failure(
+    s: &InfraState,
+    tenant: &TenantContext,
+    id: i64,
+    log: &str,
+) -> Result<(), AppError> {
     sqlx::query(
         "UPDATE infra_resource_ticket SET apply_status='failed', apply_log=$2, update_time=now()
-         WHERE id=$1 AND deleted=0",
+         WHERE id=$1 AND tenant_id=$3 AND deleted=0",
     )
     .bind(id)
     .bind(truncate_log(log))
+    .bind(tenant.id())
     .execute(&s.pool)
     .await
     .map_err(|_| AppError::internal("failed to record provision failure"))?;
@@ -650,11 +704,17 @@ fn merge_provision_parameters(
 /// `cloud_<resource_type>` (created implicitly, key `ticket_id`).
 async fn upsert_cmdb_instance(
     s: &InfraState,
+    tenant: &TenantContext,
     ticket_id: i64,
     ticket: &Value,
     cloud_category: &str,
     tf_outputs: &Value,
 ) -> Result<(), AppError> {
+    if ticket.get("tenantId").and_then(Value::as_i64) != Some(tenant.id()) {
+        return Err(AppError::forbidden(
+            "ticket tenant does not match CMDB scope",
+        ));
+    }
     let resource_type = ticket
         .get("resourceType")
         .and_then(Value::as_str)
@@ -720,8 +780,8 @@ async fn upsert_cmdb_instance(
                 && !value.as_array().is_some_and(|a| a.is_empty())
         }) {
             let duplicate: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM cmdb_instance WHERE model_id=$1 AND deleted=0 AND attributes->>'ticket_id' IS DISTINCT FROM $2 AND attributes->$3 = $4::jsonb)"
-            ).bind(model_id).bind(ticket_id.to_string()).bind(key).bind(value)
+                "SELECT EXISTS(SELECT 1 FROM cmdb_instance WHERE model_id=$1 AND deleted=0 AND attributes->>'ticket_id' IS DISTINCT FROM $2 AND attributes->$3 = $4::jsonb AND tenant_id=$5)"
+            ).bind(model_id).bind(ticket_id.to_string()).bind(key).bind(value).bind(tenant.id())
                 .fetch_one(&mut *tx).await.map_err(|_| AppError::internal("failed to check provisioned CMDB unique key"))?;
             if duplicate {
                 return Err(AppError::bad_request(
@@ -734,22 +794,24 @@ async fn upsert_cmdb_instance(
 
     let updated = sqlx::query(
         "UPDATE cmdb_instance SET attributes = $3, updater='tofu', update_time=now()
-         WHERE model_id=$1 AND deleted=0 AND attributes->>'ticket_id'=$2",
+         WHERE model_id=$1 AND tenant_id=$4 AND deleted=0 AND attributes->>'ticket_id'=$2",
     )
     .bind(model_id)
     .bind(ticket_id.to_string())
     .bind(&payload)
+    .bind(tenant.id())
     .execute(&mut *tx)
     .await
     .map(|result| result.rows_affected())
     .map_err(|_| AppError::internal("failed to update provisioned CMDB instance"))?;
     if updated == 0 {
         sqlx::query(
-            "INSERT INTO cmdb_instance (model_id, attributes, creator, updater)
-             VALUES ($1, $2, 'tofu', 'tofu')",
+            "INSERT INTO cmdb_instance (model_id, attributes, creator, updater, tenant_id)
+             VALUES ($1, $2, 'tofu', 'tofu', $3)",
         )
         .bind(model_id)
         .bind(&payload)
+        .bind(tenant.id())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::internal("failed to insert provisioned CMDB instance"))?;
@@ -803,12 +865,24 @@ mod provision_tests {
             .unwrap()
             .replace("public.", "");
         sqlx::raw_sql(&ddl).execute(&pool).await.unwrap();
+        sqlx::raw_sql("CREATE TABLE system_tenant(id bigint PRIMARY KEY); INSERT INTO system_tenant VALUES (1), (2); CREATE TABLE infra_resource_ticket(id bigint PRIMARY KEY, deleted smallint DEFAULT 0);")
+            .execute(&pool).await.unwrap();
+        for migration in [
+            include_str!("../../../../sql/postgresql/0025_cmdb_instance_unique_values.sql"),
+            include_str!("../../../../sql/postgresql/0026_cmdb_tenant_isolation.sql"),
+        ] {
+            sqlx::raw_sql(&migration.replace("public.", ""))
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let tenant = TenantContext::from_persisted_id(Some(1)).unwrap();
         let state = InfraState::new(pool.clone());
-        let ticket = json!({"resourceType": "ecs", "ecsName": "test"});
+        let ticket = json!({"resourceType": "ecs", "ecsName": "test", "tenantId": 1});
         let outputs = json!({"id": "test-instance"});
         let (first, second) = tokio::join!(
-            upsert_cmdb_instance(&state, 1, &ticket, "demo", &outputs),
-            upsert_cmdb_instance(&state, 1, &ticket, "demo", &outputs),
+            upsert_cmdb_instance(&state, &tenant, 1, &ticket, "demo", &outputs),
+            upsert_cmdb_instance(&state, &tenant, 1, &ticket, "demo", &outputs),
         );
         first.unwrap();
         second.unwrap();
@@ -827,7 +901,7 @@ mod provision_tests {
             .await
             .unwrap();
         assert!(
-            upsert_cmdb_instance(&state, 2, &ticket, "demo", &outputs)
+            upsert_cmdb_instance(&state, &tenant, 2, &ticket, "demo", &outputs)
                 .await
                 .is_err()
         );
@@ -839,6 +913,23 @@ mod provision_tests {
             instances, 1,
             "unique-key conflict must roll back the upsert"
         );
+        let other_tenant = TenantContext::from_persisted_id(Some(2)).unwrap();
+        assert!(
+            upsert_cmdb_instance(&state, &other_tenant, 1, &ticket, "demo", &outputs)
+                .await
+                .is_err()
+        );
+        let other_ticket = json!({"resourceType": "ecs", "ecsName": "other", "tenantId": 2});
+        upsert_cmdb_instance(&state, &other_tenant, 3, &other_ticket, "demo", &outputs)
+            .await
+            .unwrap();
+        let owners: Vec<i64> =
+            sqlx::query_scalar("SELECT tenant_id FROM cmdb_instance ORDER BY tenant_id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(owners, vec![1, 2]);
+        assert!(repository::get(&pool, &other_tenant, 1).await.is_err());
         pool.close().await;
         sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
             .execute(&admin)
@@ -934,8 +1025,9 @@ async fn deliver(
     user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
     let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
-    let ticket = crate::table_get_value(&s.pool, TICKET, id).await?;
+    let ticket = repository::get(&s.pool, &tenant, id).await?;
     if ticket.get("ticketStatus").and_then(|v| v.as_str()) != Some("pending_delivery") {
         return Err(AppError::bad_request("只能交付待交付状态的工单"));
     }
@@ -944,9 +1036,9 @@ async fn deliver(
         .begin()
         .await
         .map_err(|_| AppError::internal("failed to begin delivery"))?;
-    sqlx::query("UPDATE infra_resource_ticket SET ticket_status='delivered', delivery_status='已交付', deliverer=$2, deliver_time=$3, deliver_comment=$4, update_time=now() WHERE id=$1 AND deleted=0")
+    sqlx::query("UPDATE infra_resource_ticket SET ticket_status='delivered', delivery_status='已交付', deliverer=$2, deliver_time=$3, deliver_comment=$4, update_time=now() WHERE id=$1 AND tenant_id=$5 AND deleted=0")
         .bind(id).bind(&user.username).bind(&now).bind(opt_str_field(&payload, "comment"))
-        .execute(&mut *tx).await.map_err(|_| AppError::internal("failed"))?;
+        .bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed"))?;
     // 闭环：新建类工单交付完成后，自动在业务资源台账落一条对应记录，
     // 与工单状态更新同事务，避免"交付了但台账没有"的半程状态。
     if ticket

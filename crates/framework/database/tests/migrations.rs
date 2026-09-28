@@ -15,7 +15,85 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 27);
+    assert_eq!(applied, 33);
+    let high_risk_rules: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read high-risk port baseline");
+    assert!(high_risk_rules >= 18);
+    let risk_source_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_risk'
+           AND column_name IN ('source_type','source_id','rule_id')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect network-policy risk linkage");
+    assert_eq!(risk_source_columns, 3);
+    let unique_constraint: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'cmdb_instance_unique_value'::regclass AND conname = 'cmdb_instance_unique_value_key' AND contype = 'u')"
+    ).fetch_one(&pool).await.expect("CMDB unique-value constraint");
+    assert!(unique_constraint);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0026_cmdb_tenant_isolation.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun tenant isolation migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0027_asset_policy_tenants.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun asset and policy tenant migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0028_network_policy_port_risk.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun network-policy risk migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0029_asset_tenant_unique_ip.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun tenant asset uniqueness migration");
+    let asset_unique_index: String = sqlx::query_scalar(
+        "SELECT indexdef FROM pg_indexes
+         WHERE schemaname='public' AND indexname='idx_asset_tenant_ip_unique'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read tenant asset unique index");
+    assert!(asset_unique_index.contains("tenant_id, ip"));
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0030_recoverable_scan_tasks.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun recoverable scan-task migration");
+    let task_queue_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_task'
+           AND column_name IN ('payload','idempotency_key','attempt_count','max_attempts',
+             'timeout_seconds','next_attempt_at','lease_owner','lease_expires_at',
+             'heartbeat_at','cancel_requested')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect durable task queue");
+    assert_eq!(task_queue_columns, 10);
+
+    for table in ["cmdb_instance", "cmdb_relation", "infra_resource_ticket"] {
+        let nullable: String = sqlx::query_scalar("SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name='tenant_id'")
+            .bind(table).fetch_one(&pool).await.unwrap();
+        assert_eq!(nullable, "YES", "historical ownership must not be guessed");
+    }
+    let definition: String = sqlx::query_scalar("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='cmdb_instance_unique_value'::regclass AND conname='cmdb_instance_unique_value_key'")
+        .fetch_one(&pool).await.unwrap();
+    assert!(definition.contains("tenant_id, model_id, value"));
 
     let computed_expression_column: bool = sqlx::query_scalar(
         "SELECT EXISTS (
@@ -28,6 +106,36 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect computed attribute expression column");
     assert!(computed_expression_column);
+    let attribute_color_column: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+           SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'cmdb_attribute'
+             AND column_name = 'color' AND character_maximum_length = 16
+         )",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect attribute color column");
+    assert!(attribute_color_column);
+    let trigger_table: bool = sqlx::query_scalar(
+        "SELECT to_regclass('public.cmdb_attribute_trigger') IS NOT NULL",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect CMDB attribute trigger table");
+    assert!(trigger_table);
+    sqlx::raw_sql(include_str!("../../../../sql/postgresql/0031_cmdb_computed_attributes.sql"))
+        .execute(&pool)
+        .await
+        .expect("rerun computed attributes migration");
+    sqlx::raw_sql(include_str!("../../../../sql/postgresql/0032_cmdb_attribute_color.sql"))
+        .execute(&pool)
+        .await
+        .expect("rerun attribute color migration");
+    sqlx::raw_sql(include_str!("../../../../sql/postgresql/0033_cmdb_attribute_triggers.sql"))
+        .execute(&pool)
+        .await
+        .expect("rerun attribute trigger migration");
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(
