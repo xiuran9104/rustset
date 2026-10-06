@@ -1942,6 +1942,7 @@ mod api_contract_tests {
             "RunInspectionRequest",
             "InspectionResultResponse",
             "CreateResourceTicketRequest",
+            "UpdateResourceTicketRequest",
             "ApproveResourceTicketRequest",
             "ProvisionResourceTicketRequest",
             "DeliverResourceTicketRequest",

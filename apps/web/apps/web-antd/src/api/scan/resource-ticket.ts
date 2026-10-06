@@ -36,11 +36,17 @@ export namespace ScanResourceTicketApi {
     provisioner?: string; provision_time?: string; provision_details?: string;
     deliverer?: string; deliver_time?: string; deliver_comment?: string;
   }
+  export type UpdateResourceTicketRequest = Partial<Pick<CreateResourceTicketRequest,
+    'allow_interruption' | 'backup_confirmed' | 'cpu_cores' | 'data_disk' |
+    'ecs_name' | 'expire_at' | 'has_security_product' | 'ip_address' |
+    'maintenance_window' | 'memory_gb' | 'remarks' | 'resource_count' |
+    'retention_until' | 'rollback_plan' | 'security_products' | 'system_disk' |
+    'system_disk_size_gb' | 'target_config'>>;
 }
 export function getResourceTicketList() { return infraPageList<ScanResourceTicketApi.ResourceTicket>('resource-ticket'); }
 export function getResourceTicket(id: number) { return infraGet<ScanResourceTicketApi.ResourceTicket>('resource-ticket', id); }
 export function createResourceTicket(data: ScanResourceTicketApi.CreateResourceTicketRequest) { return infraCreate('resource-ticket', data); }
-export function updateResourceTicket(id: number, data: any) { return infraUpdate('resource-ticket', id, data); }
+export function updateResourceTicket(id: number, data: ScanResourceTicketApi.UpdateResourceTicketRequest) { return infraUpdate('resource-ticket', id, data); }
 export function deleteResourceTicket(id: number) { return infraDelete('resource-ticket', id); }
 export function approveTicket(id: number, data: { approved: boolean; comment?: string }) { return requestClient.post(`/infra/resource-ticket/${id}/approve`, toInfraPayload(data)); }
 export async function getTicketApprovalHistory(id: number) {

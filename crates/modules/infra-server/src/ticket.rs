@@ -21,7 +21,7 @@ use rustset_framework_tofu::{
 use rustset_framework_web::AppError;
 use rustset_infra_api::{
     ApproveResourceTicketRequest, CreateResourceTicketRequest, DeliverResourceTicketRequest,
-    ProvisionResourceTicketRequest,
+    ProvisionResourceTicketRequest, UpdateResourceTicketRequest,
 };
 use serde_json::{Map, Value, json};
 use sqlx::Row;
@@ -226,8 +226,10 @@ async fn apply_auto_approval(
 async fn update(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(mut p): Json<Value>,
+    Json(request): Json<UpdateResourceTicketRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let mut p = serde_json::to_value(request)
+        .map_err(|_| AppError::bad_request("invalid resource ticket update"))?;
     if let Some(object) = p.as_object_mut()
         && let Some(Value::Bool(enabled)) = object.get("hasSecurityProduct").cloned()
     {

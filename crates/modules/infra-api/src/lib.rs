@@ -249,6 +249,48 @@ pub struct CreateResourceTicketRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateResourceTicketRequest {
+    pub id: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ecs_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_config: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub maintenance_window: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_interruption: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backup_confirmed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rollback_plan: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retention_until: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_count: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_cores: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_gb: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_disk: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_disk_size_gb: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_disk: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expire_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_security_product: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub security_products: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ip_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ApproveResourceTicketRequest {
     pub approved: bool,
     pub comment: Option<String>,
@@ -329,6 +371,17 @@ mod contract_tests {
         .unwrap();
         assert_eq!(request.resource_type, "cloud");
         assert_eq!(request.idempotency_key.as_deref(), Some("ticket-1"));
+
+        let patch: UpdateResourceTicketRequest = serde_json::from_value(json!({
+            "id": 7,
+            "cpuCores": 8
+        }))
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(patch).unwrap(),
+            json!({ "id": 7, "cpuCores": 8 })
+        );
+
         assert!(
             serde_json::from_value::<ApproveResourceTicketRequest>(json!({
                 "approved": true,
