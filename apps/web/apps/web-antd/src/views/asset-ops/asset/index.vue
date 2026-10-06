@@ -15,20 +15,9 @@ import {
 } from '#/api/scan/asset';
 import type { ScanAssetApi } from '#/api/scan/asset';
 
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
-
-import { Page } from '@vben/common-ui';
-
-import { message } from 'ant-design-vue';
-
-import { requestClient } from '#/api/request';
-import { createAsset, getAssetList, syncAssetInventoryToCmdb, updateAsset } from '#/api/scan/asset';
-
 type Asset = ScanAssetApi.Asset;
 type UnifiedAsset = Omit<Asset, 'id'> & { deployment_type?:string;editable:boolean;id:string;record_id:number;source_label:string;source_type:'cloud_platform'|'physical_inventory'|'scan';status:string; };
 const data = ref<UnifiedAsset[]>([]); const loading = ref(false); const modalVisible = ref(false); const searchText = ref(''); const editingId = ref<number>();
-const cmdbSyncing = ref(false);
 const form = ref<Asset>({ name:'',ip:'',zone:'Intranet',ports:[],weight:50,labels:[] } as Asset);
 
 // 资产采集表（docs/资产采集表.xlsx·资产排查表）43 个台账字段的默认值。
@@ -122,7 +111,6 @@ const statCards = [
           <a-space :size="16">
             <a-input-search v-model:value="searchText" placeholder="搜索资产名称/IP/负责人..." style="width:260px" allow-clear />
             <a-segmented v-model:value="viewMode" :options="[{value:'grid',label:'卡片'},{value:'table',label:'列表'}]" />
-            <a-button v-access:code="['infra:asset:update']" :loading="cmdbSyncing" @click="handleSyncCmdb"><Icon icon="lucide:database-zap" /> 同步 CMDB</a-button>
             <a-button @click="fetchData"><Icon icon="lucide:refresh-cw" /> 刷新</a-button>
             <a-button v-access:code="['infra:asset:query']" @click="handleExportCsv"><Icon icon="lucide:download" /> 导出 CSV</a-button>
             <a-button v-access:code="['infra:asset:create']" @click="handleTemplate">下载模板</a-button>

@@ -36,12 +36,28 @@ pub(super) async fn create(
     pool: &PgPool,
     tenant: &TenantContext,
     payload: Value,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<(Json<ApiResponse<String>>, bool), AppError> {
     let mut payload = crate::camel_payload_to_snake(payload);
-    payload
+    let object = payload
         .as_object_mut()
-        .ok_or_else(|| AppError::bad_request("ticket must be an object"))?
-        .insert("tenant_id".into(), json!(tenant.id()));
+        .ok_or_else(|| AppError::bad_request("ticket must be an object"))?;
+    object.insert("tenant_id".into(), json!(tenant.id()));
+    let idempotency_key = object
+        .get("idempotency_key")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+    if idempotency_key
+        .as_ref()
+        .is_some_and(|value| value.len() > 128)
+    {
+        return Err(AppError::bad_request("idempotencyKey 最多 128 个字符"));
+    }
+    object.insert(
+        "idempotency_key".into(),
+        idempotency_key.clone().map_or(Value::Null, Value::String),
+    );
     let missing = crate::missing_required_fields(pool, TICKET.table, &payload).await?;
     if !missing.is_empty() {
         return Err(AppError::bad_request(format!(
@@ -59,15 +75,18 @@ pub(super) async fn create(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "INSERT INTO infra_resource_ticket ({}) SELECT {values} FROM jsonb_populate_record(NULL::infra_resource_ticket, $1::jsonb) r RETURNING id",
+        "INSERT INTO infra_resource_ticket ({}) SELECT {values} FROM jsonb_populate_record(NULL::infra_resource_ticket, $1::jsonb) r
+         ON CONFLICT(tenant_id,idempotency_key) WHERE deleted=0 AND idempotency_key IS NOT NULL
+         DO UPDATE SET update_time=infra_resource_ticket.update_time
+         RETURNING id, (xmax = 0) AS inserted",
         columns.join(", ")
     );
-    let id: i64 = sqlx::query_scalar(&sql)
+    let (id, inserted): (i64, bool) = sqlx::query_as(&sql)
         .bind(payload)
         .fetch_one(pool)
         .await
         .map_err(|error| crate::record_query_error("create", error))?;
-    Ok(Json(ApiResponse::new(id.to_string())))
+    Ok((Json(ApiResponse::new(id.to_string())), inserted))
 }
 
 pub(super) async fn update(
@@ -157,8 +176,12 @@ mod tests {
         .unwrap();
         let a = TenantContext::from_persisted_id(Some(1)).unwrap();
         let b = TenantContext::from_persisted_id(Some(other_id)).unwrap();
-        let Json(created) = create(&pool, &a, json!({"resourceType":"ecs","ecsName":"a","ticketStatus":"pending_approval","createdBy":"test","tenantId":987654,"tenant_id":987654})).await.unwrap();
+        let (Json(created), inserted) = create(&pool, &a, json!({"resourceType":"ecs","ecsName":"a","ticketStatus":"pending_approval","createdBy":"test","tenantId":987654,"tenant_id":987654,"idempotencyKey":"request-1"})).await.unwrap();
+        assert!(inserted);
         let id: i64 = created.data.parse().unwrap();
+        let (Json(replayed), inserted) = create(&pool, &a, json!({"resourceType":"ecs","ecsName":"duplicate","ticketStatus":"pending_approval","createdBy":"test","idempotencyKey":"request-1"})).await.unwrap();
+        assert!(!inserted);
+        assert_eq!(replayed.data, id.to_string());
         assert_eq!(get(&pool, &a, id).await.unwrap()["tenantId"], 1);
         assert!(get(&pool, &b, id).await.is_err());
         assert!(

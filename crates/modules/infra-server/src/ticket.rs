@@ -106,11 +106,11 @@ async fn create(
         obj.entry("applicantName".to_string())
             .or_insert(Value::String(user.username));
     }
-    let Json(created) = repository::create(&s.pool, &tenant, payload).await?;
+    let (Json(created), inserted) = repository::create(&s.pool, &tenant, payload).await?;
     let Ok(id) = created.data.parse::<i64>() else {
         return Ok(Json(created));
     };
-    if let Some(rule) = match_approval_rule(&s, &tenant, id).await? {
+    if inserted && let Some(rule) = match_approval_rule(&s, &tenant, id).await? {
         apply_auto_approval(&s, &tenant, id, &rule).await?;
     }
     Ok(Json(created))

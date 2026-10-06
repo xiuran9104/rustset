@@ -197,6 +197,75 @@ function openEdit(record: CmdbInstance) {
   modalVisible.value = true;
 }
 
+function openBatchUpdate() {
+  batchAttributeCodes.value = [];
+  batchForm.value = {};
+  batchModalVisible.value = true;
+}
+
+function changeBatchAttributes(codes: string[]) {
+  const next: Record<string, any> = {};
+  for (const code of codes) {
+    next[code] = code in batchForm.value ? batchForm.value[code] : undefined;
+  }
+  batchForm.value = next;
+}
+
+async function submitBatchUpdate() {
+  const changes: Record<string, any> = {};
+  for (const code of batchAttributeCodes.value) {
+    const attr = attributes.value.find((item) => item.code === code);
+    let value = batchForm.value[code];
+    if (attr?.attrType === 'json' && typeof value === 'string' && value.trim()) {
+      try { value = JSON.parse(value); } catch { message.warning(`属性 ${attr.name} 的 JSON 格式不正确`); return; }
+    }
+    changes[code] = value === '' || value === undefined ? null : value;
+  }
+  batchSubmitting.value = true;
+  try {
+    const result = await updateInstances(selectedIds.value, changes);
+    message.success(`批量修改完成：更新 ${result.updated ?? 0} 条，未变化 ${result.unchanged ?? 0} 条`);
+    batchModalVisible.value = false;
+    await fetchRows();
+  } catch (error: any) {
+    message.error(error?.message || '批量修改失败');
+  } finally {
+    batchSubmitting.value = false;
+  }
+}
+
+function topologyLabel(value: string, limit = 24) {
+  const chars = [...(value || '')];
+  return chars.length > limit ? `${chars.slice(0, limit - 1).join('')}…` : chars.join('');
+}
+
+function topologyColor(code: string) {
+  const colors = ['#1677ff', '#13a8a8', '#722ed1', '#d46b08', '#389e0d', '#c41d7f'];
+  let hash = 0;
+  for (const char of code) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return colors[hash % colors.length];
+}
+
+async function fetchTopology() {
+  if (!topologyRoot.value) return;
+  topologyLoading.value = true;
+  try {
+    topology.value = await getRelationTopology(topologyRoot.value.id, topologyDepth.value, 80);
+    topologySelectedId.value = topologyRoot.value.id;
+  } catch (error: any) {
+    message.error(error?.message || '加载拓扑失败');
+  } finally {
+    topologyLoading.value = false;
+  }
+}
+
+async function openTopology(record: CmdbInstance) {
+  topologyRoot.value = record;
+  topology.value = null;
+  topologyVisible.value = true;
+  await fetchTopology();
+}
+
 function serializeForm(): Record<string, any> {
   const data: Record<string, any> = {};
   for (const attr of attributes.value) {

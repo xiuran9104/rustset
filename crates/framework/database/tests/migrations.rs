@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 38);
+    assert_eq!(applied, 39);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -259,6 +259,20 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect approval rule tenant column");
     assert_eq!(approval_rule_tenant_nullable, "YES");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0039_ticket_idempotency.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun ticket idempotency migration");
+    let ticket_idempotency_index: String = sqlx::query_scalar(
+        "SELECT indexdef FROM pg_indexes WHERE schemaname='public'
+         AND indexname='idx_resource_ticket_tenant_idempotency'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect ticket idempotency index");
+    assert!(ticket_idempotency_index.contains("tenant_id, idempotency_key"));
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

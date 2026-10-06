@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict e5YssabUzYdOCmtt3V5gjLl0FdoK0788GtArEuM6N4GdbzP1CbGxFglHdACMCMk
+\restrict gNfDmZigm9JWkuDhgQird2TzxwXdlK5TDwZxoerl4UOy2YyzVzUFqIa3kJuzfnz
 
 -- Dumped from database version 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)
 -- Dumped by pg_dump version 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)
@@ -31,6 +31,13 @@ CREATE SCHEMA ai;
 --
 
 CREATE SCHEMA infra;
+
+
+--
+-- Name: task_test_b01cd23ecfe34b5b9465e419e00ad29d; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA task_test_b01cd23ecfe34b5b9465e419e00ad29d;
 
 
 --
@@ -118,6 +125,15 @@ BEGIN
     END IF;
     RETURN NEW;
 END $$;
+
+
+--
+-- Name: reject_delete(); Type: FUNCTION; Schema: task_test_b01cd23ecfe34b5b9465e419e00ad29d; Owner: -
+--
+
+CREATE FUNCTION task_test_b01cd23ecfe34b5b9465e419e00ad29d.reject_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$ BEGIN IF NEW.id = 'second' THEN RAISE EXCEPTION 'test failure'; END IF; RETURN NEW; END $$;
 
 
 SET default_tablespace = '';
@@ -1770,7 +1786,8 @@ CREATE TABLE public.infra_resource_ticket (
     tf_outputs jsonb,
     tofu_workspace character varying(128),
     target_resource_type character varying(16),
-    tenant_id bigint
+    tenant_id bigint,
+    idempotency_key character varying(128)
 );
 
 
@@ -3226,6 +3243,18 @@ CREATE TABLE public.yudao_demo03_student (
 
 
 --
+-- Name: infra_task; Type: TABLE; Schema: task_test_b01cd23ecfe34b5b9465e419e00ad29d; Owner: -
+--
+
+CREATE TABLE task_test_b01cd23ecfe34b5b9465e419e00ad29d.infra_task (
+    id text NOT NULL,
+    tenant_id bigint NOT NULL,
+    deleted smallint DEFAULT 0,
+    update_time timestamp without time zone DEFAULT now()
+);
+
+
+--
 -- Data for Name: chat_conversations; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
@@ -3588,6 +3617,7 @@ COPY public._sqlx_migrations (version, description, installed_on, success, check
 36	business application tenants	2026-10-06 20:14:22.7217+08	t	\\xf71100815d5a3ebbaa6d45fbddc528d018ca06c4e5689eeb3b98dbda9b4c29bb1d679c478968b84b78ba4d6ce9c5ed6b	5400937
 37	resource ledger tenants	2026-10-06 20:14:22.727773+08	t	\\x881925d6889ef3029ae7233fb54315f01c78c1df293bcf1b9ba2c5adeef24e6f531335471126058b1015ffd9a418d44e	7097561
 38	approval rule tenants	2026-10-06 20:14:22.73526+08	t	\\xbaa71b650d995485edd81a25ad497a42d2cf29fc3555725489a996c0aa2b860efbaf885c2f60a83a9df92f4ff10e767e	3088475
+39	ticket idempotency	2026-10-06 20:20:02.558652+08	t	\\x8176ec2e38901f34bdfc1e7e55f51bfde62586046ac8c3bf631c2143405c09fa2ba07b66b8ec7ec5e6aa6b02556dddb7	6640970
 \.
 
 
@@ -3896,6 +3926,8 @@ COPY public.infra_machine_room (id, room_name, room_code, facility_type, address
 --
 
 COPY public.infra_network_policy (id, firewall_name, destination_organization, destination_project, source_organization, source_project, source_security_zone, source_ip, destination_security_zone, destination_ip, service_port, applicant, application_date, traffic_direction, action, implementer, implementation_date, delivery_date, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
+1	integration-risk-firewall	测试单位	测试项目	来源单位	来源项目	互联网域	0.0.0.0/0	服务器域	10.1.2.3	443,tcp/3389	tester	2026-09-27	正向	deny	\N	\N	\N		2026-10-06 12:15:35.155184		2026-10-06 12:15:35.182665	1	1
+2	integration-risk-firewall	测试单位	测试项目	来源单位	来源项目	互联网域	0.0.0.0/0	服务器域	10.1.2.3	443,tcp/3389	tester	2026-09-27	正向	deny	\N	\N	\N		2026-10-06 12:16:04.447934		2026-10-06 12:16:04.47948	1	1
 \.
 
 
@@ -3919,7 +3951,7 @@ COPY public.infra_physical_resource (id, ecs_name, ecs_status, cloud_region, clo
 -- Data for Name: infra_resource_ticket; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_resource_ticket (id, resource_type, ecs_name, ticket_status, provider_id, provider_name, cloud_platform_id, cloud_platform_name, machine_room_id, machine_room_name, cloud_region, cloud_category, zone_name, zone_cabinet, rack_units, customer_name, application_name, application_endpoint_id, application_domain, contract_name, ecs_type, ecs_os, resource_count, cpu_cores, memory_gb, system_disk, system_disk_size_gb, data_disk, expire_at, has_security_product, security_products, ip_address, delivery_status, remarks, created_by, applicant_name, organization_id, organization_name, department_id, department_name, approver, approve_time, approve_comment, provisioner, provision_time, provision_details, deliverer, deliver_time, deliver_comment, fw_source_zone, fw_source_address, fw_source_port, fw_dest_zone, fw_dest_address, fw_dest_port, fw_protocol, fw_port, fw_direction, fw_valid_until, fw_firewall_name, creator, create_time, updater, update_time, deleted, ticket_type, risk_level, target_resource_id, target_config, maintenance_window, allow_interruption, backup_confirmed, rollback_plan, retention_until, approval_stage, approval_total, current_approval_role, apply_status, apply_log, tf_outputs, tofu_workspace, target_resource_type, tenant_id) FROM stdin;
+COPY public.infra_resource_ticket (id, resource_type, ecs_name, ticket_status, provider_id, provider_name, cloud_platform_id, cloud_platform_name, machine_room_id, machine_room_name, cloud_region, cloud_category, zone_name, zone_cabinet, rack_units, customer_name, application_name, application_endpoint_id, application_domain, contract_name, ecs_type, ecs_os, resource_count, cpu_cores, memory_gb, system_disk, system_disk_size_gb, data_disk, expire_at, has_security_product, security_products, ip_address, delivery_status, remarks, created_by, applicant_name, organization_id, organization_name, department_id, department_name, approver, approve_time, approve_comment, provisioner, provision_time, provision_details, deliverer, deliver_time, deliver_comment, fw_source_zone, fw_source_address, fw_source_port, fw_dest_zone, fw_dest_address, fw_dest_port, fw_protocol, fw_port, fw_direction, fw_valid_until, fw_firewall_name, creator, create_time, updater, update_time, deleted, ticket_type, risk_level, target_resource_id, target_config, maintenance_window, allow_interruption, backup_confirmed, rollback_plan, retention_until, approval_stage, approval_total, current_approval_role, apply_status, apply_log, tf_outputs, tofu_workspace, target_resource_type, tenant_id, idempotency_key) FROM stdin;
 \.
 
 
@@ -3928,6 +3960,8 @@ COPY public.infra_resource_ticket (id, resource_type, ecs_name, ticket_status, p
 --
 
 COPY public.infra_risk (id, asset_ip, port, severity, description, solution, status, assigned_to, creator, create_time, updater, update_time, deleted, inspection_key, tenant_id, source_type, source_id, rule_id) FROM stdin;
+c99e00f2-5a7e-4cb1-9b79-c5933aaa8a13	10.1.2.3	3389	Critical	网络策略“integration-risk-firewall”允许 0.0.0.0/0 访问 10.1.2.3 的高风险端口 3389（RDP 远程桌面）。远程桌面暴露容易遭受口令爆破、凭据攻击和远程利用。	仅通过 VPN 或堡垒机访问，限制源地址并启用网络级认证和多因素认证。	resolved	\N		2026-10-06 12:15:35.155184		2026-10-06 12:15:35.174949	0	network_policy:1:12	1	network_policy	1	12
+c8c637e1-35a4-4ae8-9d9b-52e56d59b499	10.1.2.3	3389	Critical	网络策略“integration-risk-firewall”允许 0.0.0.0/0 访问 10.1.2.3 的高风险端口 3389（RDP 远程桌面）。远程桌面暴露容易遭受口令爆破、凭据攻击和远程利用。	仅通过 VPN 或堡垒机访问，限制源地址并启用网络级认证和多因素认证。	resolved	\N		2026-10-06 12:16:04.447934		2026-10-06 12:16:04.470095	0	network_policy:2:12	1	network_policy	2	12
 \.
 
 
@@ -6777,6 +6811,16 @@ COPY public.yudao_demo03_student (id, name, sex, birthday, description, creator,
 
 
 --
+-- Data for Name: infra_task; Type: TABLE DATA; Schema: task_test_b01cd23ecfe34b5b9465e419e00ad29d; Owner: -
+--
+
+COPY task_test_b01cd23ecfe34b5b9465e419e00ad29d.infra_task (id, tenant_id, deleted, update_time) FROM stdin;
+first	1	0	2026-10-06 12:15:35.32639
+second	1	0	2026-10-06 12:15:35.32639
+\.
+
+
+--
 -- Name: cmdb_attribute_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
@@ -6941,7 +6985,7 @@ SELECT pg_catalog.setval('public.infra_file_seq', 3, true);
 -- Name: infra_high_risk_port_rule_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.infra_high_risk_port_rule_seq', 36, true);
+SELECT pg_catalog.setval('public.infra_high_risk_port_rule_seq', 54, true);
 
 
 --
@@ -6969,7 +7013,7 @@ SELECT pg_catalog.setval('public.infra_machine_room_seq', 1, false);
 -- Name: infra_network_policy_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.infra_network_policy_seq', 1, false);
+SELECT pg_catalog.setval('public.infra_network_policy_seq', 2, true);
 
 
 --
@@ -7889,6 +7933,14 @@ ALTER TABLE ONLY public.yudao_demo03_student
 
 
 --
+-- Name: infra_task infra_task_pkey; Type: CONSTRAINT; Schema: task_test_b01cd23ecfe34b5b9465e419e00ad29d; Owner: -
+--
+
+ALTER TABLE ONLY task_test_b01cd23ecfe34b5b9465e419e00ad29d.infra_task
+    ADD CONSTRAINT infra_task_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: idx_ai_chat_conversation_knowledge_ids; Type: INDEX; Schema: ai; Owner: -
 --
 
@@ -8474,6 +8526,13 @@ CREATE INDEX idx_resource_ticket_provider ON public.infra_resource_ticket USING 
 --
 
 CREATE INDEX idx_resource_ticket_status ON public.infra_resource_ticket USING btree (ticket_status) WHERE (deleted = 0);
+
+
+--
+-- Name: idx_resource_ticket_tenant_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_resource_ticket_tenant_idempotency ON public.infra_resource_ticket USING btree (tenant_id, idempotency_key) WHERE ((deleted = 0) AND (idempotency_key IS NOT NULL));
 
 
 --
@@ -9357,5 +9416,5 @@ ALTER TABLE ONLY public.infra_task
 -- PostgreSQL database dump complete
 --
 
-\unrestrict e5YssabUzYdOCmtt3V5gjLl0FdoK0788GtArEuM6N4GdbzP1CbGxFglHdACMCMk
+\unrestrict gNfDmZigm9JWkuDhgQird2TzxwXdlK5TDwZxoerl4UOy2YyzVzUFqIa3kJuzfnz
 
