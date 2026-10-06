@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 39);
+    assert_eq!(applied, 40);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -273,6 +273,30 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect ticket idempotency index");
     assert!(ticket_idempotency_index.contains("tenant_id, idempotency_key"));
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0040_network_zone_tenants.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun network zone tenant migration");
+    let network_zone_tenant_nullable: String = sqlx::query_scalar(
+        "SELECT is_nullable FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_network_zone'
+           AND column_name='tenant_id'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect network zone tenant column");
+    assert_eq!(network_zone_tenant_nullable, "YES");
+    let network_zone_tenant_references: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_constraint WHERE conname IN
+         ('infra_network_zone_cloud_platform_tenant_fk',
+          'infra_network_zone_machine_room_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect network zone tenant references");
+    assert_eq!(network_zone_tenant_references, 2);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

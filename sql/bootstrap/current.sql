@@ -1597,7 +1597,8 @@ CREATE TABLE public.infra_network_zone (
     create_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updater character varying(64) DEFAULT ''::character varying NOT NULL,
     update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    deleted smallint DEFAULT 0 NOT NULL
+    deleted smallint DEFAULT 0 NOT NULL,
+    tenant_id bigint
 );
 
 
@@ -8396,6 +8397,13 @@ CREATE INDEX idx_infra_network_policy_tenant ON public.infra_network_policy USIN
 
 
 --
+-- Name: idx_infra_network_zone_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_infra_network_zone_tenant ON public.infra_network_zone USING btree (tenant_id, priority, id) WHERE (deleted = 0);
+
+
+--
 -- Name: idx_infra_physical_resource_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8830,6 +8838,13 @@ CREATE UNIQUE INDEX infra_machine_room_tenant_id_key ON public.infra_machine_roo
 
 
 --
+-- Name: infra_network_zone_tenant_id_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX infra_network_zone_tenant_id_key ON public.infra_network_zone USING btree (tenant_id, id);
+
+
+--
 -- Name: infra_service_provider_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8960,6 +8975,13 @@ CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.inf
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_machine_room FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
+
+
+--
+-- Name: infra_network_zone require_tenant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_network_zone FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
@@ -9314,6 +9336,30 @@ ALTER TABLE ONLY public.infra_machine_room
 
 ALTER TABLE ONLY public.infra_machine_room
     ADD CONSTRAINT infra_machine_room_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
+
+
+--
+-- Name: infra_network_zone infra_network_zone_cloud_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_network_zone
+    ADD CONSTRAINT infra_network_zone_cloud_platform_tenant_fk FOREIGN KEY (tenant_id, cloud_platform_id) REFERENCES public.infra_cloud_platform(tenant_id, id);
+
+
+--
+-- Name: infra_network_zone infra_network_zone_machine_room_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_network_zone
+    ADD CONSTRAINT infra_network_zone_machine_room_tenant_fk FOREIGN KEY (tenant_id, machine_room_id) REFERENCES public.infra_machine_room(tenant_id, id);
+
+
+--
+-- Name: infra_network_zone infra_network_zone_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.infra_network_zone
+    ADD CONSTRAINT infra_network_zone_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.system_tenant(id);
 
 
 --

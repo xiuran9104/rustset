@@ -7,6 +7,33 @@ pub struct InfraCapability {
     pub capabilities: [&'static str; 14],
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateNetworkZoneRequest {
+    pub name: String,
+    pub cidr: String,
+    #[serde(default)]
+    pub priority: i32,
+    pub cloud_platform_id: Option<i64>,
+    pub cloud_platform_name: Option<String>,
+    pub machine_room_id: Option<i64>,
+    pub machine_room_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateNetworkZoneRequest {
+    pub id: String,
+    pub name: String,
+    pub cidr: String,
+    #[serde(default)]
+    pub priority: i32,
+    pub cloud_platform_id: Option<i64>,
+    pub cloud_platform_name: Option<String>,
+    pub machine_room_id: Option<i64>,
+    pub machine_room_name: Option<String>,
+}
+
 impl Default for InfraCapability {
     fn default() -> Self {
         Self {
