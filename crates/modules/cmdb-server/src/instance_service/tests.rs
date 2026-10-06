@@ -211,9 +211,15 @@ async fn concurrent_writes_and_delete_rollback() {
     )
     .await
     .unwrap();
-    let summary = batch_update(&pool, &tenant, &[id, other], object(json!({"right": 9})), "batch")
-        .await
-        .unwrap();
+    let summary = batch_update(
+        &pool,
+        &tenant,
+        &[id, other],
+        object(json!({"right": 9})),
+        "batch",
+    )
+    .await
+    .unwrap();
     assert_eq!(summary.updated, 2);
     assert_eq!(summary.unchanged, 0);
     assert!(

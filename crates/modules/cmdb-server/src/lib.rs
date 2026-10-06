@@ -163,7 +163,10 @@ fn model_keyword_clause(keyword: &Option<String>) -> (String, String) {
 }
 
 fn model_keyword_pattern(keyword: &Option<String>) -> Option<String> {
-    keyword.as_deref().map(str::trim).filter(|value| !value.is_empty())
+    keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
         .map(|value| format!("%{value}%"))
 }
 

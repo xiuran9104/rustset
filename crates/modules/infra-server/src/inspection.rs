@@ -187,10 +187,10 @@ async fn registered(pool: &PgPool, tenant: &TenantContext, ip: &str) -> Result<b
     // and ledger columns may hold comma-separated lists.
     let candidates: Vec<String> = sqlx::query_scalar(
         "SELECT ip FROM infra_asset WHERE tenant_id=$1 AND deleted=0 AND ip IS NOT NULL
-         UNION SELECT ip_address FROM infra_cloud_resource WHERE deleted=0 AND ip_address <> ''
-         UNION SELECT management_ip FROM infra_physical_resource WHERE deleted=0 AND COALESCE(management_ip,'') <> ''
-         UNION SELECT business_ip FROM infra_physical_resource WHERE deleted=0 AND COALESCE(business_ip,'') <> ''
-         UNION SELECT ipmi_address FROM infra_physical_resource WHERE deleted=0 AND COALESCE(ipmi_address,'') <> ''",
+         UNION SELECT ip_address FROM infra_cloud_resource WHERE tenant_id=$1 AND deleted=0 AND ip_address <> ''
+         UNION SELECT management_ip FROM infra_physical_resource WHERE tenant_id=$1 AND deleted=0 AND COALESCE(management_ip,'') <> ''
+         UNION SELECT business_ip FROM infra_physical_resource WHERE tenant_id=$1 AND deleted=0 AND COALESCE(business_ip,'') <> ''
+         UNION SELECT ipmi_address FROM infra_physical_resource WHERE tenant_id=$1 AND deleted=0 AND COALESCE(ipmi_address,'') <> ''",
     )
         .bind(tenant.id()).fetch_all(pool).await?;
     let needle = ip.parse::<IpAddr>().ok();

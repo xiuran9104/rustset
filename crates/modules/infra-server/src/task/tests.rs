@@ -50,7 +50,7 @@ async fn bulk_delete_is_atomic_and_retryable() {
         )
         .await
         .unwrap();
-    sqlx::raw_sql("CREATE TABLE infra_task(id text PRIMARY KEY, tenant_id bigint NOT NULL, deleted smallint DEFAULT 0, update_time timestamp DEFAULT now());
+    sqlx::raw_sql("CREATE TABLE infra_task(id text PRIMARY KEY, tenant_id bigint NOT NULL, deleted smallint DEFAULT 0, cancel_requested boolean DEFAULT false, update_time timestamp DEFAULT now());
         INSERT INTO infra_task(id,tenant_id) VALUES ('first',1), ('second',1);
         CREATE FUNCTION reject_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id = 'second' THEN RAISE EXCEPTION 'test failure'; END IF; RETURN NEW; END $$;
         CREATE TRIGGER reject_delete BEFORE UPDATE ON infra_task FOR EACH ROW EXECUTE FUNCTION reject_delete();")

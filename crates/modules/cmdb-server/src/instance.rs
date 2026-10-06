@@ -11,8 +11,8 @@ use axum::{
     extract::{Query, State},
 };
 use rustset_cmdb_api::{
-    CreateInstanceRequest, InstanceImportError, InstanceImportResponse, InstancePageParams,
-    BatchUpdateInstanceRequest, InstancePageResponse, InstanceResponse, UpdateInstanceRequest,
+    BatchUpdateInstanceRequest, CreateInstanceRequest, InstanceImportError, InstanceImportResponse,
+    InstancePageParams, InstancePageResponse, InstanceResponse, UpdateInstanceRequest,
 };
 use rustset_framework_common::{ApiResponse, csv as csv_exchange};
 use rustset_framework_security::CurrentUser;

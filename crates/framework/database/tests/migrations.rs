@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 33);
+    assert_eq!(applied, 38);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -117,25 +117,148 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect attribute color column");
     assert!(attribute_color_column);
-    let trigger_table: bool = sqlx::query_scalar(
-        "SELECT to_regclass('public.cmdb_attribute_trigger') IS NOT NULL",
+    let trigger_table: bool =
+        sqlx::query_scalar("SELECT to_regclass('public.cmdb_attribute_trigger') IS NOT NULL")
+            .fetch_one(&pool)
+            .await
+            .expect("inspect CMDB attribute trigger table");
+    assert!(trigger_table);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0031_cmdb_computed_attributes.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun computed attributes migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0032_cmdb_attribute_color.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun attribute color migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0033_cmdb_attribute_triggers.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun attribute trigger migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0034_provider_room_tenants.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun provider and room tenant migration");
+    for table in ["infra_service_provider", "infra_machine_room"] {
+        let nullable: String = sqlx::query_scalar(
+            "SELECT is_nullable FROM information_schema.columns
+             WHERE table_schema='public' AND table_name=$1 AND column_name='tenant_id'",
+        )
+        .bind(table)
+        .fetch_one(&pool)
+        .await
+        .expect("inspect provider inventory tenant column");
+        assert_eq!(
+            nullable, "YES",
+            "historical ownership must remain unassigned"
+        );
+    }
+    let room_provider_tenant_fk: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint
+         WHERE conrelid='infra_machine_room'::regclass
+           AND conname='infra_machine_room_provider_tenant_fk')",
     )
     .fetch_one(&pool)
     .await
-    .expect("inspect CMDB attribute trigger table");
-    assert!(trigger_table);
-    sqlx::raw_sql(include_str!("../../../../sql/postgresql/0031_cmdb_computed_attributes.sql"))
-        .execute(&pool)
+    .expect("inspect room/provider tenant foreign key");
+    assert!(room_provider_tenant_fk);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0035_cloud_security_tenants.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun cloud and security tenant migration");
+    for table in [
+        "infra_cloud_zone",
+        "infra_cloud_platform",
+        "infra_cloud_provider_config",
+        "infra_security_product",
+    ] {
+        let nullable: String = sqlx::query_scalar(
+            "SELECT is_nullable FROM information_schema.columns
+             WHERE table_schema='public' AND table_name=$1 AND column_name='tenant_id'",
+        )
+        .bind(table)
+        .fetch_one(&pool)
         .await
-        .expect("rerun computed attributes migration");
-    sqlx::raw_sql(include_str!("../../../../sql/postgresql/0032_cmdb_attribute_color.sql"))
-        .execute(&pool)
-        .await
-        .expect("rerun attribute color migration");
-    sqlx::raw_sql(include_str!("../../../../sql/postgresql/0033_cmdb_attribute_triggers.sql"))
-        .execute(&pool)
-        .await
-        .expect("rerun attribute trigger migration");
+        .expect("inspect cloud inventory tenant column");
+        assert_eq!(
+            nullable, "YES",
+            "historical ownership must remain unassigned"
+        );
+    }
+    let tenant_reference_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_constraint
+         WHERE conname IN ('infra_cloud_platform_zone_tenant_fk',
+            'infra_cloud_config_zone_tenant_fk', 'infra_cloud_config_platform_tenant_fk',
+            'infra_security_cloud_platform_tenant_fk',
+            'infra_security_machine_room_tenant_fk', 'infra_security_provider_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect cloud/security tenant foreign keys");
+    assert_eq!(tenant_reference_count, 6);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0036_business_application_tenants.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun business application tenant migration");
+    let endpoint_tenant_fk: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint
+         WHERE conrelid='infra_application_endpoint'::regclass
+           AND conname='infra_endpoint_application_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect endpoint/application tenant foreign key");
+    assert!(endpoint_tenant_fk);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0037_resource_ledger_tenants.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun resource ledger tenant migration");
+    let ledger_tenant_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND column_name='tenant_id'
+           AND table_name IN ('infra_cloud_asset','infra_cloud_resource','infra_physical_resource')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect resource ledger tenant columns");
+    assert_eq!(ledger_tenant_columns, 3);
+    let discovery_unique_index: String = sqlx::query_scalar(
+        "SELECT indexdef FROM pg_indexes WHERE schemaname='public'
+         AND indexname='idx_cloud_asset_tenant_instance_config'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect tenant cloud discovery uniqueness");
+    assert!(discovery_unique_index.contains("NULLS NOT DISTINCT"));
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0038_approval_rule_tenants.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun approval rule tenant migration");
+    let approval_rule_tenant_nullable: String = sqlx::query_scalar(
+        "SELECT is_nullable FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_approval_rule'
+           AND column_name='tenant_id'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect approval rule tenant column");
+    assert_eq!(approval_rule_tenant_nullable, "YES");
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

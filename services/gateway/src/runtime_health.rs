@@ -9,6 +9,7 @@ use axum::{
 };
 use rustset_framework_database::PgPool;
 use rustset_framework_redis::RedisClient;
+use rustset_infra_server::object_storage::ObjectStorage;
 use serde::Serialize;
 
 use crate::audit::{AuditMetrics, AuditMetricsSnapshot};
@@ -18,6 +19,7 @@ pub struct RuntimeHealthState {
     pool: PgPool,
     cache: Dependency,
     rate_limit: Dependency,
+    object_storage: ObjectStorageDependency,
     audit: AuditMetrics,
 }
 
@@ -28,6 +30,13 @@ pub struct Dependency {
     pub client: Option<RedisClient>,
 }
 
+#[derive(Clone)]
+pub struct ObjectStorageDependency {
+    pub configured: bool,
+    pub required: bool,
+    pub storage: ObjectStorage,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReadinessResponse {
@@ -35,6 +44,7 @@ struct ReadinessResponse {
     database: ComponentStatus,
     cache: ComponentStatus,
     rate_limit: ComponentStatus,
+    object_storage: ComponentStatus,
     database_pool: PoolSnapshot,
     tasks: TaskSnapshot,
     audit: AuditMetricsSnapshot,
@@ -70,12 +80,14 @@ impl RuntimeHealthState {
         pool: PgPool,
         cache: Dependency,
         rate_limit: Dependency,
+        object_storage: ObjectStorageDependency,
         audit: AuditMetrics,
     ) -> Self {
         Self {
             pool,
             cache,
             rate_limit,
+            object_storage,
             audit,
         }
     }
@@ -94,9 +106,10 @@ async fn readiness(State(state): State<RuntimeHealthState>) -> Response {
     )
     .await
     .is_ok_and(|result| result.is_ok());
-    let (cache, rate_limit) = tokio::join!(
+    let (cache, rate_limit, object_storage) = tokio::join!(
         component_status(&state.cache),
-        component_status(&state.rate_limit)
+        component_status(&state.rate_limit),
+        object_storage_status(&state.object_storage)
     );
     let tasks = if database_available {
         task_snapshot(&state.pool).await.unwrap_or_default()
@@ -105,7 +118,8 @@ async fn readiness(State(state): State<RuntimeHealthState>) -> Response {
     };
     let ready = database_available
         && (!cache.required || cache.available)
-        && (!rate_limit.required || rate_limit.available);
+        && (!rate_limit.required || rate_limit.available)
+        && (!object_storage.required || object_storage.available);
     let response = ReadinessResponse {
         status: if ready { "ready" } else { "not_ready" },
         database: ComponentStatus {
@@ -115,6 +129,7 @@ async fn readiness(State(state): State<RuntimeHealthState>) -> Response {
         },
         cache,
         rate_limit,
+        object_storage,
         database_pool: PoolSnapshot {
             size: state.pool.size(),
             idle: state.pool.num_idle(),
@@ -138,6 +153,18 @@ async fn component_status(dependency: &Dependency) -> ComponentStatus {
             .is_ok_and(|result| result.is_ok()),
         None => false,
     };
+    ComponentStatus {
+        configured: dependency.configured,
+        required: dependency.required,
+        available,
+    }
+}
+
+async fn object_storage_status(dependency: &ObjectStorageDependency) -> ComponentStatus {
+    let available =
+        tokio::time::timeout(Duration::from_secs(3), dependency.storage.check_readiness())
+            .await
+            .is_ok_and(|result| result.is_ok());
     ComponentStatus {
         configured: dependency.configured,
         required: dependency.required,

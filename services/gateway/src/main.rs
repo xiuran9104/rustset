@@ -56,6 +56,14 @@ async fn main() -> anyhow::Result<()> {
     let redis_configured = redis_config.is_some();
     let cache_required = env_bool("CACHE_REDIS_REQUIRED", false);
     let rate_limit_required = env_bool("RATE_LIMIT_REDIS_REQUIRED", false);
+    let production = std::env::var("RUST_ENV")
+        .map(|value| value.eq_ignore_ascii_case("production"))
+        .unwrap_or(false);
+    let object_storage_configured = std::env::var_os("RUSTFS_ENDPOINT").is_some();
+    let object_storage_required = env_bool(
+        "READINESS_REQUIRE_OBJECT_STORAGE",
+        production || object_storage_configured,
+    );
     let cache_enabled = env_bool("CACHE_REDIS_ENABLED", redis_configured) || cache_required;
     let rate_limit_enabled =
         env_bool("RATE_LIMIT_REDIS_ENABLED", redis_configured) || rate_limit_required;
@@ -85,7 +93,8 @@ async fn main() -> anyhow::Result<()> {
         .ensure_bucket()
         .await
         .map_err(anyhow::Error::msg)?;
-    let infra_state = rustset_infra_server::InfraState::new(database.clone(), object_storage);
+    let infra_state =
+        rustset_infra_server::InfraState::new(database.clone(), object_storage.clone());
     infra_state.start_workers();
     let ai_state = rustset_ai_server::AiState::new(database.clone(), tokens);
     let cmdb_state = rustset_cmdb_server::CmdbState {
@@ -175,6 +184,11 @@ async fn main() -> anyhow::Result<()> {
             configured: rate_limit_enabled,
             required: rate_limit_required,
             client: rate_limit_redis.clone(),
+        },
+        runtime_health::ObjectStorageDependency {
+            configured: object_storage_configured,
+            required: object_storage_required,
+            storage: object_storage,
         },
         audit_state.metrics(),
     );

@@ -1,8 +1,8 @@
 mod repository;
 
 use crate::{
-    InfraState, QueryParams, TableSpec, id_param, opt_str_field, soft_delete, table_create,
-    table_page, table_update,
+    InfraState, QueryParams, TableSpec, id_param, opt_str_field, tenant_soft_delete,
+    tenant_table_create, tenant_table_list, tenant_table_page, tenant_table_update,
 };
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -126,8 +126,9 @@ async fn match_approval_rule(
     let ticket = repository::get(&s.pool, &tenant, ticket_id).await?;
     let rows = sqlx::query(
         "SELECT id, name, resource_type, max_cpu_cores, max_memory_gb, max_resource_count, auto_provision
-         FROM infra_approval_rule WHERE deleted = 0 AND status = 0 ORDER BY id",
+         FROM infra_approval_rule WHERE tenant_id=$1 AND deleted = 0 AND status = 0 ORDER BY id",
     )
+    .bind(tenant.id())
     .fetch_all(&s.pool)
     .await
     .map_err(|_| AppError::internal("failed to read approval rules"))?;
@@ -195,7 +196,7 @@ async fn apply_auto_approval(
     .await
     .map_err(|_| AppError::internal("failed to auto-approve"))?;
     if new_status == "delivered" {
-        apply_resource_side_effect(s, &ticket).await;
+        apply_resource_side_effect(s, tenant, &ticket).await;
         return Ok(());
     }
     if new_status == "pending_provision"
@@ -276,7 +277,7 @@ async fn approve(
         .bind(id).bind(new_status).bind(&user.username).bind(&now).bind(opt_str_field(&payload, "comment"))
         .bind(tenant.id()).execute(&s.pool).await.map_err(|_| AppError::internal("failed"))?;
     if approved && new_status == "delivered" {
-        apply_resource_side_effect(&s, &ticket).await;
+        apply_resource_side_effect(&s, &tenant, &ticket).await;
     }
     Ok(Json(ApiResponse::new(
         json!({"message": if approved { "工单审批通过" } else { "工单已拒绝" }, "id": id, "ticketStatus": new_status}),
@@ -306,7 +307,7 @@ fn approved_next_status(ticket: &Value) -> &'static str {
 /// - 停机：云资源 → 已停止，物理资源 → offline
 /// - 回收：两类资源 → retired（已退役）
 /// - 变更：只修改配置，不改状态（变更内容记录在工单上）
-async fn apply_resource_side_effect(s: &InfraState, ticket: &Value) {
+async fn apply_resource_side_effect(s: &InfraState, tenant: &TenantContext, ticket: &Value) {
     use tracing::info;
 
     let Some(target) = ticket.get("targetResourceId").and_then(Value::as_i64) else {
@@ -339,10 +340,11 @@ async fn apply_resource_side_effect(s: &InfraState, ticket: &Value) {
     let result = sqlx::query(&format!(
         "UPDATE {ledger_table}
          SET ecs_status=$2, update_time=now()
-         WHERE id=$1 AND deleted=0"
+         WHERE id=$1 AND tenant_id=$3 AND deleted=0"
     ))
     .bind(target)
     .bind(new_status)
+    .bind(tenant.id())
     .execute(&s.pool)
     .await;
     match result {
@@ -417,7 +419,7 @@ async fn run_provision(
         .get("configId")
         .or_else(|| saved.get("configId"))
         .and_then(Value::as_i64);
-    let (target, config_id) = match load_platform_target(s, &ticket, config_id).await {
+    let (target, config_id) = match load_platform_target(s, tenant, &ticket, config_id).await {
         Ok(target) => target,
         Err(error) => {
             record_failure(
@@ -600,6 +602,7 @@ async fn record_failure(
 /// One enabled credential row for the ticket's cloud platform.
 pub(crate) async fn load_platform_target(
     s: &InfraState,
+    tenant: &TenantContext,
     ticket: &Value,
     config_id: Option<i64>,
 ) -> Result<(CloudTarget, Option<i64>), AppError> {
@@ -623,10 +626,11 @@ pub(crate) async fn load_platform_target(
         .unwrap_or(0);
     let rows = sqlx::query(
         "SELECT id, provider, region_name, access_key_id, access_key_secret FROM infra_cloud_provider_config
-         WHERE platform_id=$1 AND deleted=0 AND status IN ('active', 'enabled')
-         AND ($2::bigint IS NULL OR id=$2) ORDER BY id LIMIT 2",
+         WHERE platform_id=$1 AND tenant_id=$2 AND deleted=0 AND status IN ('active', 'enabled')
+         AND ($3::bigint IS NULL OR id=$3) ORDER BY id LIMIT 2",
     )
     .bind(platform_id)
+    .bind(tenant.id())
     .bind(config_id)
     .fetch_all(&s.pool)
     .await
@@ -877,7 +881,10 @@ mod provision_tests {
                 .unwrap();
         }
         let tenant = TenantContext::from_persisted_id(Some(1)).unwrap();
-        let state = InfraState::new(pool.clone());
+        let state = InfraState::new(
+            pool.clone(),
+            crate::object_storage::ObjectStorage::from_env().unwrap(),
+        );
         let ticket = json!({"resourceType": "ecs", "ecsName": "test", "tenantId": 1});
         let outputs = json!({"id": "test-instance"});
         let (first, second) = tokio::join!(
@@ -986,12 +993,27 @@ fn tail(text: &str) -> String {
 
 async fn rule_page(
     State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&s.pool, APPROVAL_RULE, p).await
+    tenant_table_page(
+        &s.pool,
+        TenantContext::from_user(&user)?.id(),
+        APPROVAL_RULE,
+        p,
+    )
+    .await
 }
-async fn rule_list(State(s): State<InfraState>) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    crate::table_list(&s.pool, APPROVAL_RULE).await
+async fn rule_list(
+    State(s): State<InfraState>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    tenant_table_list(
+        &s.pool,
+        TenantContext::from_user(&user)?.id(),
+        APPROVAL_RULE,
+    )
+    .await
 }
 async fn rule_create(
     State(s): State<InfraState>,
@@ -1002,21 +1024,39 @@ async fn rule_create(
         obj.entry("createdBy".to_string())
             .or_insert(Value::String(user.username.clone()));
     }
-    table_create(&s.pool, APPROVAL_RULE, payload).await
+    tenant_table_create(
+        &s.pool,
+        TenantContext::from_user(&user)?.id(),
+        APPROVAL_RULE,
+        payload,
+    )
+    .await
 }
 async fn rule_update(
     State(s): State<InfraState>,
-    _user: CurrentUser,
+    user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    table_update(&s.pool, APPROVAL_RULE, payload).await
+    tenant_table_update(
+        &s.pool,
+        TenantContext::from_user(&user)?.id(),
+        APPROVAL_RULE,
+        payload,
+    )
+    .await
 }
 async fn rule_delete(
     State(s): State<InfraState>,
-    _user: CurrentUser,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&s.pool, APPROVAL_RULE.table, id_param(&p)?).await
+    tenant_soft_delete(
+        &s.pool,
+        TenantContext::from_user(&user)?.id(),
+        APPROVAL_RULE.table,
+        &[id_param(&p)?],
+    )
+    .await
 }
 
 async fn deliver(
@@ -1047,7 +1087,7 @@ async fn deliver(
         .unwrap_or("create")
         == "create"
     {
-        insert_delivered_ledger_row(&mut tx, &ticket, &user.username).await?;
+        insert_delivered_ledger_row(&mut tx, &tenant, &ticket, &user.username).await?;
     }
     tx.commit()
         .await
@@ -1061,6 +1101,7 @@ async fn deliver(
 /// （`infra_cloud_resource` 或 `infra_physical_resource`）。
 async fn insert_delivered_ledger_row(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant: &TenantContext,
     ticket: &Value,
     operator: &str,
 ) -> Result<(), AppError> {
@@ -1118,9 +1159,9 @@ async fn insert_delivered_ledger_row(
             "INSERT INTO infra_physical_resource
              (id, ecs_name, ecs_status, cloud_region, cloud_category, customer_name,
               management_ip, cpu_cores, memory_gb, deployment_type,
-              application_status, delivery_status, remarks, creator, updater)
+              application_status, delivery_status, remarks, creator, updater, tenant_id)
              VALUES (nextval('infra_physical_resource_seq'), $1, $2, $3, $4, $5,
-                     $6, $7, $8, 'standalone', '已批准', '已交付', $9, $10, $10)",
+                     $6, $7, $8, 'standalone', '已批准', '已交付', $9, $10, $10, $11)",
         )
         .bind(str_field("ecsName"))
         .bind(ecs_status)
@@ -1132,6 +1173,7 @@ async fn insert_delivered_ledger_row(
         .bind(i32_field("memoryGb"))
         .bind(&remark)
         .bind(operator)
+        .bind(tenant.id())
         .execute(&mut **tx)
         .await
         .map_err(|_| {
@@ -1143,10 +1185,10 @@ async fn insert_delivered_ledger_row(
              (id, ecs_name, ecs_status, resource_id, cloud_region, cloud_category,
               customer_name, instance_id, ecs_type, ecs_os, cpu_cores, memory_gb,
               system_disk, system_disk_size_gb, ip_address,
-              application_status, delivery_status, remarks, creator, updater)
+              application_status, delivery_status, remarks, creator, updater, tenant_id)
              VALUES (nextval('infra_cloud_resource_seq'), $1, $2, $3, $4, $5,
                      $6, $7, $8, $9, $10, $11, $12, $13, $14,
-                     '已批准', '已交付', $15, $16, $16)",
+                     '已批准', '已交付', $15, $16, $16, $17)",
         )
         .bind(str_field("ecsName"))
         .bind(ecs_status)
@@ -1171,6 +1213,7 @@ async fn insert_delivered_ledger_row(
         .bind(ip_address)
         .bind(&remark)
         .bind(operator)
+        .bind(tenant.id())
         .execute(&mut **tx)
         .await
         .map_err(|_| {

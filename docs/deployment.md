@@ -124,6 +124,7 @@ export BOOTSTRAP_ADMIN_PASSWORD='替换为高强度密码'
 ## 健康检查与日志
 
 - 存活检查：`GET /health`
+- 就绪检查：`GET /health/ready`，覆盖数据库、Redis 缓存/限流与 RustFS 对象存储（签名 HEAD，无副作用）；对象存储默认在 `RUST_ENV=production` 或显式设置 `RUSTFS_ENDPOINT` 时列为必需，可用 `READINESS_REQUIRE_OBJECT_STORAGE` 覆盖
 - OpenAPI 文档：`GET /openapi.json`
 - 请求自动生成或透传 `x-request-id`
 - 使用 `RUST_LOG=info` 或模块级过滤规则控制 tracing 输出

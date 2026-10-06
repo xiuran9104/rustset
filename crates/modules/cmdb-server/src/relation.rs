@@ -35,12 +35,21 @@ struct InstanceIdParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-struct TopologyParams { instance_id: i64, depth: Option<u8>, limit: Option<usize> }
+struct TopologyParams {
+    instance_id: i64,
+    depth: Option<u8>,
+    limit: Option<usize>,
+}
 
 fn topology_bounds(depth: Option<u8>, limit: Option<usize>) -> Result<(u8, usize), AppError> {
-    let depth = depth.unwrap_or(2); let limit = limit.unwrap_or(80);
-    if !(1..=4).contains(&depth) { return Err(AppError::bad_request("depth must be between 1 and 4")); }
-    if !(2..=200).contains(&limit) { return Err(AppError::bad_request("limit must be between 2 and 200")); }
+    let depth = depth.unwrap_or(2);
+    let limit = limit.unwrap_or(80);
+    if !(1..=4).contains(&depth) {
+        return Err(AppError::bad_request("depth must be between 1 and 4"));
+    }
+    if !(2..=200).contains(&limit) {
+        return Err(AppError::bad_request("limit must be between 2 and 200"));
+    }
     Ok((depth, limit))
 }
 
@@ -463,13 +472,14 @@ mod tests {
         .await
         .unwrap();
 
-        let one_hop = load_topology(&pool, ids[0], 1, 20).await.unwrap();
+        let tenant = TenantContext::from_persisted_id(Some(1)).unwrap();
+        let one_hop = load_topology(&pool, &tenant, ids[0], 1, 20).await.unwrap();
         assert_eq!(one_hop["nodes"].as_array().unwrap().len(), 3);
         assert_eq!(one_hop["edges"].as_array().unwrap().len(), 3);
-        let two_hops = load_topology(&pool, ids[0], 2, 20).await.unwrap();
+        let two_hops = load_topology(&pool, &tenant, ids[0], 2, 20).await.unwrap();
         assert_eq!(two_hops["nodes"].as_array().unwrap().len(), 4);
         assert_eq!(two_hops["edges"].as_array().unwrap().len(), 4);
-        let limited = load_topology(&pool, ids[0], 2, 2).await.unwrap();
+        let limited = load_topology(&pool, &tenant, ids[0], 2, 2).await.unwrap();
         assert_eq!(limited["nodes"].as_array().unwrap().len(), 2);
         assert_eq!(limited["truncated"], true);
 
@@ -478,7 +488,7 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        let without_deleted = load_topology(&pool, ids[0], 2, 20).await.unwrap();
+        let without_deleted = load_topology(&pool, &tenant, ids[0], 2, 20).await.unwrap();
         assert!(
             without_deleted["nodes"]
                 .as_array()

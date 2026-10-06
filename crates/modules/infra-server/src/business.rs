@@ -1,14 +1,19 @@
 use crate::{
-    InfraState, QueryParams, TableSpec, id_param, ids_param, soft_delete, table_create, table_get,
-    table_list, table_page, table_update,
+    InfraState, QueryParams, TableSpec, id_param, ids_param, tenant_soft_delete,
+    tenant_table_create, tenant_table_get, tenant_table_get_value, tenant_table_list,
+    tenant_table_list_by_i64, tenant_table_page, tenant_table_update,
 };
-use aide::axum::ApiRouter;
-use aide::axum::routing::{delete, get, post, put};
+use aide::axum::{
+    ApiRouter,
+    routing::{delete, get, post, put},
+};
 use axum::{
     Json,
     extract::{Query, State},
 };
 use rustset_framework_common::ApiResponse;
+use rustset_framework_security::CurrentUser;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -46,67 +51,98 @@ pub fn routes() -> ApiRouter<InfraState> {
         )
 }
 
+fn tenant(user: &CurrentUser) -> Result<TenantContext, AppError> {
+    TenantContext::from_user(user)
+}
 async fn app_page(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, BUSINESS_APP, p).await
+    tenant_table_page(&s.pool, tenant(&user)?.id(), BUSINESS_APP, p).await
 }
 async fn app_list(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, BUSINESS_APP).await
+    tenant_table_list(&s.pool, tenant(&user)?.id(), BUSINESS_APP).await
 }
 async fn app_get(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let tenant = tenant(&user)?;
     let id = id_param(&p)?;
-    let mut app = crate::table_get_value(&state.pool, BUSINESS_APP, id).await?;
-    let endpoints = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_application_endpoint t WHERE business_application_id=$1 AND deleted=0 ORDER BY id").bind(id).fetch_all(&state.pool).await.map_err(|_| AppError::internal("failed"))?.into_iter().map(crate::table_value).collect::<Vec<_>>();
-    if let Some(obj) = app.as_object_mut() {
-        obj.insert("endpoints".into(), Value::Array(endpoints));
+    let mut app = tenant_table_get_value(&s.pool, tenant.id(), BUSINESS_APP, id).await?;
+    let endpoints = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_application_endpoint t WHERE business_application_id=$1 AND tenant_id=$2 AND deleted=0 ORDER BY id")
+        .bind(id).bind(tenant.id()).fetch_all(&s.pool).await.map_err(|_| AppError::internal("failed to list application endpoints"))?
+        .into_iter().map(crate::table_value).collect::<Vec<_>>();
+    if let Some(object) = app.as_object_mut() {
+        object.insert("endpoints".into(), Value::Array(endpoints));
     }
     Ok(Json(ApiResponse::new(app)))
 }
 async fn app_create(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    table_create(&state.pool, BUSINESS_APP, p).await
+    tenant_table_create(&s.pool, tenant(&user)?.id(), BUSINESS_APP, p).await
 }
 async fn app_update(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    table_update(&state.pool, BUSINESS_APP, p).await
+    tenant_table_update(&s.pool, tenant(&user)?.id(), BUSINESS_APP, p).await
 }
 async fn app_delete(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = tenant(&user)?;
     let id = id_param(&p)?;
-    let _ = sqlx::query("UPDATE infra_application_endpoint SET deleted=1, update_time=now() WHERE business_application_id=$1 AND deleted=0").bind(id).execute(&state.pool).await;
-    soft_delete(&state.pool, BUSINESS_APP.table, id).await
+    let mut tx = s
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to start application delete"))?;
+    let result = sqlx::query("UPDATE infra_business_application SET deleted=1, update_time=now() WHERE id=$1 AND tenant_id=$2 AND deleted=0")
+        .bind(id).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to delete application"))?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found("record not found"));
+    }
+    sqlx::query("UPDATE infra_application_endpoint SET deleted=1, update_time=now() WHERE business_application_id=$1 AND tenant_id=$2 AND deleted=0")
+        .bind(id).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to delete application endpoints"))?;
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit application delete"))?;
+    Ok(Json(ApiResponse::new(())))
 }
 
 async fn ep_page(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, ENDPOINT, p).await
+    tenant_table_page(&s.pool, tenant(&user)?.id(), ENDPOINT, p).await
 }
 async fn ep_list(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, ENDPOINT).await
+    tenant_table_list(&s.pool, tenant(&user)?.id(), ENDPOINT).await
 }
 async fn ep_list_by_app(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    crate::table_list_by_i64(
-        &state.pool,
+    tenant_table_list_by_i64(
+        &s.pool,
+        tenant(&user)?.id(),
         ENDPOINT,
         "business_application_id",
         crate::id_named_param(&p, "businessApplicationId")?,
@@ -114,32 +150,43 @@ async fn ep_list_by_app(
     .await
 }
 async fn ep_get(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, ENDPOINT, id_param(&p)?).await
+    tenant_table_get(&s.pool, tenant(&user)?.id(), ENDPOINT, id_param(&p)?).await
 }
 async fn ep_create(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    table_create(&state.pool, ENDPOINT, p).await
+    tenant_table_create(&s.pool, tenant(&user)?.id(), ENDPOINT, p).await
 }
 async fn ep_update(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    table_update(&state.pool, ENDPOINT, p).await
+    tenant_table_update(&s.pool, tenant(&user)?.id(), ENDPOINT, p).await
 }
 async fn ep_delete(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, ENDPOINT.table, id_param(&p)?).await
+    tenant_soft_delete(
+        &s.pool,
+        tenant(&user)?.id(),
+        ENDPOINT.table,
+        &[id_param(&p)?],
+    )
+    .await
 }
 async fn ep_delete_list(
-    State(state): State<InfraState>,
+    State(s): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    crate::soft_delete_list(&state.pool, ENDPOINT.table, ids_param(&p)).await
+    tenant_soft_delete(&s.pool, tenant(&user)?.id(), ENDPOINT.table, &ids_param(&p)).await
 }

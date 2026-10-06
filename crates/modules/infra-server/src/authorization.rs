@@ -592,12 +592,12 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("POST", "/infra/asset/create", Some("infra:asset:create")),
     ("POST", "/infra/asset/discover", Some("infra:asset:update")),
-    ("POST", "/infra/asset/sync-cmdb", Some("infra:asset:update")),
     (
         "POST",
         "/infra/asset/import-csv",
         Some("infra:asset:create"),
     ),
+    ("POST", "/infra/asset/sync-cmdb", Some("infra:asset:update")),
     (
         "POST",
         "/infra/asset/{id}/port/add",
@@ -912,7 +912,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 207);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 210);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

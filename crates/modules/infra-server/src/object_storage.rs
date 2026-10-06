@@ -1,8 +1,8 @@
 use aws_sdk_s3::{
     Client,
     config::{Credentials, Region},
-    primitives::ByteStream,
     presigning::PresigningConfig,
+    primitives::ByteStream,
 };
 use std::{env, time::Duration};
 
@@ -19,8 +19,8 @@ pub(crate) enum ObjectReadError {
 
 impl ObjectStorage {
     pub fn from_env() -> Result<Self, String> {
-        let endpoint = env::var("RUSTFS_ENDPOINT")
-            .unwrap_or_else(|_| "http://127.0.0.1:9000".to_owned());
+        let endpoint =
+            env::var("RUSTFS_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9000".to_owned());
         let local_endpoint = endpoint.starts_with("http://127.0.0.1:")
             || endpoint.starts_with("http://localhost:")
             || endpoint.starts_with("https://127.0.0.1:")
@@ -28,22 +28,44 @@ impl ObjectStorage {
         let access_key = env::var("RUSTFS_ACCESS_KEY").ok();
         let secret_key = env::var("RUSTFS_SECRET_KEY").ok();
         if !local_endpoint && (access_key.is_none() || secret_key.is_none()) {
-            return Err("RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY are required for non-local endpoints".to_owned());
+            return Err(
+                "RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY are required for non-local endpoints"
+                    .to_owned(),
+            );
         }
         let using_local_defaults = access_key.is_none() || secret_key.is_none();
         let access_key = access_key.unwrap_or_else(|| "rustset".to_owned());
         let secret_key = secret_key.unwrap_or_else(|| "rustset_password".to_owned());
         if using_local_defaults {
-            tracing::warn!("using development RustFS credentials; set RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY outside local development");
+            tracing::warn!(
+                "using development RustFS credentials; set RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY outside local development"
+            );
         }
         let region = env::var("RUSTFS_REGION").unwrap_or_else(|_| "us-east-1".to_owned());
         let bucket = env::var("RUSTFS_BUCKET").unwrap_or_else(|_| "rustset".to_owned());
+        let attempt_timeout = Duration::from_secs(
+            env::var("RUSTFS_REQUEST_TIMEOUT_SECONDS")
+                .ok()
+                .and_then(|value| value.parse().ok())
+                .unwrap_or(30)
+                .clamp(1, 3_600),
+        );
         let credentials = Credentials::new(access_key, secret_key, None, None, "rustfs");
+        let timeouts = aws_sdk_s3::config::timeout::TimeoutConfig::builder()
+            .connect_timeout(Duration::from_secs(10))
+            // The operation budget covers three attempts so SDK retries stay bounded.
+            .operation_attempt_timeout(attempt_timeout)
+            .operation_timeout(attempt_timeout * 3)
+            .build();
         let config = aws_sdk_s3::Config::builder()
+            // Required since aws-sdk-s3 made the behavior version explicit;
+            // client construction panics without it.
+            .behavior_version(aws_sdk_s3::config::BehaviorVersion::latest())
             .region(Region::new(region))
             .credentials_provider(credentials)
             .endpoint_url(endpoint)
             .force_path_style(true)
+            .timeout_config(timeouts)
             .build();
 
         Ok(Self {
@@ -81,6 +103,17 @@ impl ObjectStorage {
             }
         }
         Err(last_error)
+    }
+
+    /// Signed HEAD only; readiness probes must never create or mutate state.
+    pub async fn check_readiness(&self) -> Result<(), String> {
+        self.client
+            .head_bucket()
+            .bucket(&self.bucket)
+            .send()
+            .await
+            .map(|_| ())
+            .map_err(|error| format!("object storage readiness check failed: {error}"))
     }
 
     pub(crate) async fn put(
@@ -127,7 +160,9 @@ impl ObjectStorage {
             .await
             .map(|body| body.into_bytes().to_vec())
             .map_err(|error| {
-                ObjectReadError::Unavailable(format!("failed to read RustFS response body: {error}"))
+                ObjectReadError::Unavailable(format!(
+                    "failed to read RustFS response body: {error}"
+                ))
             })
     }
 

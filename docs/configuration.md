@@ -34,6 +34,8 @@
 | `RUSTFS_SECRET_KEY` | `rustset_password` | S3 secret key |
 | `RUSTFS_REGION` | `us-east-1` | S3 签名区域 |
 | `RUSTFS_BUCKET` | `rustset` | 文件 bucket；网关启动时自动检查并创建 |
+| `RUSTFS_REQUEST_TIMEOUT_SECONDS` | `30` | 单次 S3 请求尝试超时（钳制 1–3600 秒）；整次调用（含 SDK 重试）上限为 3 倍 |
+| `READINESS_REQUIRE_OBJECT_STORAGE` | 见说明 | `/health/ready` 是否将对象存储列为必需；默认在 `RUST_ENV=production` 或显式设置 `RUSTFS_ENDPOINT` 时开启 |
 | `INFRA_UPLOAD_MAX_BYTES` | `52428800` | 单文件大小上限（字节），服务端上传和预签名直传均校验 |
 
 部署时设置独立凭据，例如：

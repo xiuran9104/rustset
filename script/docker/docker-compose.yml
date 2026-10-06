@@ -26,13 +26,11 @@ services:
 
   rustfs:
     # MinIO is unmaintained; RustFS is the S3-compatible replacement.
-    # S3 API on 9000, web console on 9001, data dir /data. The server runs as
-    # uid 10001, so the named volume must be chown'ed before first start.
+    # S3 API on 9000, web console on 9001, data dir /data. The image ships
+    # /data owned by the container user, so a fresh named volume inherits
+    # writable ownership without a permission helper.
     image: rustfs/rustfs:1.0.0
     container_name: rustset-rustfs
-    depends_on:
-      rustfs-volume-permissions:
-        condition: service_completed_successfully
     environment:
       RUSTFS_VOLUMES: /data
       RUSTFS_ADDRESS: 0.0.0.0:9000
@@ -40,18 +38,18 @@ services:
       RUSTFS_CONSOLE_ENABLE: "true"
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustset}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustset_password}
+      RUSTFS_OBS_LOGGER_LEVEL: warn
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     volumes:
       - rustset-rustfs:/data
-
-  rustfs-volume-permissions:
-    image: alpine
-    volumes:
-      - rustset-rustfs:/data
-    command: chown -R 10001:10001 /data
-    restart: "no"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
 volumes:
   rustset-postgres:

@@ -505,13 +505,11 @@ async fn file_download(
         .storage
         .get(&path)
         .await
-        .map_err(|error| {
-            match error {
-                object_storage::ObjectReadError::NotFound => AppError::not_found("file not found"),
-                object_storage::ObjectReadError::Unavailable(error) => {
-                    warn!(%error, object_key = %path, "RustFS file download failed");
-                    AppError::internal("object storage is unavailable")
-                }
+        .map_err(|error| match error {
+            object_storage::ObjectReadError::NotFound => AppError::not_found("file not found"),
+            object_storage::ObjectReadError::Unavailable(error) => {
+                warn!(%error, object_key = %path, "RustFS file download failed");
+                AppError::internal("object storage is unavailable")
             }
         })?;
     let content_type = infer_content_type(&path);
@@ -586,7 +584,12 @@ async fn file_presigned_url(
         .map(|value| sanitize_file_name(value))
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "upload".into());
-    let key = format!("{directory}/{}_{}_{}", Utc::now().format("%Y%m%d"), uuid::Uuid::new_v4(), name);
+    let key = format!(
+        "{directory}/{}_{}_{}",
+        Utc::now().format("%Y%m%d"),
+        uuid::Uuid::new_v4(),
+        name
+    );
     let upload_url = state
         .storage
         .presign_put(&key, size as i64)
@@ -620,24 +623,19 @@ async fn file_delete_list(
 }
 
 async fn delete_file_record(state: &InfraState, id: i64) -> Result<(), AppError> {
-    let path = sqlx::query_scalar::<_, String>(
-        "SELECT path FROM infra_file WHERE id=$1 AND deleted=0",
-    )
-    .bind(id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|_| AppError::internal("failed to load file metadata"))?
-    .ok_or_else(|| AppError::not_found("file not found"))?;
+    let path =
+        sqlx::query_scalar::<_, String>("SELECT path FROM infra_file WHERE id=$1 AND deleted=0")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| AppError::internal("failed to load file metadata"))?
+            .ok_or_else(|| AppError::not_found("file not found"))?;
 
     if let Some(key) = object_key_from_upload_path(&path) {
-        state
-            .storage
-            .delete(key)
-            .await
-            .map_err(|error| {
-                warn!(%error, object_key = %key, "failed to delete file from RustFS");
-                AppError::internal("failed to delete file from object storage")
-            })?;
+        state.storage.delete(key).await.map_err(|error| {
+            warn!(%error, object_key = %key, "failed to delete file from RustFS");
+            AppError::internal("failed to delete file from object storage")
+        })?;
     }
     let _ = soft_delete(&state.pool, "infra_file", id).await?;
     Ok(())
@@ -645,7 +643,11 @@ async fn delete_file_record(state: &InfraState, id: i64) -> Result<(), AppError>
 
 fn object_key_from_upload_path(path: &str) -> Option<&str> {
     let key = path.strip_prefix("/upload/")?;
-    if key.is_empty() || key.split('/').any(|part| part.is_empty() || part == "." || part == "..") {
+    if key.is_empty()
+        || key
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+    {
         return None;
     }
     Some(key)
@@ -1288,37 +1290,6 @@ pub(crate) async fn table_list(
     Ok(Json(ApiResponse::new(list)))
 }
 
-pub(crate) async fn table_list_by_i64(
-    pool: &PgPool,
-    spec: TableSpec,
-    column: &str,
-    value: i64,
-) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    let sql = format!(
-        "SELECT to_jsonb(t) FROM {} t WHERE {column}=$1 AND deleted=0 ORDER BY id",
-        spec.table
-    );
-    let list = sqlx::query_scalar::<_, Value>(&sql)
-        .bind(value)
-        .fetch_all(pool)
-        .await
-        .map_err(|_| AppError::internal("failed to list records"))?
-        .into_iter()
-        .map(table_value)
-        .collect();
-    Ok(Json(ApiResponse::new(list)))
-}
-
-pub(crate) async fn table_get(
-    pool: &PgPool,
-    spec: TableSpec,
-    id: i64,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
-    Ok(Json(ApiResponse::new(
-        table_get_value(pool, spec, id).await?,
-    )))
-}
-
 pub(crate) async fn table_get_value(
     pool: &PgPool,
     spec: TableSpec,
@@ -1335,41 +1306,6 @@ pub(crate) async fn table_get_value(
         .map_err(|_| AppError::internal("failed to get record"))?
         .ok_or_else(|| AppError::not_found("record not found"))?;
     Ok(table_value(value))
-}
-
-pub(crate) async fn table_create(
-    pool: &PgPool,
-    spec: TableSpec,
-    payload: Value,
-) -> Result<Json<ApiResponse<String>>, AppError> {
-    let db_payload = camel_payload_to_snake(payload);
-    let missing = missing_required_fields(pool, spec.table, &db_payload).await?;
-    if !missing.is_empty() {
-        return Err(AppError::bad_request(format!(
-            "missing required fields: {}",
-            missing.join(", ")
-        )));
-    }
-    let columns = table_writable_columns(pool, spec.table, &db_payload, false).await?;
-    if columns.is_empty() {
-        return Err(AppError::bad_request("no writable fields"));
-    }
-    let column_sql = columns.join(", ");
-    let record_sql = columns
-        .iter()
-        .map(|column| format!("r.{column}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let sql = format!(
-        "INSERT INTO {} (id, {}) SELECT nextval('{}'), {} FROM jsonb_populate_record(NULL::{}, $1::jsonb) AS r RETURNING id",
-        spec.table, column_sql, spec.seq, record_sql, spec.table
-    );
-    let id = sqlx::query_scalar::<_, i64>(&sql)
-        .bind(db_payload)
-        .fetch_one(pool)
-        .await
-        .map_err(|error| record_query_error("create", error))?;
-    Ok(Json(ApiResponse::new(id.to_string())))
 }
 
 pub(crate) async fn table_update(
@@ -1401,6 +1337,208 @@ pub(crate) async fn table_update(
         .execute(pool)
         .await
         .map_err(|error| record_query_error("update", error))?;
+    Ok(Json(ApiResponse::new(())))
+}
+
+pub(crate) async fn tenant_table_page(
+    pool: &PgPool,
+    tenant_id: i64,
+    spec: TableSpec,
+    params: QueryParams,
+) -> Result<Json<ApiResponse<Page<Value>>>, AppError> {
+    let page_no = params.page_no.unwrap_or(1).max(1);
+    let page_size = params.page_size.unwrap_or(10).clamp(1, 200);
+    let offset = (page_no - 1) * page_size;
+    let total_sql = format!(
+        "SELECT count(*) FROM {} WHERE tenant_id=$1 AND deleted=0",
+        spec.table
+    );
+    let total = sqlx::query_scalar::<_, i64>(&total_sql)
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|_| AppError::internal("failed to count records"))?;
+    let list_sql = format!(
+        "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id DESC LIMIT $2 OFFSET $3",
+        spec.table
+    );
+    let list = sqlx::query_scalar::<_, Value>(&list_sql)
+        .bind(tenant_id)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::internal("failed to list records"))?
+        .into_iter()
+        .map(table_value)
+        .collect();
+    Ok(Json(ApiResponse::new(Page { list, total })))
+}
+
+pub(crate) async fn tenant_table_list(
+    pool: &PgPool,
+    tenant_id: i64,
+    spec: TableSpec,
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    let sql = format!(
+        "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id",
+        spec.table
+    );
+    let list = sqlx::query_scalar::<_, Value>(&sql)
+        .bind(tenant_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::internal("failed to list records"))?
+        .into_iter()
+        .map(table_value)
+        .collect();
+    Ok(Json(ApiResponse::new(list)))
+}
+
+pub(crate) async fn tenant_table_list_by_i64(
+    pool: &PgPool,
+    tenant_id: i64,
+    spec: TableSpec,
+    column: &str,
+    value: i64,
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    let sql = format!(
+        "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND {column}=$2 AND deleted=0 ORDER BY id",
+        spec.table
+    );
+    let list = sqlx::query_scalar::<_, Value>(&sql)
+        .bind(tenant_id)
+        .bind(value)
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::internal("failed to list records"))?
+        .into_iter()
+        .map(table_value)
+        .collect();
+    Ok(Json(ApiResponse::new(list)))
+}
+
+pub(crate) async fn tenant_table_get(
+    pool: &PgPool,
+    tenant_id: i64,
+    spec: TableSpec,
+    id: i64,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    Ok(Json(ApiResponse::new(
+        tenant_table_get_value(pool, tenant_id, spec, id).await?,
+    )))
+}
+
+pub(crate) async fn tenant_table_get_value(
+    pool: &PgPool,
+    tenant_id: i64,
+    spec: TableSpec,
+    id: i64,
+) -> Result<Value, AppError> {
+    let sql = format!(
+        "SELECT to_jsonb(t) FROM {} t WHERE id=$1 AND tenant_id=$2 AND deleted=0",
+        spec.table
+    );
+    let value = sqlx::query_scalar::<_, Value>(&sql)
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| AppError::internal("failed to get record"))?
+        .ok_or_else(|| AppError::not_found("record not found"))?;
+    Ok(table_value(value))
+}
+
+pub(crate) async fn tenant_table_create(
+    pool: &PgPool,
+    tenant_id: i64,
+    spec: TableSpec,
+    payload: Value,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    let mut db_payload = camel_payload_to_snake(payload);
+    db_payload
+        .as_object_mut()
+        .ok_or_else(|| AppError::bad_request("request body must be an object"))?
+        .insert("tenant_id".into(), Value::from(tenant_id));
+    let missing = missing_required_fields(pool, spec.table, &db_payload).await?;
+    if !missing.is_empty() {
+        return Err(AppError::bad_request(format!(
+            "missing required fields: {}",
+            missing.join(", ")
+        )));
+    }
+    let mut columns = table_writable_columns(pool, spec.table, &db_payload, false).await?;
+    columns.push("tenant_id".into());
+    let column_sql = columns.join(", ");
+    let record_sql = columns
+        .iter()
+        .map(|column| format!("r.{column}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "INSERT INTO {} (id, {}) SELECT nextval('{}'), {} FROM jsonb_populate_record(NULL::{}, $1::jsonb) AS r RETURNING id",
+        spec.table, column_sql, spec.seq, record_sql, spec.table
+    );
+    let id = sqlx::query_scalar::<_, i64>(&sql)
+        .bind(db_payload)
+        .fetch_one(pool)
+        .await
+        .map_err(|error| record_query_error("create", error))?;
+    Ok(Json(ApiResponse::new(id.to_string())))
+}
+
+pub(crate) async fn tenant_table_update(
+    pool: &PgPool,
+    tenant_id: i64,
+    spec: TableSpec,
+    payload: Value,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let id = i64_field(&payload, "id", 0);
+    if id == 0 {
+        return Err(AppError::bad_request("id is required"));
+    }
+    let db_payload = camel_payload_to_snake(payload);
+    let columns = table_writable_columns(pool, spec.table, &db_payload, true).await?;
+    if columns.is_empty() {
+        return Ok(Json(ApiResponse::new(())));
+    }
+    let set_sql = columns
+        .iter()
+        .map(|column| format!("{column}=r.{column}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "UPDATE {} t SET {}, update_time=now() FROM jsonb_populate_record(NULL::{}, $3::jsonb) AS r WHERE t.id=$1 AND t.tenant_id=$2 AND t.deleted=0",
+        spec.table, set_sql, spec.table
+    );
+    let result = sqlx::query(&sql)
+        .bind(id)
+        .bind(tenant_id)
+        .bind(db_payload)
+        .execute(pool)
+        .await
+        .map_err(|error| record_query_error("update", error))?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found("record not found"));
+    }
+    Ok(Json(ApiResponse::new(())))
+}
+
+pub(crate) async fn tenant_soft_delete(
+    pool: &PgPool,
+    tenant_id: i64,
+    table: &str,
+    ids: &[i64],
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let sql = format!(
+        "UPDATE {table} SET deleted=1, update_time=now() WHERE tenant_id=$1 AND id = ANY($2) AND deleted=0"
+    );
+    sqlx::query(&sql)
+        .bind(tenant_id)
+        .bind(ids)
+        .execute(pool)
+        .await
+        .map_err(|_| AppError::internal("failed to delete records"))?;
     Ok(Json(ApiResponse::new(())))
 }
 
@@ -1792,7 +1930,11 @@ mod api_contract_tests {
             .connect_lazy("postgres://rustset:rustset@127.0.0.1:5432/rustset")
             .unwrap();
         let mut document = aide::openapi::OpenApi::default();
-        let _router = routes(InfraState::new(pool)).finish_api(&mut document);
+        let _router = routes(InfraState::new(
+            pool,
+            crate::object_storage::ObjectStorage::from_env().unwrap(),
+        ))
+        .finish_api(&mut document);
         let json = serde_json::to_string(&document).unwrap();
         for schema in [
             "CreateScanTaskRequest",

@@ -1,6 +1,7 @@
 use crate::{
-    InfraState, QueryParams, TableSpec, id_param, ids_param, soft_delete, soft_delete_list,
-    table_create, table_get, table_list, table_page, table_update,
+    InfraState, QueryParams, TableSpec, id_param, ids_param, tenant_soft_delete,
+    tenant_table_create, tenant_table_get, tenant_table_get_value, tenant_table_list,
+    tenant_table_list_by_i64, tenant_table_page, tenant_table_update,
 };
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -9,6 +10,8 @@ use axum::{
     extract::{Query, State},
 };
 use rustset_framework_common::ApiResponse;
+use rustset_framework_security::CurrentUser;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -25,6 +28,10 @@ const CLOUD_PROVIDER_CONFIG: TableSpec = TableSpec {
     table: "infra_cloud_provider_config",
     seq: "infra_cloud_provider_config_seq",
 };
+
+fn tenant(user: &CurrentUser) -> Result<TenantContext, AppError> {
+    TenantContext::from_user(user)
+}
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
@@ -67,63 +74,92 @@ pub fn routes() -> ApiRouter<InfraState> {
 
 async fn zone_page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, CLOUD_ZONE, params).await
+    tenant_table_page(&state.pool, tenant(&user)?.id(), CLOUD_ZONE, params).await
 }
 async fn zone_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, CLOUD_ZONE).await
+    tenant_table_list(&state.pool, tenant(&user)?.id(), CLOUD_ZONE).await
 }
 async fn zone_get(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, CLOUD_ZONE, id_param(&params)?).await
+    tenant_table_get(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_ZONE,
+        id_param(&params)?,
+    )
+    .await
 }
 async fn zone_create(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    table_create(&state.pool, CLOUD_ZONE, payload).await
+    tenant_table_create(&state.pool, tenant(&user)?.id(), CLOUD_ZONE, payload).await
 }
 async fn zone_update(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    table_update(&state.pool, CLOUD_ZONE, payload).await
+    tenant_table_update(&state.pool, tenant(&user)?.id(), CLOUD_ZONE, payload).await
 }
 async fn zone_delete(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, CLOUD_ZONE.table, id_param(&params)?).await
+    tenant_soft_delete(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_ZONE.table,
+        &[id_param(&params)?],
+    )
+    .await
 }
 async fn zone_delete_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete_list(&state.pool, CLOUD_ZONE.table, ids_param(&params)).await
+    tenant_soft_delete(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_ZONE.table,
+        &ids_param(&params),
+    )
+    .await
 }
 
 async fn platform_page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, CLOUD_PLATFORM, params).await
+    tenant_table_page(&state.pool, tenant(&user)?.id(), CLOUD_PLATFORM, params).await
 }
 async fn platform_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, CLOUD_PLATFORM).await
+    tenant_table_list(&state.pool, tenant(&user)?.id(), CLOUD_PLATFORM).await
 }
 async fn platform_list_by_zone(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    crate::table_list_by_i64(
+    tenant_table_list_by_i64(
         &state.pool,
+        tenant(&user)?.id(),
         CLOUD_PLATFORM,
         "zone_id",
         crate::id_named_param(&params, "zoneId")?,
@@ -132,86 +168,156 @@ async fn platform_list_by_zone(
 }
 async fn platform_get(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, CLOUD_PLATFORM, id_param(&params)?).await
+    tenant_table_get(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PLATFORM,
+        id_param(&params)?,
+    )
+    .await
 }
 async fn platform_create(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    table_create(&state.pool, CLOUD_PLATFORM, payload).await
+    tenant_table_create(&state.pool, tenant(&user)?.id(), CLOUD_PLATFORM, payload).await
 }
 async fn platform_update(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    table_update(&state.pool, CLOUD_PLATFORM, payload).await
+    tenant_table_update(&state.pool, tenant(&user)?.id(), CLOUD_PLATFORM, payload).await
 }
 async fn platform_delete(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, CLOUD_PLATFORM.table, id_param(&params)?).await
+    tenant_soft_delete(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PLATFORM.table,
+        &[id_param(&params)?],
+    )
+    .await
 }
 async fn platform_delete_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete_list(&state.pool, CLOUD_PLATFORM.table, ids_param(&params)).await
+    tenant_soft_delete(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PLATFORM.table,
+        &ids_param(&params),
+    )
+    .await
 }
 
 async fn config_page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, CLOUD_PROVIDER_CONFIG, params).await
+    tenant_table_page(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PROVIDER_CONFIG,
+        params,
+    )
+    .await
 }
 async fn config_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, CLOUD_PROVIDER_CONFIG).await
+    tenant_table_list(&state.pool, tenant(&user)?.id(), CLOUD_PROVIDER_CONFIG).await
 }
 async fn config_get(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, CLOUD_PROVIDER_CONFIG, id_param(&params)?).await
+    tenant_table_get(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PROVIDER_CONFIG,
+        id_param(&params)?,
+    )
+    .await
 }
 async fn config_create(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    table_create(&state.pool, CLOUD_PROVIDER_CONFIG, payload).await
+    tenant_table_create(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PROVIDER_CONFIG,
+        payload,
+    )
+    .await
 }
 async fn config_update(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(payload): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    table_update(&state.pool, CLOUD_PROVIDER_CONFIG, payload).await
+    tenant_table_update(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PROVIDER_CONFIG,
+        payload,
+    )
+    .await
 }
 async fn config_delete(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, CLOUD_PROVIDER_CONFIG.table, id_param(&params)?).await
+    tenant_soft_delete(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PROVIDER_CONFIG.table,
+        &[id_param(&params)?],
+    )
+    .await
 }
 async fn config_delete_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete_list(&state.pool, CLOUD_PROVIDER_CONFIG.table, ids_param(&params)).await
+    tenant_soft_delete(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PROVIDER_CONFIG.table,
+        &ids_param(&params),
+    )
+    .await
 }
 
 async fn config_test_connection(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let id = id_param(&params)?;
+    let tenant = tenant(&user)?;
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let config = crate::table_get_value(&state.pool, CLOUD_PROVIDER_CONFIG, id).await?;
+    let config =
+        tenant_table_get_value(&state.pool, tenant.id(), CLOUD_PROVIDER_CONFIG, id).await?;
     let ticket = json!({"cloudPlatformId": config.get("platformId")});
-    let (target, _) = crate::ticket::load_platform_target(&state, &ticket, Some(id)).await?;
+    let (target, _) =
+        crate::ticket::load_platform_target(&state, &tenant, &ticket, Some(id)).await?;
     let template =
         rustset_framework_tofu::render_connection_check(&target).map_err(AppError::bad_request)?;
     let executor = rustset_framework_tofu::TofuExecutor::from_env();
@@ -246,8 +352,8 @@ async fn config_test_connection(
             "Provider 初始化失败，请检查 OpenTofu 安装和 Provider 下载网络",
         )
     };
-    sqlx::query("UPDATE infra_cloud_provider_config SET last_test_time=$2::timestamp, last_test_result=$3, update_time=now() WHERE id=$1 AND deleted=0")
-        .bind(id).bind(&now).bind(message).execute(&state.pool).await.map_err(|_| AppError::internal("failed to save connection test"))?;
+    sqlx::query("UPDATE infra_cloud_provider_config SET last_test_time=$2::timestamp, last_test_result=$3, update_time=now() WHERE id=$1 AND tenant_id=$4 AND deleted=0")
+        .bind(id).bind(&now).bind(message).bind(tenant.id()).execute(&state.pool).await.map_err(|_| AppError::internal("failed to save connection test"))?;
     // A probe never manages resources; only its uniquely created temporary files.
     let _ = std::fs::remove_dir_all(&workspace);
     Ok(Json(ApiResponse::new(

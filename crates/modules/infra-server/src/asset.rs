@@ -2,8 +2,9 @@ mod csv;
 mod policy_risk;
 mod repository;
 use crate::{
-    InfraState, QueryParams, TableSpec, id_param, ids_param, soft_delete, soft_delete_list,
-    table_create, table_get, table_list, table_page, table_update,
+    InfraState, QueryParams, TableSpec, id_param, ids_param, tenant_soft_delete,
+    tenant_table_create, tenant_table_get, tenant_table_list, tenant_table_page,
+    tenant_table_update,
 };
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -82,17 +83,6 @@ pub fn routes() -> ApiRouter<InfraState> {
             "/infra/network-policy/recheck-risks",
             post(network_policy_recheck_risks),
         )
-        .api_route("/infra/cloud-asset/page", get(cloud_asset_page))
-        .api_route("/infra/cloud-asset/list", get(cloud_asset_list))
-        .api_route("/infra/cloud-asset/get", get(cloud_asset_get))
-        .api_route("/infra/cloud-asset/create", post(cloud_asset_create))
-        .api_route("/infra/cloud-asset/update", put(cloud_asset_update))
-        .api_route("/infra/cloud-asset/delete", delete(cloud_asset_delete))
-        .api_route("/infra/cloud-resource/page", get(cloud_resource_page))
-        .api_route("/infra/cloud-resource/list", get(cloud_resource_list))
-        .api_route("/infra/cloud-resource/get", get(cloud_resource_get))
-        .api_route("/infra/cloud-resource/create", post(cloud_resource_create))
-        .api_route("/infra/cloud-resource/update", put(cloud_resource_update))
         .api_route(
             "/infra/cloud-resource/delete",
             delete(cloud_resource_delete),
@@ -535,41 +525,60 @@ async fn asset_delete_port(
 
 async fn cloud_asset_page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, CLOUD_ASSET, p).await
+    tenant_table_page(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_ASSET,
+        p,
+    )
+    .await
 }
 async fn cloud_asset_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, CLOUD_ASSET).await
+    tenant_table_list(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_ASSET,
+    )
+    .await
 }
 
 async fn cloud_asset_discover(
     State(state): State<InfraState>,
     user: CurrentUser,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let rows = sqlx::query("SELECT id, ecs_name, ecs_status, resource_id, cloud_region, cloud_category, cloud_provider_config_id, platform_name, instance_id, ecs_type, ecs_os, cpu_cores, memory_gb, ip_address, remarks FROM infra_cloud_resource WHERE deleted = 0 ORDER BY id")
-        .fetch_all(&state.pool).await.map_err(|_| AppError::internal("failed to read cloud resources"))?;
+    let tenant = TenantContext::from_user(&user)?;
+    let rows = sqlx::query("SELECT id, ecs_name, ecs_status, resource_id, cloud_region, cloud_category, cloud_provider_config_id, platform_name, instance_id, ecs_type, ecs_os, cpu_cores, memory_gb, ip_address, remarks FROM infra_cloud_resource WHERE tenant_id=$1 AND deleted = 0 ORDER BY id")
+        .bind(tenant.id()).fetch_all(&state.pool).await.map_err(|_| AppError::internal("failed to read cloud resources"))?;
     let mut tx = state
         .pool
         .begin()
         .await
         .map_err(|_| AppError::internal("failed to start cloud discovery"))?;
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(tenant.id())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::internal("failed to lock cloud discovery"))?;
     let mut created = 0_i64;
     let mut updated = 0_i64;
     for source in rows {
         let instance_id: String = source.get("instance_id");
         let config_id: Option<i64> = source.get("cloud_provider_config_id");
-        let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM infra_cloud_asset WHERE instance_id = $1 AND cloud_provider_config_id IS NOT DISTINCT FROM $2 AND deleted = 0 FOR UPDATE")
-            .bind(&instance_id).bind(config_id).fetch_optional(&mut *tx).await.map_err(|_| AppError::internal("failed to match cloud asset"))?;
+        let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM infra_cloud_asset WHERE instance_id = $1 AND cloud_provider_config_id IS NOT DISTINCT FROM $2 AND tenant_id=$3 AND deleted = 0 FOR UPDATE")
+            .bind(&instance_id).bind(config_id).bind(tenant.id()).fetch_optional(&mut *tx).await.map_err(|_| AppError::internal("failed to match cloud asset"))?;
         if let Some(id) = existing {
-            sqlx::query("UPDATE infra_cloud_asset SET provider_type=$2, platform_name=$3, region_id=$4, name=$5, status=$6, private_ip=$7, cpu_cores=$8, memory_gb=$9, instance_type=$10, os_name=$11, raw_payload=$12, synced_at=to_char(now(),'YYYY-MM-DD HH24:MI:SS'), updater=$13, update_time=now() WHERE id=$1")
-                .bind(id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to update discovered cloud asset"))?;
+            sqlx::query("UPDATE infra_cloud_asset SET provider_type=$2, platform_name=$3, region_id=$4, name=$5, status=$6, private_ip=$7, cpu_cores=$8, memory_gb=$9, instance_type=$10, os_name=$11, raw_payload=$12, synced_at=to_char(now(),'YYYY-MM-DD HH24:MI:SS'), updater=$13, update_time=now() WHERE id=$1 AND tenant_id=$14")
+                .bind(id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to update discovered cloud asset"))?;
             updated += 1;
         } else {
-            sqlx::query("INSERT INTO infra_cloud_asset (cloud_provider_config_id, provider_type, platform_name, region_id, instance_id, name, status, private_ip, cpu_cores, memory_gb, instance_type, os_name, raw_payload, synced_at, creator, updater) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,to_char(now(),'YYYY-MM-DD HH24:MI:SS'),$14,$14)")
-                .bind(config_id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(&instance_id).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to create discovered cloud asset"))?;
+            sqlx::query("INSERT INTO infra_cloud_asset (cloud_provider_config_id, provider_type, platform_name, region_id, instance_id, name, status, private_ip, cpu_cores, memory_gb, instance_type, os_name, raw_payload, synced_at, creator, updater, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,to_char(now(),'YYYY-MM-DD HH24:MI:SS'),$14,$14,$15)")
+                .bind(config_id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(&instance_id).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to create discovered cloud asset"))?;
             created += 1;
         }
     }
@@ -582,48 +591,97 @@ async fn cloud_asset_discover(
 }
 async fn cloud_asset_get(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, CLOUD_ASSET, id_param(&p)?).await
+    tenant_table_get(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_ASSET,
+        id_param(&p)?,
+    )
+    .await
 }
 async fn cloud_asset_create(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    table_create(&state.pool, CLOUD_ASSET, p).await
+    tenant_table_create(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_ASSET,
+        p,
+    )
+    .await
 }
 async fn cloud_asset_update(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    table_update(&state.pool, CLOUD_ASSET, p).await
+    tenant_table_update(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_ASSET,
+        p,
+    )
+    .await
 }
 async fn cloud_asset_delete(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, CLOUD_ASSET.table, id_param(&p)?).await
+    tenant_soft_delete(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_ASSET.table,
+        &[id_param(&p)?],
+    )
+    .await
 }
 
 async fn cloud_resource_page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, CLOUD_RESOURCE, p).await
+    tenant_table_page(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_RESOURCE,
+        p,
+    )
+    .await
 }
 async fn cloud_resource_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, CLOUD_RESOURCE).await
+    tenant_table_list(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_RESOURCE,
+    )
+    .await
 }
 async fn cloud_resource_get(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, CLOUD_RESOURCE, id_param(&p)?).await
+    tenant_table_get(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_RESOURCE,
+        id_param(&p)?,
+    )
+    .await
 }
 async fn cloud_resource_create(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     if let Some(object) = p.as_object_mut() {
@@ -636,76 +694,151 @@ async fn cloud_resource_create(
             .entry("instanceId".to_string())
             .or_insert(Value::String(resource_id));
     }
-    table_create(&state.pool, CLOUD_RESOURCE, p).await
+    tenant_table_create(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_RESOURCE,
+        p,
+    )
+    .await
 }
 async fn cloud_resource_update(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     if let Some(object) = p.as_object_mut() {
         normalize_security_product(object);
     }
-    table_update(&state.pool, CLOUD_RESOURCE, p).await
+    tenant_table_update(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_RESOURCE,
+        p,
+    )
+    .await
 }
 async fn cloud_resource_delete(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, CLOUD_RESOURCE.table, id_param(&p)?).await
+    tenant_soft_delete(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_RESOURCE.table,
+        &[id_param(&p)?],
+    )
+    .await
 }
 async fn cloud_resource_delete_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete_list(&state.pool, CLOUD_RESOURCE.table, ids_param(&p)).await
+    tenant_soft_delete(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        CLOUD_RESOURCE.table,
+        &ids_param(&p),
+    )
+    .await
 }
 
 async fn physical_resource_page(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
-    table_page(&state.pool, PHYSICAL_RESOURCE, p).await
+    tenant_table_page(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        PHYSICAL_RESOURCE,
+        p,
+    )
+    .await
 }
 async fn physical_resource_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    table_list(&state.pool, PHYSICAL_RESOURCE).await
+    tenant_table_list(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        PHYSICAL_RESOURCE,
+    )
+    .await
 }
 async fn physical_resource_get(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    table_get(&state.pool, PHYSICAL_RESOURCE, id_param(&p)?).await
+    tenant_table_get(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        PHYSICAL_RESOURCE,
+        id_param(&p)?,
+    )
+    .await
 }
 async fn physical_resource_create(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     if let Some(object) = p.as_object_mut() {
         normalize_security_product(object);
     }
-    table_create(&state.pool, PHYSICAL_RESOURCE, p).await
+    tenant_table_create(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        PHYSICAL_RESOURCE,
+        p,
+    )
+    .await
 }
 async fn physical_resource_update(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     if let Some(object) = p.as_object_mut() {
         normalize_security_product(object);
     }
-    table_update(&state.pool, PHYSICAL_RESOURCE, p).await
+    tenant_table_update(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        PHYSICAL_RESOURCE,
+        p,
+    )
+    .await
 }
 async fn physical_resource_delete(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete(&state.pool, PHYSICAL_RESOURCE.table, id_param(&p)?).await
+    tenant_soft_delete(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        PHYSICAL_RESOURCE.table,
+        &[id_param(&p)?],
+    )
+    .await
 }
 async fn physical_resource_delete_list(
     State(state): State<InfraState>,
+    user: CurrentUser,
     Query(p): Query<HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    soft_delete_list(&state.pool, PHYSICAL_RESOURCE.table, ids_param(&p)).await
+    tenant_soft_delete(
+        &state.pool,
+        TenantContext::from_user(&user)?.id(),
+        PHYSICAL_RESOURCE.table,
+        &ids_param(&p),
+    )
+    .await
 }
 
 /// `hasSecurityProduct` arrives as a boolean from the form but persists as an
