@@ -1,8 +1,8 @@
 mod repository;
 
 use crate::{
-    InfraState, QueryParams, TableSpec, id_param, opt_str_field, tenant_soft_delete,
-    tenant_table_create, tenant_table_list, tenant_table_page, tenant_table_update,
+    InfraState, QueryParams, TableSpec, id_param, tenant_soft_delete, tenant_table_create,
+    tenant_table_list, tenant_table_page, tenant_table_update,
 };
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -19,6 +19,10 @@ use rustset_framework_tofu::{
     render_tfvars,
 };
 use rustset_framework_web::AppError;
+use rustset_infra_api::{
+    ApproveResourceTicketRequest, CreateResourceTicketRequest, DeliverResourceTicketRequest,
+    ProvisionResourceTicketRequest,
+};
 use serde_json::{Map, Value, json};
 use sqlx::Row;
 use std::collections::HashMap;
@@ -72,10 +76,13 @@ async fn get_one(
 async fn create(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(mut payload): Json<Value>,
+    Json(request): Json<CreateResourceTicketRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
+    let mut payload = serde_json::to_value(request)
+        .map_err(|_| AppError::bad_request("invalid resource ticket"))?;
     if let Some(obj) = payload.as_object_mut() {
+        obj.retain(|_, value| !value.is_null());
         if let Some(Value::Bool(enabled)) = obj.get("hasSecurityProduct").cloned() {
             obj.insert(
                 "hasSecurityProduct".to_string(),
@@ -257,10 +264,10 @@ async fn approve(
     State(s): State<InfraState>,
     axum::extract::Path(id): axum::extract::Path<i64>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<ApproveResourceTicketRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
-    let approved = crate::bool_field(&payload, "approved", false);
+    let approved = payload.approved;
     let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
     let ticket = repository::get(&s.pool, &tenant, id).await?;
     if ticket.get("ticketStatus").and_then(|v| v.as_str()) != Some("pending_approval") {
@@ -274,7 +281,7 @@ async fn approve(
         approved_next_status(&ticket)
     };
     sqlx::query("UPDATE infra_resource_ticket SET ticket_status=$2, approver=$3, approve_time=$4, approve_comment=$5, update_time=now() WHERE id=$1 AND tenant_id=$6 AND deleted=0")
-        .bind(id).bind(new_status).bind(&user.username).bind(&now).bind(opt_str_field(&payload, "comment"))
+        .bind(id).bind(new_status).bind(&user.username).bind(&now).bind(payload.comment.as_deref())
         .bind(tenant.id()).execute(&s.pool).await.map_err(|_| AppError::internal("failed"))?;
     if approved && new_status == "delivered" {
         apply_resource_side_effect(&s, &tenant, &ticket).await;
@@ -365,9 +372,11 @@ async fn provision(
     State(s): State<InfraState>,
     axum::extract::Path(id): axum::extract::Path<i64>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<ProvisionResourceTicketRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
+    let payload = serde_json::to_value(payload)
+        .map_err(|_| AppError::bad_request("invalid provision request"))?;
     run_provision(&s, &tenant, id, &user.username, &payload).await
 }
 
@@ -1063,7 +1072,7 @@ async fn deliver(
     State(s): State<InfraState>,
     axum::extract::Path(id): axum::extract::Path<i64>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<DeliverResourceTicketRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
     let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
@@ -1077,7 +1086,7 @@ async fn deliver(
         .await
         .map_err(|_| AppError::internal("failed to begin delivery"))?;
     sqlx::query("UPDATE infra_resource_ticket SET ticket_status='delivered', delivery_status='已交付', deliverer=$2, deliver_time=$3, deliver_comment=$4, update_time=now() WHERE id=$1 AND tenant_id=$5 AND deleted=0")
-        .bind(id).bind(&user.username).bind(&now).bind(opt_str_field(&payload, "comment"))
+        .bind(id).bind(&user.username).bind(&now).bind(payload.comment.as_deref())
         .bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed"))?;
     // 闭环：新建类工单交付完成后，自动在业务资源台账落一条对应记录，
     // 与工单状态更新同事务，避免"交付了但台账没有"的半程状态。

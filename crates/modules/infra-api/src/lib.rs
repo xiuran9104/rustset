@@ -200,6 +200,80 @@ pub struct SaveInspectionBaselineRequest {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateResourceTicketRequest {
+    pub resource_type: String,
+    pub ecs_name: String,
+    pub idempotency_key: Option<String>,
+    pub ticket_type: Option<String>,
+    pub risk_level: Option<String>,
+    pub target_resource_id: Option<i64>,
+    pub target_resource_type: Option<String>,
+    pub target_config: Option<String>,
+    pub maintenance_window: Option<String>,
+    pub allow_interruption: Option<bool>,
+    pub backup_confirmed: Option<bool>,
+    pub rollback_plan: Option<String>,
+    pub retention_until: Option<String>,
+    pub provider_id: Option<i64>,
+    pub provider_name: Option<String>,
+    pub cloud_platform_id: Option<i64>,
+    pub cloud_platform_name: Option<String>,
+    pub machine_room_id: Option<i64>,
+    pub machine_room_name: Option<String>,
+    pub cloud_region: Option<String>,
+    pub cloud_category: Option<String>,
+    pub zone_name: Option<String>,
+    pub zone_cabinet: Option<String>,
+    pub rack_units: Option<i32>,
+    pub customer_name: Option<String>,
+    pub application_name: Option<String>,
+    pub application_endpoint_id: Option<i64>,
+    pub application_domain: Option<String>,
+    pub contract_name: Option<String>,
+    pub ecs_type: Option<String>,
+    pub ecs_os: Option<String>,
+    pub resource_count: Option<i32>,
+    pub cpu_cores: Option<i32>,
+    pub memory_gb: Option<i32>,
+    pub system_disk: Option<String>,
+    pub system_disk_size_gb: Option<i32>,
+    pub data_disk: Option<String>,
+    pub expire_at: Option<String>,
+    pub has_security_product: Option<bool>,
+    pub security_products: Option<String>,
+    pub ip_address: Option<String>,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ApproveResourceTicketRequest {
+    pub approved: bool,
+    pub comment: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProvisionResourceTicketRequest {
+    pub details: Option<String>,
+    pub config_id: Option<i64>,
+    pub image_id: Option<String>,
+    pub flavor: Option<String>,
+    pub availability_zone: Option<String>,
+    pub subnet_id: Option<String>,
+    pub vpc_id: Option<String>,
+    #[serde(default)]
+    pub security_groups: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DeliverResourceTicketRequest {
+    pub comment: Option<String>,
+}
+
 #[cfg(test)]
 mod contract_tests {
     use super::*;
@@ -242,5 +316,25 @@ mod contract_tests {
         assert_eq!(value["baselinePorts"], json!([22]));
         assert!(value.get("task_id").is_none());
         assert!(value.get("baseline_ports").is_none());
+    }
+
+    #[test]
+    fn ticket_write_contracts_reject_unknown_fields() {
+        let request: CreateResourceTicketRequest = serde_json::from_value(json!({
+            "resourceType": "cloud",
+            "ecsName": "web-01",
+            "idempotencyKey": "ticket-1",
+            "cpuCores": 4
+        }))
+        .unwrap();
+        assert_eq!(request.resource_type, "cloud");
+        assert_eq!(request.idempotency_key.as_deref(), Some("ticket-1"));
+        assert!(
+            serde_json::from_value::<ApproveResourceTicketRequest>(json!({
+                "approved": true,
+                "unexpected": "field"
+            }))
+            .is_err()
+        );
     }
 }

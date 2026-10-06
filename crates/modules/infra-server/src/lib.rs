@@ -1925,7 +1925,7 @@ mod api_contract_tests {
     use super::*;
 
     #[tokio::test]
-    async fn openapi_contains_typed_scan_and_inspection_contracts() {
+    async fn openapi_contains_typed_infra_contracts() {
         let pool = sqlx::postgres::PgPoolOptions::new()
             .connect_lazy("postgres://rustset:rustset@127.0.0.1:5432/rustset")
             .unwrap();
@@ -1941,6 +1941,10 @@ mod api_contract_tests {
             "ScanTaskResponse",
             "RunInspectionRequest",
             "InspectionResultResponse",
+            "CreateResourceTicketRequest",
+            "ApproveResourceTicketRequest",
+            "ProvisionResourceTicketRequest",
+            "DeliverResourceTicketRequest",
         ] {
             assert!(json.contains(schema), "missing OpenAPI schema {schema}");
         }
