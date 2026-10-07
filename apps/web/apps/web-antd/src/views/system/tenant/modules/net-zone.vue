@@ -57,9 +57,7 @@ async function fetchTree() {
   if (!tenant.value?.id) return;
   loading.value = true;
   try {
-    const result = (await requestClient.get('/cmdb/net-zone/tree', {
-      params: { tenantId: tenant.value.id },
-    })) as any;
+    const result = (await requestClient.get('/cmdb/net-zone/tree')) as any;
     tree.value = result?.tree ?? [];
   } catch {
     message.error('加载租户网段失败');
@@ -116,7 +114,6 @@ async function handleSubmit() {
   const payload = {
     ...form.value,
     id: editingId.value,
-    tenantId: tenant.value.id,
   };
   if (editingId.value) {
     await requestClient.put('/cmdb/net-zone/update', payload);
@@ -130,7 +127,7 @@ async function handleSubmit() {
 
 async function handleDelete(row: NetZone) {
   await requestClient.delete('/cmdb/net-zone/delete', {
-    params: { id: row.id, tenantId: tenant.value?.id },
+    params: { id: row.id },
   });
   message.success('网段已删除');
   await fetchTree();
@@ -140,7 +137,6 @@ async function resolve() {
   if (!tenant.value?.id || !resolveIp.value.trim()) return;
   resolveResult.value = await requestClient.post('/cmdb/net-zone/resolve', {
     ip: resolveIp.value,
-    tenantId: tenant.value.id,
   });
 }
 </script>

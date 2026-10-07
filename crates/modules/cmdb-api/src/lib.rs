@@ -104,6 +104,46 @@ fn default_true() -> bool {
     true
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateNetZoneRequest {
+    pub name: String,
+    #[serde(default)]
+    pub parent_id: i64,
+    #[serde(default = "default_zone_type")]
+    pub zone_type: String,
+    pub cidr: Option<String>,
+    #[serde(default)]
+    pub sort: i32,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateNetZoneRequest {
+    pub id: i64,
+    pub name: Option<String>,
+    pub parent_id: Option<i64>,
+    pub zone_type: Option<String>,
+    pub cidr: Option<String>,
+    pub sort: Option<i32>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ResolveNetZoneRequest {
+    pub ip: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct IdentifyAssetsRequest {}
+
+fn default_zone_type() -> String {
+    "company".to_owned()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AttrType {
@@ -362,6 +402,22 @@ mod tests {
             serde_json::from_value::<BatchUpdateInstanceRequest>(
                 serde_json::json!({"ids": [1, 2], "attributes": []})
             )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn net_zone_writes_reject_client_selected_tenants() {
+        assert!(
+            serde_json::from_value::<CreateNetZoneRequest>(serde_json::json!({
+                "name": "core", "zoneType": "segment", "tenantId": 9
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<ResolveNetZoneRequest>(serde_json::json!({
+                "ip": "10.0.0.1", "tenantId": 9
+            }))
             .is_err()
         );
     }

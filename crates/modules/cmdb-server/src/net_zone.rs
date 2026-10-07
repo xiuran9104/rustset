@@ -9,8 +9,12 @@ use axum::{
     Json,
     extract::{Query, State},
 };
+use rustset_cmdb_api::{
+    CreateNetZoneRequest, IdentifyAssetsRequest, ResolveNetZoneRequest, UpdateNetZoneRequest,
+};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -37,27 +41,10 @@ pub fn routes() -> ApiRouter<CmdbState> {
 struct NetZonePageParams {
     #[serde(rename = "parentId", default)]
     parent_id: Option<i64>,
-    #[serde(rename = "tenantId", default)]
-    tenant_id: Option<i64>,
 }
 
-fn tenant_id_for(user: &CurrentUser, requested: Option<i64>) -> Result<i64, AppError> {
-    let current = user
-        .tenant_id
-        .as_deref()
-        .and_then(|value| value.parse::<i64>().ok());
-    if user.role_codes.iter().any(|role| role == "super_admin") {
-        return requested
-            .or(current)
-            .ok_or_else(|| AppError::bad_request("tenantId is required"));
-    }
-    let current = current.ok_or_else(|| AppError::forbidden("tenant context is required"))?;
-    if requested.is_some_and(|tenant_id| tenant_id != current) {
-        return Err(AppError::forbidden(
-            "cannot access another tenant's net zones",
-        ));
-    }
-    Ok(current)
+fn tenant_id_for(user: &CurrentUser) -> Result<i64, AppError> {
+    Ok(TenantContext::from_user(user)?.id())
 }
 
 fn parse_cidr(cidr: &str) -> Option<(Ipv4Addr, u8)> {
@@ -87,10 +74,9 @@ pub fn cidr_contains(cidr: &str, ip: &str) -> bool {
 async fn net_zone_tree(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Query(params): Query<NetZonePageParams>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     require(&user, "cmdb:net-zone:query")?;
-    let tenant_id = tenant_id_for(&user, params.tenant_id)?;
+    let tenant_id = tenant_id_for(&user)?;
     let rows = sqlx::query(
         "SELECT id, name, parent_id, zone_type, cidr, sort, description
          FROM cmdb_net_zone WHERE deleted = 0 AND tenant_id = $1 ORDER BY sort, id",
@@ -175,7 +161,7 @@ async fn net_zone_list(
     Query(params): Query<NetZonePageParams>,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     require(&user, "cmdb:net-zone:query")?;
-    let tenant_id = tenant_id_for(&user, params.tenant_id)?;
+    let tenant_id = tenant_id_for(&user)?;
     let rows = sqlx::query(
         "SELECT id, name, parent_id, zone_type, cidr, sort, description
          FROM cmdb_net_zone WHERE deleted = 0 AND tenant_id = $1
@@ -207,8 +193,6 @@ async fn net_zone_list(
 #[derive(Debug, Deserialize, JsonSchema)]
 struct IdParams {
     id: i64,
-    #[serde(rename = "tenantId", default)]
-    tenant_id: Option<i64>,
 }
 
 async fn net_zone_get(
@@ -217,7 +201,7 @@ async fn net_zone_get(
     Query(params): Query<IdParams>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     require(&user, "cmdb:net-zone:query")?;
-    let tenant_id = tenant_id_for(&user, params.tenant_id)?;
+    let tenant_id = tenant_id_for(&user)?;
     let row = sqlx::query(
         "SELECT id, name, parent_id, zone_type, cidr, sort, description
          FROM cmdb_net_zone WHERE id = $1 AND tenant_id = $2 AND deleted = 0",
@@ -242,20 +226,15 @@ async fn net_zone_get(
 async fn net_zone_create(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<CreateNetZoneRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     require(&user, "cmdb:net-zone:create")?;
-    let tenant_id = tenant_id_for(&user, payload.get("tenantId").and_then(Value::as_i64))?;
-    let name = payload
-        .get("name")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::bad_request("name is required"))?;
-    let zone_type = payload
-        .get("zoneType")
-        .and_then(Value::as_str)
-        .unwrap_or("company");
+    let tenant_id = tenant_id_for(&user)?;
+    let name = payload.name.trim();
+    if name.is_empty() {
+        return Err(AppError::bad_request("name is required"));
+    }
+    let zone_type = payload.zone_type.as_str();
     if !matches!(
         zone_type,
         "company" | "subsidiary" | "department" | "segment"
@@ -264,7 +243,7 @@ async fn net_zone_create(
             "zoneType must be company / subsidiary / department / segment",
         ));
     }
-    let cidr = payload.get("cidr").and_then(Value::as_str).map(str::trim);
+    let cidr = payload.cidr.as_deref().map(str::trim);
     if let Some(cidr) = cidr.filter(|value| !value.is_empty())
         && parse_cidr(cidr).is_none()
     {
@@ -272,11 +251,7 @@ async fn net_zone_create(
             "cidr must be a valid IPv4 CIDR, e.g. 10.1.0.0/16",
         ));
     }
-    let parent_id = payload
-        .get("parentId")
-        .and_then(Value::as_i64)
-        .filter(|id| *id > 0)
-        .unwrap_or(0);
+    let parent_id = payload.parent_id.max(0);
     if parent_id > 0 {
         let parent_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM cmdb_net_zone
@@ -301,8 +276,8 @@ async fn net_zone_create(
     .bind(parent_id)
     .bind(zone_type)
     .bind(cidr.filter(|value| !value.is_empty()))
-    .bind(payload.get("sort").and_then(Value::as_i64).unwrap_or(0) as i32)
-    .bind(payload.get("description").and_then(Value::as_str))
+    .bind(payload.sort)
+    .bind(payload.description.as_deref())
     .bind(&user.username)
     .fetch_one(&state.pool)
     .await
@@ -313,19 +288,18 @@ async fn net_zone_create(
 async fn net_zone_update(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<UpdateNetZoneRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     require(&user, "cmdb:net-zone:update")?;
-    let tenant_id = tenant_id_for(&user, payload.get("tenantId").and_then(Value::as_i64))?;
-    let id = payload
-        .get("id")
-        .and_then(Value::as_i64)
-        .filter(|id| *id > 0)
-        .ok_or_else(|| AppError::bad_request("id is required"))?;
-    if payload.get("parentId").and_then(Value::as_i64) == Some(id) {
+    let tenant_id = tenant_id_for(&user)?;
+    let id = payload.id;
+    if id <= 0 {
+        return Err(AppError::bad_request("id is required"));
+    }
+    if payload.parent_id == Some(id) {
         return Err(AppError::bad_request("a net zone cannot be its own parent"));
     }
-    let cidr = payload.get("cidr").and_then(Value::as_str).map(str::trim);
+    let cidr = payload.cidr.as_deref().map(str::trim);
     if let Some(cidr) = cidr.filter(|value| !value.is_empty())
         && parse_cidr(cidr).is_none()
     {
@@ -340,26 +314,16 @@ async fn net_zone_update(
     .bind(id)
     .bind(
         payload
-            .get("name")
-            .and_then(Value::as_str)
+            .name
+            .as_deref()
             .map(str::trim)
             .filter(|v| !v.is_empty()),
     )
-    .bind(
-        payload
-            .get("parentId")
-            .and_then(Value::as_i64)
-            .filter(|id| *id > 0),
-    )
-    .bind(payload.get("zoneType").and_then(Value::as_str))
+    .bind(payload.parent_id.filter(|id| *id > 0))
+    .bind(payload.zone_type.as_deref())
     .bind(cidr.filter(|value| !value.is_empty()))
-    .bind(
-        payload
-            .get("sort")
-            .and_then(Value::as_i64)
-            .map(|sort| sort as i32),
-    )
-    .bind(payload.get("description").and_then(Value::as_str))
+    .bind(payload.sort)
+    .bind(payload.description.as_deref())
     .bind(&user.username)
     .bind(tenant_id)
     .execute(&state.pool)
@@ -377,7 +341,7 @@ async fn net_zone_delete(
     Query(params): Query<IdParams>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     require(&user, "cmdb:net-zone:delete")?;
-    let tenant_id = tenant_id_for(&user, params.tenant_id)?;
+    let tenant_id = tenant_id_for(&user)?;
     let has_children: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM cmdb_net_zone
          WHERE parent_id = $1 AND tenant_id = $2 AND deleted = 0",
@@ -471,16 +435,14 @@ async fn organization_for_zone(state: &CmdbState, tenant_id: i64, mut zone_id: i
 async fn net_zone_resolve(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<ResolveNetZoneRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     require(&user, "cmdb:net-zone:query")?;
-    let tenant_id = tenant_id_for(&user, payload.get("tenantId").and_then(Value::as_i64))?;
-    let ip = payload
-        .get("ip")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::bad_request("ip is required"))?;
+    let tenant_id = tenant_id_for(&user)?;
+    let ip = payload.ip.trim();
+    if ip.is_empty() {
+        return Err(AppError::bad_request("ip is required"));
+    }
     match resolve_segment(&state, tenant_id, ip).await? {
         Some((zone_id, name, zone_type)) => {
             let organization = organization_for_zone(&state, tenant_id, zone_id).await;
@@ -500,19 +462,10 @@ async fn net_zone_resolve(
 async fn identify_assets(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(_payload): Json<Value>,
+    Json(_payload): Json<IdentifyAssetsRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     require(&user, "cmdb:net-zone:update")?;
     let tenant_id = rustset_framework_tenant::TenantContext::from_user(&user)?.id();
-    if _payload
-        .get("tenantId")
-        .and_then(Value::as_i64)
-        .is_some_and(|id| id != tenant_id)
-    {
-        return Err(AppError::forbidden(
-            "cannot reattribute another tenant's assets",
-        ));
-    }
     let assets = sqlx::query(
         "SELECT id, ip FROM infra_asset
          WHERE deleted = 0 AND tenant_id = $1
