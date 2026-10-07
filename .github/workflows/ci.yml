@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: rustset_test
+          POSTGRES_PASSWORD: rustset_test
+          POSTGRES_DB: rustset_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rustset_test -d rustset_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://rustset_test:rustset_test@127.0.0.1:5432/rustset_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo test --workspace
+      - run: bash script/test-database-migrations.sh
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - working-directory: apps/web
+        run: bun install --frozen-lockfile
+      - working-directory: apps/web
+        run: bun run check:type
+      - working-directory: apps/web
+        run: bun run build:antd
