@@ -145,9 +145,9 @@ async fn load_topology(
             "SELECT relation.id, relation.source_id, relation.target_id
              FROM cmdb_relation AS relation
              JOIN cmdb_instance AS source
-               ON source.id = relation.source_id AND source.deleted = 0
+               ON source.id = relation.source_id AND source.tenant_id = relation.tenant_id AND source.deleted = 0
              JOIN cmdb_instance AS target
-               ON target.id = relation.target_id AND target.deleted = 0
+               ON target.id = relation.target_id AND target.tenant_id = relation.tenant_id AND target.deleted = 0
              WHERE relation.tenant_id = $4 AND relation.deleted = 0
                AND (relation.source_id = ANY($1) OR relation.target_id = ANY($1))
                AND NOT (relation.id = ANY($2))
@@ -193,9 +193,9 @@ async fn load_topology(
         "SELECT relation.id, relation.source_id, relation.target_id, relation.relation
          FROM cmdb_relation AS relation
          JOIN cmdb_instance AS source
-           ON source.id = relation.source_id AND source.deleted = 0
+           ON source.id = relation.source_id AND source.tenant_id = relation.tenant_id AND source.deleted = 0
          JOIN cmdb_instance AS target
-           ON target.id = relation.target_id AND target.deleted = 0
+           ON target.id = relation.target_id AND target.tenant_id = relation.tenant_id AND target.deleted = 0
          WHERE relation.tenant_id = $3 AND relation.deleted = 0
            AND relation.source_id = ANY($1) AND relation.target_id = ANY($1)
          ORDER BY relation.id
@@ -227,10 +227,11 @@ async fn load_topology(
                 model.name AS model_name, model.code AS model_code, model.unique_key
          FROM cmdb_instance AS instance
          JOIN cmdb_model AS model ON model.id = instance.model_id AND model.deleted = 0
-         WHERE instance.id = ANY($1) AND instance.deleted = 0
+         WHERE instance.id = ANY($1) AND instance.tenant_id = $2 AND instance.deleted = 0
          ORDER BY instance.id",
     )
     .bind(&node_ids)
+    .bind(tenant.id())
     .fetch_all(pool)
     .await
     .map_err(|_| AppError::internal("failed to read topology instances"))?;
