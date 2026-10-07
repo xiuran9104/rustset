@@ -66,6 +66,44 @@ pub struct InstanceImportResponse {
     pub errors: Vec<InstanceImportError>,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BindRelationRequest {
+    pub source_id: i64,
+    pub target_id: i64,
+    pub relation: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateAttributeTriggerRequest {
+    pub model_id: i64,
+    pub name: String,
+    pub condition_code: String,
+    pub condition_value: Value,
+    pub action_code: String,
+    pub action_value: Value,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateAttributeTriggerRequest {
+    pub id: i64,
+    pub name: String,
+    pub condition_code: String,
+    pub condition_value: Value,
+    pub action_code: String,
+    pub action_value: Value,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AttrType {

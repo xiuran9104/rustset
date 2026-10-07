@@ -7,6 +7,7 @@ use axum::{
     Json,
     extract::{Query, State},
 };
+use rustset_cmdb_api::BindRelationRequest;
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
@@ -284,26 +285,21 @@ fn topology_label(attributes: &Value, unique_key: Option<&str>, id: i64) -> Stri
 async fn relation_bind(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<BindRelationRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     require(&user, "cmdb:instance:update")?;
     let tenant = TenantContext::from_user(&user)?;
-    let source_id = payload
-        .get("sourceId")
-        .and_then(Value::as_i64)
-        .filter(|id| *id > 0)
-        .ok_or_else(|| AppError::bad_request("sourceId is required"))?;
-    let target_id = payload
-        .get("targetId")
-        .and_then(Value::as_i64)
-        .filter(|id| *id > 0)
-        .ok_or_else(|| AppError::bad_request("targetId is required"))?;
+    let source_id = payload.source_id;
+    let target_id = payload.target_id;
+    if source_id <= 0 || target_id <= 0 {
+        return Err(AppError::bad_request("sourceId and targetId are required"));
+    }
     if source_id == target_id {
         return Err(AppError::bad_request("cannot relate an instance to itself"));
     }
     let relation = payload
-        .get("relation")
-        .and_then(Value::as_str)
+        .relation
+        .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or("relates_to")
