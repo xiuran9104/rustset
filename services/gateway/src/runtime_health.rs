@@ -64,6 +64,9 @@ struct ComponentStatus {
 struct PoolSnapshot {
     size: u32,
     idle: usize,
+    in_use: usize,
+    max_size: u32,
+    check_latency_ms: u64,
 }
 
 #[derive(Default, Serialize)]
@@ -100,12 +103,14 @@ pub fn routes(state: RuntimeHealthState) -> Router {
 }
 
 async fn readiness(State(state): State<RuntimeHealthState>) -> Response {
+    let database_check_started = std::time::Instant::now();
     let database_available = tokio::time::timeout(
         Duration::from_secs(2),
         sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(&state.pool),
     )
     .await
     .is_ok_and(|result| result.is_ok());
+    let database_check_latency_ms = database_check_started.elapsed().as_millis() as u64;
     let (cache, rate_limit, object_storage) = tokio::join!(
         component_status(&state.cache),
         component_status(&state.rate_limit),
@@ -120,6 +125,8 @@ async fn readiness(State(state): State<RuntimeHealthState>) -> Response {
         && (!cache.required || cache.available)
         && (!rate_limit.required || rate_limit.available)
         && (!object_storage.required || object_storage.available);
+    let pool_size = state.pool.size();
+    let pool_idle = state.pool.num_idle();
     let response = ReadinessResponse {
         status: if ready { "ready" } else { "not_ready" },
         database: ComponentStatus {
@@ -131,8 +138,11 @@ async fn readiness(State(state): State<RuntimeHealthState>) -> Response {
         rate_limit,
         object_storage,
         database_pool: PoolSnapshot {
-            size: state.pool.size(),
-            idle: state.pool.num_idle(),
+            size: pool_size,
+            idle: pool_idle,
+            in_use: (pool_size as usize).saturating_sub(pool_idle),
+            max_size: state.pool.options().get_max_connections(),
+            check_latency_ms: database_check_latency_ms,
         },
         tasks,
         audit: state.audit.snapshot(),
