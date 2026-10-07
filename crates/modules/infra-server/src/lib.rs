@@ -1347,6 +1347,7 @@ pub(crate) async fn tenant_table_page(
     spec: TableSpec,
     params: QueryParams,
 ) -> Result<Json<ApiResponse<Page<Value>>>, AppError> {
+    ensure_tenant_table(spec.table)?;
     let page_no = params.page_no.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (page_no - 1) * page_size;
@@ -1381,6 +1382,7 @@ pub(crate) async fn tenant_table_list(
     tenant_id: i64,
     spec: TableSpec,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    ensure_tenant_table(spec.table)?;
     let sql = format!(
         "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id",
         spec.table
@@ -1425,6 +1427,7 @@ pub(crate) async fn tenant_table_get(
     spec: TableSpec,
     id: i64,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
+    ensure_tenant_table(spec.table)?;
     Ok(Json(ApiResponse::new(
         tenant_table_get_value(pool, tenant_id, spec, id).await?,
     )))
@@ -1456,6 +1459,7 @@ pub(crate) async fn tenant_table_create(
     spec: TableSpec,
     payload: Value,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    ensure_tenant_table(spec.table)?;
     let mut db_payload = camel_payload_to_snake(payload);
     db_payload
         .as_object_mut()
@@ -1494,6 +1498,7 @@ pub(crate) async fn tenant_table_update(
     spec: TableSpec,
     payload: Value,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    ensure_tenant_table(spec.table)?;
     let id = i64_field(&payload, "id", 0);
     if id == 0 {
         return Err(AppError::bad_request("id is required"));
@@ -1865,6 +1870,15 @@ fn camel_to_snake(value: &str) -> String {
     output
 }
 
+fn ensure_tenant_table(table: &str) -> Result<(), AppError> {
+    match resource_scope::scope_for(table) {
+        Some(resource_scope::ResourceScope::Tenant) => Ok(()),
+        _ => Err(AppError::internal(
+            "resource ownership is not tenant-scoped",
+        )),
+    }
+}
+
 fn pascal_case(value: &str) -> String {
     let camel = snake_to_camel(value);
     let mut chars = camel.chars();
@@ -1948,6 +1962,8 @@ mod api_contract_tests {
             "UpdateResourceTicketRequest",
             "CreateNetworkZoneRequest",
             "UpdateNetworkZoneRequest",
+            "CreateApprovalRuleRequest",
+            "UpdateApprovalRuleRequest",
             "ApproveResourceTicketRequest",
             "ProvisionResourceTicketRequest",
             "DeliverResourceTicketRequest",

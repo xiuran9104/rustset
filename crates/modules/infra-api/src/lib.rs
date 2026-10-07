@@ -34,6 +34,30 @@ pub struct UpdateNetworkZoneRequest {
     pub machine_room_name: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateApprovalRuleRequest {
+    pub name: String,
+    #[serde(default)]
+    pub resource_type: String,
+    pub max_cpu_cores: Option<i32>,
+    pub max_memory_gb: Option<i32>,
+    pub max_resource_count: Option<i32>,
+    #[serde(default)]
+    pub auto_provision: bool,
+    #[serde(default)]
+    pub status: i16,
+    pub remarks: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateApprovalRuleRequest {
+    pub id: i64,
+    #[serde(flatten)]
+    pub rule: CreateApprovalRuleRequest,
+}
+
 impl Default for InfraCapability {
     fn default() -> Self {
         Self {

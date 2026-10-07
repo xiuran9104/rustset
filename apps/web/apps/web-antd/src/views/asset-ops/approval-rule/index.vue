@@ -2,19 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
-import { requestClient } from '#/api/request';
-
-interface ApprovalRule {
-  id?: number;
-  name: string;
-  resourceType: string;
-  maxCpuCores?: number | null;
-  maxMemoryGb?: number | null;
-  maxResourceCount?: number | null;
-  autoProvision: boolean;
-  status: number;
-  remarks?: string;
-}
+import { createApprovalRule, deleteApprovalRule, getApprovalRules, updateApprovalRule, type ApprovalRule } from '#/api/scan/approval-rule';
 
 const data = ref<ApprovalRule[]>([]);
 const loading = ref(false);
@@ -32,9 +20,7 @@ function defaultForm(): ApprovalRule {
 async function fetchData() {
   loading.value = true;
   try {
-    const page = (await requestClient.get('/infra/approval-rule/page', {
-      params: { pageNo: 1, pageSize: 100 },
-    })) as any;
+    const page = await getApprovalRules();
     data.value = page.list ?? [];
   } catch {
     message.error('加载审批规则失败');
@@ -57,10 +43,10 @@ function openEdit(row: ApprovalRule) {
 async function handleSubmit() {
   try {
     if (editingId.value) {
-      await requestClient.put('/infra/approval-rule/update', { ...form.value, id: editingId.value });
+      await updateApprovalRule(editingId.value, form.value);
       message.success('规则已更新');
     } else {
-      await requestClient.post('/infra/approval-rule/create', form.value);
+      await createApprovalRule(form.value);
       message.success('规则已创建');
     }
     modalVisible.value = false;
@@ -71,7 +57,7 @@ async function handleSubmit() {
 }
 async function handleDelete(id: number) {
   try {
-    await requestClient.delete('/infra/approval-rule/delete', { params: { id } });
+    await deleteApprovalRule(id);
     message.success('已删除');
     fetchData();
   } catch (error: any) {

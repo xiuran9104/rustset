@@ -20,8 +20,9 @@ use rustset_framework_tofu::{
 };
 use rustset_framework_web::AppError;
 use rustset_infra_api::{
-    ApproveResourceTicketRequest, CreateResourceTicketRequest, DeliverResourceTicketRequest,
-    ProvisionResourceTicketRequest, UpdateResourceTicketRequest,
+    ApproveResourceTicketRequest, CreateApprovalRuleRequest, CreateResourceTicketRequest,
+    DeliverResourceTicketRequest, ProvisionResourceTicketRequest, UpdateApprovalRuleRequest,
+    UpdateResourceTicketRequest,
 };
 use serde_json::{Map, Value, json};
 use sqlx::Row;
@@ -1029,12 +1030,16 @@ async fn rule_list(
 async fn rule_create(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(mut payload): Json<Value>,
+    Json(request): Json<CreateApprovalRuleRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    if let Some(obj) = payload.as_object_mut() {
-        obj.entry("createdBy".to_string())
-            .or_insert(Value::String(user.username.clone()));
-    }
+    validate_rule(&request)?;
+    let mut payload = serde_json::to_value(request)
+        .map_err(|_| AppError::bad_request("invalid approval rule"))?;
+    let object = payload
+        .as_object_mut()
+        .expect("request serializes as object");
+    object.insert("creator".into(), Value::String(user.username.clone()));
+    object.insert("updater".into(), Value::String(user.username.clone()));
     tenant_table_create(
         &s.pool,
         TenantContext::from_user(&user)?.id(),
@@ -1046,8 +1051,15 @@ async fn rule_create(
 async fn rule_update(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(request): Json<UpdateApprovalRuleRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    validate_rule(&request.rule)?;
+    let mut payload = serde_json::to_value(request)
+        .map_err(|_| AppError::bad_request("invalid approval rule"))?;
+    payload
+        .as_object_mut()
+        .expect("request serializes as object")
+        .insert("updater".into(), Value::String(user.username.clone()));
     tenant_table_update(
         &s.pool,
         TenantContext::from_user(&user)?.id(),
@@ -1055,6 +1067,28 @@ async fn rule_update(
         payload,
     )
     .await
+}
+
+fn validate_rule(rule: &CreateApprovalRuleRequest) -> Result<(), AppError> {
+    if rule.name.trim().is_empty() || rule.name.chars().count() > 128 {
+        return Err(AppError::bad_request("规则名称需要 1-128 个字符"));
+    }
+    if rule.resource_type.chars().count() > 64
+        || [
+            rule.max_cpu_cores,
+            rule.max_memory_gb,
+            rule.max_resource_count,
+        ]
+        .into_iter()
+        .flatten()
+        .any(|value| value < 0)
+    {
+        return Err(AppError::bad_request("规则上限必须是非负整数"));
+    }
+    if !matches!(rule.status, 0 | 1) {
+        return Err(AppError::bad_request("规则状态必须是 0 或 1"));
+    }
+    Ok(())
 }
 async fn rule_delete(
     State(s): State<InfraState>,

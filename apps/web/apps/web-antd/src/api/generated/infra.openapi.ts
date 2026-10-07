@@ -6544,7 +6544,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateApprovalRuleRequest"];
                 };
             };
             responses: {
@@ -6581,7 +6581,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateApprovalRuleRequest"];
                 };
             };
             responses: {
@@ -7473,6 +7473,25 @@ export interface components {
             approved: boolean;
             comment?: string | null;
         };
+        CreateApprovalRuleRequest: {
+            /** @default false */
+            autoProvision: boolean;
+            /** Format: int32 */
+            maxCpuCores?: number | null;
+            /** Format: int32 */
+            maxMemoryGb?: number | null;
+            /** Format: int32 */
+            maxResourceCount?: number | null;
+            name: string;
+            remarks?: string | null;
+            /** @default  */
+            resourceType: string;
+            /**
+             * Format: int16
+             * @default 0
+             */
+            status: number;
+        };
         CreateNetworkZoneRequest: {
             cidr: string;
             /** Format: int64 */
@@ -7763,6 +7782,27 @@ export interface components {
             ports: number[];
             targetIp: string;
             taskId: string;
+        };
+        UpdateApprovalRuleRequest: {
+            /** @default false */
+            autoProvision: boolean;
+            /** Format: int64 */
+            id: number;
+            /** Format: int32 */
+            maxCpuCores?: number | null;
+            /** Format: int32 */
+            maxMemoryGb?: number | null;
+            /** Format: int32 */
+            maxResourceCount?: number | null;
+            name: string;
+            remarks?: string | null;
+            /** @default  */
+            resourceType: string;
+            /**
+             * Format: int16
+             * @default 0
+             */
+            status: number;
         };
         UpdateNetworkZoneRequest: {
             cidr: string;
