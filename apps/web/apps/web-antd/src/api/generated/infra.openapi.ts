@@ -4522,7 +4522,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AssetPortRequest"];
                 };
             };
             responses: {
@@ -4559,7 +4559,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AssetPortRequest"];
                 };
             };
             responses: {
@@ -4721,7 +4721,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateNetworkPolicyRequest"];
                 };
             };
             responses: {
@@ -4758,7 +4758,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateNetworkPolicyRequest"];
                 };
             };
             responses: {
@@ -7473,6 +7473,15 @@ export interface components {
             approved: boolean;
             comment?: string | null;
         };
+        AssetPortRequest: {
+            banner?: string | null;
+            isBound?: boolean | null;
+            middleware?: string | null;
+            /** Format: int32 */
+            port?: number | null;
+            service?: string | null;
+            systemName?: string | null;
+        };
         CreateApplicationEndpointRequest: {
             /** Format: int64 */
             businessApplicationId: number;
@@ -7552,6 +7561,25 @@ export interface components {
             roomType: string;
             /** @default active */
             status: string;
+        };
+        CreateNetworkPolicyRequest: {
+            action: string;
+            applicant: string;
+            applicationDate: string;
+            deliveryDate?: string | null;
+            destinationIp: string;
+            destinationOrganization: string;
+            destinationProject: string;
+            destinationSecurityZone: string;
+            firewallName: string;
+            implementationDate?: string | null;
+            implementer?: string | null;
+            servicePort: string;
+            sourceIp: string;
+            sourceOrganization: string;
+            sourceProject: string;
+            sourceSecurityZone: string;
+            trafficDirection: string;
         };
         CreateNetworkZoneRequest: {
             cidr: string;
@@ -7977,6 +8005,27 @@ export interface components {
             roomType: string;
             /** @default active */
             status: string;
+        };
+        UpdateNetworkPolicyRequest: {
+            action: string;
+            applicant: string;
+            applicationDate: string;
+            deliveryDate?: string | null;
+            destinationIp: string;
+            destinationOrganization: string;
+            destinationProject: string;
+            destinationSecurityZone: string;
+            firewallName: string;
+            /** Format: int64 */
+            id: number;
+            implementationDate?: string | null;
+            implementer?: string | null;
+            servicePort: string;
+            sourceIp: string;
+            sourceOrganization: string;
+            sourceProject: string;
+            sourceSecurityZone: string;
+            trafficDirection: string;
         };
         UpdateNetworkZoneRequest: {
             cidr: string;

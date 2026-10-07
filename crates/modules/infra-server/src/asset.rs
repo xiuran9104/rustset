@@ -16,7 +16,10 @@ use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
-use rustset_infra_api::{DiscoverAssetsRequest, DiscoverAssetsResponse};
+use rustset_infra_api::{
+    AssetPortRequest, CreateNetworkPolicyRequest, DiscoverAssetsRequest, DiscoverAssetsResponse,
+    UpdateNetworkPolicyRequest,
+};
 use serde_json::{Value, json};
 use sqlx::Row;
 use std::collections::HashMap;
@@ -143,18 +146,18 @@ async fn network_policy_get(
 async fn network_policy_create(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<Value>,
+    Json(p): Json<CreateNetworkPolicyRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
-    policy_risk::create(&state.pool, &tenant, p).await
+    policy_risk::create(&state.pool, &tenant, crate::request_value(p)?).await
 }
 async fn network_policy_update(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<Value>,
+    Json(p): Json<UpdateNetworkPolicyRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
-    policy_risk::update(&state.pool, &tenant, p).await
+    policy_risk::update(&state.pool, &tenant, crate::request_value(p)?).await
 }
 async fn network_policy_delete(
     State(state): State<InfraState>,
@@ -392,10 +395,13 @@ async fn asset_add_port(
     State(state): State<InfraState>,
     user: CurrentUser,
     axum::extract::Path(id): axum::extract::Path<i64>,
-    Json(payload): Json<Value>,
+    Json(payload): Json<AssetPortRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
-    let port_num = crate::i32_field(&payload, "port", 0);
+    let port_num = payload
+        .port
+        .filter(|port| (1..=65535).contains(port))
+        .ok_or_else(|| AppError::bad_request("port must be between 1 and 65535"))?;
     let mut tx = state
         .pool
         .begin()
@@ -415,7 +421,7 @@ async fn asset_add_port(
     {
         return Err(AppError::bad_request("Port already exists"));
     }
-    ports.push(json!({"port": port_num, "isOpen": true, "service": crate::opt_str_field(&payload, "service"), "banner": crate::opt_str_field(&payload, "banner"), "isBound": crate::bool_field(&payload, "isBound", false), "systemName": crate::opt_str_field(&payload, "systemName"), "middleware": crate::opt_str_field(&payload, "middleware")}));
+    ports.push(json!({"port": port_num, "isOpen": true, "service": payload.service, "banner": payload.banner, "isBound": payload.is_bound.unwrap_or(false), "systemName": payload.system_name, "middleware": payload.middleware}));
     let ports_json = serde_json::to_string(&ports).unwrap_or_default();
     sqlx::query("UPDATE infra_asset SET ports=$2, update_time=now() WHERE id=$1 AND tenant_id=$3 AND deleted=0")
         .bind(id)
@@ -434,7 +440,7 @@ async fn asset_update_port(
     State(state): State<InfraState>,
     user: CurrentUser,
     axum::extract::Path((id, port_num)): axum::extract::Path<(i64, i32)>,
-    Json(payload): Json<Value>,
+    Json(payload): Json<AssetPortRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
     let mut tx = state
@@ -454,7 +460,10 @@ async fn asset_update_port(
         .iter_mut()
         .find(|p| p.get("port").and_then(|v| v.as_i64()) == Some(port_num as i64))
     {
-        *p = json!({"port": port_num, "isOpen": true, "service": crate::opt_str_field(&payload, "service"), "banner": crate::opt_str_field(&payload, "banner"), "isBound": crate::bool_field(&payload, "isBound", p.get("isBound").and_then(|v| v.as_bool()).unwrap_or(false)), "systemName": crate::opt_str_field(&payload, "systemName"), "middleware": crate::opt_str_field(&payload, "middleware")});
+        let is_bound = payload
+            .is_bound
+            .unwrap_or_else(|| p.get("isBound").and_then(Value::as_bool).unwrap_or(false));
+        *p = json!({"port": port_num, "isOpen": true, "service": payload.service, "banner": payload.banner, "isBound": is_bound, "systemName": payload.system_name, "middleware": payload.middleware});
     }
     let ports_json = serde_json::to_string(&ports).unwrap_or_default();
     sqlx::query("UPDATE infra_asset SET ports=$2, update_time=now() WHERE id=$1 AND tenant_id=$3 AND deleted=0")

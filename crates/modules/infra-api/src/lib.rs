@@ -150,6 +150,40 @@ fn default_active() -> String {
     "active".to_owned()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateNetworkPolicyRequest {
+    pub firewall_name: String,
+    pub destination_organization: String,
+    pub destination_project: String,
+    pub source_organization: String,
+    pub source_project: String,
+    pub source_security_zone: String,
+    pub source_ip: String,
+    pub destination_security_zone: String,
+    pub destination_ip: String,
+    pub service_port: String,
+    pub applicant: String,
+    pub application_date: String,
+    pub traffic_direction: String,
+    pub action: String,
+    pub implementer: Option<String>,
+    pub implementation_date: Option<String>,
+    pub delivery_date: Option<String>,
+}
+update_request!(UpdateNetworkPolicyRequest, CreateNetworkPolicyRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AssetPortRequest {
+    pub port: Option<i32>,
+    pub service: Option<String>,
+    pub banner: Option<String>,
+    pub is_bound: Option<bool>,
+    pub system_name: Option<String>,
+    pub middleware: Option<String>,
+}
+
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct InfraCapability {
     pub module: &'static str,
@@ -647,6 +681,13 @@ mod contract_tests {
                 "contactPerson": "owner",
                 "contactPhone": "10000",
                 "deleted": 0
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<AssetPortRequest>(json!({
+                "port": 443,
+                "tenantId": 99
             }))
             .is_err()
         );

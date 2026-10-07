@@ -2688,7 +2688,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/AssetPortRequest"
+              }
             }
           },
           "required": true
@@ -2712,7 +2714,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/AssetPortRequest"
+              }
             }
           },
           "required": true
@@ -2826,7 +2830,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateNetworkPolicyRequest"
+              }
             }
           },
           "required": true
@@ -2850,7 +2856,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNetworkPolicyRequest"
+              }
             }
           },
           "required": true
@@ -5030,6 +5038,49 @@
           "approved"
         ]
       },
+      "AssetPortRequest": {
+        "type": "object",
+        "properties": {
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isBound": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "middleware": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "service": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "systemName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateApplicationEndpointRequest": {
         "type": "object",
         "properties": {
@@ -5330,6 +5381,88 @@
           "roomType",
           "contactPerson",
           "contactPhone"
+        ]
+      },
+      "CreateNetworkPolicyRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "applicant": {
+            "type": "string"
+          },
+          "applicationDate": {
+            "type": "string"
+          },
+          "deliveryDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destinationIp": {
+            "type": "string"
+          },
+          "destinationOrganization": {
+            "type": "string"
+          },
+          "destinationProject": {
+            "type": "string"
+          },
+          "destinationSecurityZone": {
+            "type": "string"
+          },
+          "firewallName": {
+            "type": "string"
+          },
+          "implementationDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "implementer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "servicePort": {
+            "type": "string"
+          },
+          "sourceIp": {
+            "type": "string"
+          },
+          "sourceOrganization": {
+            "type": "string"
+          },
+          "sourceProject": {
+            "type": "string"
+          },
+          "sourceSecurityZone": {
+            "type": "string"
+          },
+          "trafficDirection": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "firewallName",
+          "destinationOrganization",
+          "destinationProject",
+          "sourceOrganization",
+          "sourceProject",
+          "sourceSecurityZone",
+          "sourceIp",
+          "destinationSecurityZone",
+          "destinationIp",
+          "servicePort",
+          "applicant",
+          "applicationDate",
+          "trafficDirection",
+          "action"
         ]
       },
       "CreateNetworkZoneRequest": {
@@ -6992,6 +7125,93 @@
           "roomType",
           "contactPerson",
           "contactPhone"
+        ]
+      },
+      "UpdateNetworkPolicyRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "applicant": {
+            "type": "string"
+          },
+          "applicationDate": {
+            "type": "string"
+          },
+          "deliveryDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destinationIp": {
+            "type": "string"
+          },
+          "destinationOrganization": {
+            "type": "string"
+          },
+          "destinationProject": {
+            "type": "string"
+          },
+          "destinationSecurityZone": {
+            "type": "string"
+          },
+          "firewallName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "implementationDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "implementer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "servicePort": {
+            "type": "string"
+          },
+          "sourceIp": {
+            "type": "string"
+          },
+          "sourceOrganization": {
+            "type": "string"
+          },
+          "sourceProject": {
+            "type": "string"
+          },
+          "sourceSecurityZone": {
+            "type": "string"
+          },
+          "trafficDirection": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "firewallName",
+          "destinationOrganization",
+          "destinationProject",
+          "sourceOrganization",
+          "sourceProject",
+          "sourceSecurityZone",
+          "sourceIp",
+          "destinationSecurityZone",
+          "destinationIp",
+          "servicePort",
+          "applicant",
+          "applicationDate",
+          "trafficDirection",
+          "action"
         ]
       },
       "UpdateNetworkZoneRequest": {
