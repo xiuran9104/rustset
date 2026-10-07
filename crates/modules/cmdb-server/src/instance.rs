@@ -426,8 +426,8 @@ async fn instance_import(
         )));
     }
 
-    let mut created = 0i64;
     let mut errors: Vec<InstanceImportError> = Vec::new();
+    let mut parsed_rows = Vec::new();
     for (row_index, row) in table.rows.iter().enumerate() {
         if row.iter().all(|cell| cell.is_empty()) {
             continue;
@@ -459,6 +459,34 @@ async fn instance_import(
         if payload.is_empty() {
             continue;
         }
+        parsed_rows.push((row_no, payload));
+    }
+
+    if atomic {
+        if !errors.is_empty() {
+            return Ok(Json(ApiResponse::new(InstanceImportResponse {
+                created: 0,
+                failed: errors.len(),
+                errors: errors.into_iter().take(50).collect(),
+            })));
+        }
+        let created = instance_service::create_many(
+            &state.pool,
+            &tenant,
+            model_id,
+            parsed_rows,
+            &user.username,
+        )
+        .await?;
+        return Ok(Json(ApiResponse::new(InstanceImportResponse {
+            created: created as i64,
+            failed: 0,
+            errors: Vec::new(),
+        })));
+    }
+
+    let mut created = 0i64;
+    for (row_no, payload) in parsed_rows {
         match instance_service::create(&state.pool, &tenant, model_id, payload, &user.username)
             .await
         {
