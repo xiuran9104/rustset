@@ -100,6 +100,7 @@ async fn create(
         &user.username,
         &payload.name,
         &payload.target,
+        "scan",
         &policy,
         targets,
         ports,
@@ -184,6 +185,7 @@ async fn trigger_scan(
         &user.username,
         &format!("扫描 {target_ip}"),
         &target_ip,
+        "scan",
         "custom",
         targets,
         ports.clone(),
@@ -239,7 +241,7 @@ async fn retry(
              next_attempt_at=now(),lease_owner=NULL,lease_expires_at=NULL,
              start_time=NULL,end_time=NULL,error_message=NULL,update_time=now()
          WHERE id=$1 AND tenant_id=$2 AND deleted=0
-           AND task_kind IN ('scan','inspection') AND status IN ('failed','cancelled')",
+           AND task_kind IN ('scan','inspection','asset_discovery') AND status IN ('failed','cancelled')",
     )
     .bind(id)
     .bind(tenant.id())
@@ -253,12 +255,13 @@ async fn retry(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn enqueue(
+pub(crate) async fn enqueue(
     pool: &sqlx::PgPool,
     tenant: &TenantContext,
     operator: &str,
     name: &str,
     target: &str,
+    task_kind: &str,
     policy: &str,
     targets: Vec<std::net::IpAddr>,
     ports: Vec<i32>,
@@ -285,12 +288,15 @@ async fn enqueue(
         .clamp(1, 86_400) as i32;
     let id = Uuid::new_v4().to_string();
     let durable_payload = json!({"targetIps":targets,"ports":ports});
+    if !matches!(task_kind, "scan" | "asset_discovery") {
+        return Err(AppError::bad_request("不支持的任务类型"));
+    }
     let existing_or_created: String = sqlx::query_scalar(
         "INSERT INTO infra_task
             (id,name,target,status,port_policy,domain_brute,service_detection,
              os_detection,site_identify,created_by,tenant_id,task_kind,scan_ports,
              total_targets,payload,idempotency_key,max_attempts,timeout_seconds)
-         VALUES($1,$2,$3,'queued',$4,$5,$6,$7,$8,$9,$10,'scan',$11,$12,$13,$14,$15,$16)
+         VALUES($1,$2,$3,'queued',$4,$5,$6,$7,$8,$9,$10,$17,$11,$12,$13,$14,$15,$16)
          ON CONFLICT(tenant_id,idempotency_key)
              WHERE deleted=0 AND idempotency_key IS NOT NULL
          DO UPDATE SET update_time=infra_task.update_time
@@ -312,13 +318,14 @@ async fn enqueue(
     .bind(idempotency_key)
     .bind(max_attempts)
     .bind(timeout_seconds)
+    .bind(task_kind)
     .fetch_one(pool)
     .await
     .map_err(|error| crate::record_query_error("enqueue scan task", error))?;
     Ok(existing_or_created)
 }
 
-fn parse_targets(value: &str) -> Result<Vec<std::net::IpAddr>, AppError> {
+pub(crate) fn parse_targets(value: &str) -> Result<Vec<std::net::IpAddr>, AppError> {
     let targets = value
         .split(|character: char| character == ',' || character == ';' || character.is_whitespace())
         .filter(|value| !value.is_empty())
@@ -334,7 +341,7 @@ fn parse_targets(value: &str) -> Result<Vec<std::net::IpAddr>, AppError> {
     Ok(targets.into_iter().collect())
 }
 
-fn normalize_ports(ports: Vec<i32>) -> Result<Vec<i32>, AppError> {
+pub(crate) fn normalize_ports(ports: Vec<i32>) -> Result<Vec<i32>, AppError> {
     let ports = ports.into_iter().collect::<std::collections::BTreeSet<_>>();
     if ports.is_empty() || ports.iter().any(|port| !(1..=65_535).contains(port)) {
         return Err(AppError::bad_request("端口必须在 1-65535 之间"));

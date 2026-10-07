@@ -18,6 +18,7 @@ struct Job {
     attempt_count: i32,
     max_attempts: i32,
     timeout_seconds: i32,
+    created_by: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,7 +75,7 @@ async fn claim(pool: &PgPool, worker_id: &str) -> Result<Option<Job>, sqlx::Erro
     sqlx::query_as::<_, Job>(
         "WITH candidate AS (
              SELECT id FROM infra_task
-             WHERE task_kind IN ('scan','inspection') AND status IN ('queued','retrying')
+             WHERE task_kind IN ('scan','inspection','asset_discovery') AND status IN ('queued','retrying')
                AND deleted=0 AND cancel_requested=false AND next_attempt_at <= now()
              ORDER BY next_attempt_at,create_time
              FOR UPDATE SKIP LOCKED LIMIT 1
@@ -86,7 +87,7 @@ async fn claim(pool: &PgPool, worker_id: &str) -> Result<Option<Job>, sqlx::Erro
              found_assets=0,found_risks=0,update_time=now()
          FROM candidate WHERE task.id=candidate.id
          RETURNING task.id,task.tenant_id,task.task_kind,task.payload,task.attempt_count,
-             task.max_attempts,task.timeout_seconds",
+             task.max_attempts,task.timeout_seconds,task.created_by",
     )
     .bind(worker_id)
     .bind(LEASE_SECONDS as i32)
@@ -112,7 +113,7 @@ async fn recover_expired(pool: &PgPool) -> Result<(), sqlx::Error> {
                  WHEN cancel_requested OR attempt_count >= max_attempts THEN now()::text
                  ELSE NULL END,
              lease_owner=NULL,lease_expires_at=NULL,update_time=now()
-         WHERE task_kind IN ('scan','inspection') AND status='running' AND deleted=0
+         WHERE task_kind IN ('scan','inspection','asset_discovery') AND status='running' AND deleted=0
            AND lease_expires_at < now()",
     )
     .execute(pool)
@@ -224,6 +225,7 @@ async fn execute_scan(
     let mut observed_risk_keys = Vec::new();
     for ip in payload.target_ips {
         let mut ip_open = false;
+        let mut open_ports = Vec::new();
         for ports in payload.ports.chunks(PROBES_PER_BATCH) {
             ensure_active(pool, owner, &job.id).await?;
             let mut probes = JoinSet::new();
@@ -243,6 +245,7 @@ async fn execute_scan(
                 let (port, open) = result.map_err(|error| error.to_string())?;
                 if open {
                     ip_open = true;
+                    open_ports.push(port);
                     found_risks += 1;
                     observed_risk_keys.push(format!("task_scan:{}:{ip}:{port}", job.id));
                     save_open_port_risk(pool, job, ip, port).await?;
@@ -252,6 +255,9 @@ async fn execute_scan(
         }
         if ip_open {
             found_assets += 1;
+        }
+        if job.task_kind == "asset_discovery" {
+            save_discovered_asset(pool, job, ip, &open_ports).await?;
         }
     }
     sqlx::query(
@@ -267,6 +273,40 @@ async fn execute_scan(
     .await
     .map_err(|error| error.to_string())?;
     Ok((found_assets, found_risks))
+}
+
+async fn save_discovered_asset(
+    pool: &PgPool,
+    job: &Job,
+    ip: IpAddr,
+    open_ports: &[i32],
+) -> Result<(), String> {
+    let ip = ip.to_string();
+    let ports = serde_json::to_string(open_ports).map_err(|error| error.to_string())?;
+    let name = if open_ports.is_empty() {
+        format!("Host {ip}")
+    } else {
+        format!("Discovered {ip}")
+    };
+    sqlx::query(
+        "INSERT INTO infra_asset
+            (name,ip,zone,ports,last_scanned,created_by,updated_by,creator,updater,tenant_id)
+         VALUES($1,$2,'discovered',$3,to_char(now(),'YYYY-MM-DD HH24:MI:SS'),$4,$4,$4,$4,$5)
+         ON CONFLICT(tenant_id,ip) WHERE deleted=0 AND tenant_id IS NOT NULL
+         DO UPDATE SET ports=EXCLUDED.ports,last_scanned=EXCLUDED.last_scanned,
+             updated_by=EXCLUDED.updated_by,updater=EXCLUDED.updater,update_time=now(),
+             device_type=CASE WHEN infra_asset.device_type IS NULL OR infra_asset.device_type=''
+                 THEN 'network' ELSE infra_asset.device_type END",
+    )
+    .bind(name)
+    .bind(ip)
+    .bind(ports)
+    .bind(&job.created_by)
+    .bind(job.tenant_id)
+    .execute(pool)
+    .await
+    .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 pub(crate) async fn ensure_active(pool: &PgPool, owner: &str, task_id: &str) -> Result<(), String> {
@@ -386,6 +426,7 @@ mod tests {
             "test",
             "worker integration",
             "127.0.0.1",
+            "scan",
             "custom",
             vec!["127.0.0.1".parse().unwrap()],
             vec![port],
@@ -402,6 +443,7 @@ mod tests {
             "test",
             "worker integration duplicate",
             "127.0.0.1",
+            "scan",
             "custom",
             vec!["127.0.0.1".parse().unwrap()],
             vec![port],

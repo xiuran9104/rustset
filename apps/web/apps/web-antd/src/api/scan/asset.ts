@@ -1,6 +1,6 @@
 import { requestClient } from '#/api/request';
 
-import { infraCreate, infraDelete, infraGet, infraList, infraUpdate } from './compat';
+import { infraCreate, infraDelete, infraGet, infraList, infraUpdate, toInfraPayload } from './compat';
 
 export namespace ScanAssetApi {
   export interface Asset {
@@ -44,6 +44,20 @@ export namespace ScanAssetApi {
     updated: number;
     unchanged: number;
     stale: number;
+  }
+
+  export interface DiscoverAssetsRequest {
+    ips: string[];
+    ports: number[];
+    idempotency_key?: string;
+    max_attempts?: number;
+    timeout_seconds?: number;
+  }
+
+  export interface DiscoverAssetsResponse {
+    taskId: string;
+    targets: number;
+    ports: number[];
   }
 }
 
@@ -104,6 +118,12 @@ export async function getAsset(id: number) {
 export function createAsset(data: ScanAssetApi.Asset) { return infraCreate('asset', serializeCollections(data)); }
 export function updateAsset(id: number, data: ScanAssetApi.Asset) { return infraUpdate('asset', id, serializeCollections(data)); }
 export function deleteAsset(id: number) { return infraDelete('asset', id); }
+export function discoverAssets(data: ScanAssetApi.DiscoverAssetsRequest) {
+  return requestClient.post<ScanAssetApi.DiscoverAssetsResponse>(
+    '/infra/asset/discover',
+    toInfraPayload(data),
+  );
+}
 export function exportAssetCsv() { return requestClient.download('/infra/asset/export-csv'); }
 export function downloadAssetImportTemplate() { return requestClient.download('/infra/asset/import-template'); }
 export function importAssetCsv(file: File) { return requestClient.upload('/infra/asset/import-csv', { file }); }

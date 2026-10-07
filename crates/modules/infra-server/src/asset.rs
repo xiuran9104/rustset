@@ -16,6 +16,7 @@ use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
+use rustset_infra_api::{DiscoverAssetsRequest, DiscoverAssetsResponse};
 use serde_json::{Value, json};
 use sqlx::Row;
 use std::collections::HashMap;
@@ -51,6 +52,7 @@ pub fn routes() -> ApiRouter<InfraState> {
         .api_route("/infra/asset/update", put(asset_update))
         .api_route("/infra/asset/delete", delete(asset_delete))
         .api_route("/infra/asset/delete-list", delete(asset_delete_list))
+        .api_route("/infra/asset/discover", post(asset_discover))
         .api_route("/infra/asset/{id}/port/add", post(asset_add_port))
         .api_route("/infra/asset/{id}/port/{port}", put(asset_update_port))
         .api_route("/infra/asset/{id}/port/{port}", delete(asset_delete_port))
@@ -214,65 +216,37 @@ async fn asset_sync_cmdb(
 async fn asset_discover(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let ips: Vec<String> = payload
-        .get("ips")
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
-        .unwrap_or(&[])
-        .iter()
-        .filter_map(Value::as_str)
-        .map(str::trim)
-        .filter(|ip| !ip.is_empty())
-        .map(str::to_string)
-        .collect();
-    if ips.is_empty() || ips.len() > 256 {
-        return Err(AppError::bad_request("ips must contain 1 to 256 addresses"));
+    Json(payload): Json<DiscoverAssetsRequest>,
+) -> Result<Json<ApiResponse<DiscoverAssetsResponse>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let target_text = payload.ips.join(",");
+    let targets = crate::task::parse_targets(&target_text)?;
+    let ports = crate::task::normalize_ports(payload.ports)?;
+    if ports.len() > 64 {
+        return Err(AppError::bad_request("资产发现每次最多探测 64 个端口"));
     }
-    let targets: Vec<std::net::IpAddr> = ips
-        .iter()
-        .map(|ip| {
-            ip.parse()
-                .map_err(|_| AppError::bad_request(format!("invalid IP address: {ip}")))
-        })
-        .collect::<Result<_, _>>()?;
-    let ports: Vec<u16> = payload
-        .get("ports")
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
-        .unwrap_or(&[])
-        .iter()
-        .filter_map(Value::as_u64)
-        .filter(|port| (1..=65535).contains(port))
-        .map(|port| port as u16)
-        .collect();
-    if ports.is_empty() || ports.len() > 64 {
-        return Err(AppError::bad_request(
-            "ports must contain 1 to 64 valid ports",
-        ));
-    }
-    let pool = state.pool.clone();
-    let actor = user.username.clone();
     let count = targets.len();
-    let scan_ports = ports.clone();
-    tokio::spawn(async move {
-        for ip in targets {
-            let open = scan_ports.iter().any(|port| {
-                std::net::TcpStream::connect_timeout(
-                    &std::net::SocketAddr::new(ip, *port),
-                    std::time::Duration::from_millis(350),
-                )
-                .is_ok()
-            });
-            let ip_text = ip.to_string();
-            let _ = sqlx::query("INSERT INTO infra_asset (name, ip, zone, ports, last_scanned, created_by, updated_by, creator, updater) VALUES ($1,$2,'discovered','[]',to_char(now(),'YYYY-MM-DD HH24:MI:SS'),$3,$3,$3,$3) ON CONFLICT (ip) WHERE deleted = 0 DO UPDATE SET last_scanned=excluded.last_scanned, updated_by=excluded.updated_by, updater=excluded.updater, update_time=now(), device_type=CASE WHEN infra_asset.device_type IS NULL OR infra_asset.device_type='' THEN 'network' ELSE infra_asset.device_type END")
-                .bind(if open { format!("Discovered {ip_text}") } else { format!("Host {ip_text}") }).bind(&ip_text).bind(&actor).execute(&pool).await;
-        }
-    });
-    Ok(Json(ApiResponse::new(
-        json!({"queued": true, "targets": count, "ports": ports}),
-    )))
+    let task_id = crate::task::enqueue(
+        &state.pool,
+        &tenant,
+        &user.username,
+        "资产发现",
+        &target_text,
+        "asset_discovery",
+        "custom",
+        targets,
+        ports.clone(),
+        payload.idempotency_key.as_deref(),
+        payload.max_attempts,
+        payload.timeout_seconds,
+        &json!({}),
+    )
+    .await?;
+    Ok(Json(ApiResponse::new(DiscoverAssetsResponse {
+        task_id,
+        targets: count,
+        ports,
+    })))
 }
 async fn asset_create(
     State(state): State<InfraState>,

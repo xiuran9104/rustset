@@ -1941,6 +1941,8 @@ mod api_contract_tests {
             "ScanTaskResponse",
             "RunInspectionRequest",
             "InspectionResultResponse",
+            "DiscoverAssetsRequest",
+            "DiscoverAssetsResponse",
             "CreateResourceTicketRequest",
             "UpdateResourceTicketRequest",
             "CreateNetworkZoneRequest",

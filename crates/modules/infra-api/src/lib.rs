@@ -110,6 +110,24 @@ pub struct TriggerScanResponse {
     pub ports: Vec<i32>,
 }
 
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DiscoverAssetsRequest {
+    pub ips: Vec<String>,
+    pub ports: Vec<i32>,
+    pub idempotency_key: Option<String>,
+    pub max_attempts: Option<i64>,
+    pub timeout_seconds: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoverAssetsResponse {
+    pub task_id: String,
+    pub targets: usize,
+    pub ports: Vec<i32>,
+}
+
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanTaskResponse {
