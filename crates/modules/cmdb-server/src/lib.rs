@@ -155,16 +155,6 @@ async fn attribute_count(pool: &PgPool, model_id: i64) -> i64 {
     .unwrap_or(0)
 }
 
-fn model_keyword_clause(keyword: &Option<String>) -> (String, String) {
-    match keyword.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-        Some(keyword) => (
-            " AND (name ILIKE $2 OR code ILIKE $2)".into(),
-            format!("%{keyword}%"),
-        ),
-        None => (String::new(), String::new()),
-    }
-}
-
 fn model_keyword_pattern(keyword: &Option<String>) -> Option<String> {
     keyword
         .as_deref()
