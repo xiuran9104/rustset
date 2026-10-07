@@ -31,6 +31,7 @@ mod business;
 mod cloud_platform;
 mod inspection;
 mod provider;
+mod resource_scope;
 mod risk;
 mod room;
 mod security;
