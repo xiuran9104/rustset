@@ -13,7 +13,10 @@ use axum::{
     Json,
     extract::{Query, State},
 };
-use rustset_cmdb_api::AttrType;
+use rustset_cmdb_api::{
+    AttrType, CreateAttributeRequest, CreateModelRequest, UpdateAttributeRequest,
+    UpdateModelRequest,
+};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_database::PgPool;
 use rustset_framework_security::{CurrentUser, Permission};
@@ -270,8 +273,10 @@ fn string_field(payload: &Value, key: &str) -> Result<String, AppError> {
 async fn model_create(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(request): Json<CreateModelRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    let payload = serde_json::to_value(request)
+        .map_err(|_| AppError::bad_request("invalid model request"))?;
     require(&user, "cmdb:model:create")?;
     let name = string_field(&payload, "name")?;
     let code = string_field(&payload, "code")?;
@@ -337,8 +342,10 @@ async fn model_create(
 async fn model_update(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(request): Json<UpdateModelRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let payload = serde_json::to_value(request)
+        .map_err(|_| AppError::bad_request("invalid model request"))?;
     require(&user, "cmdb:model:update")?;
     let id = payload
         .get("id")
@@ -711,8 +718,10 @@ async fn reconcile_attribute_instances(
 async fn attribute_create(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(request): Json<CreateAttributeRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    let payload = serde_json::to_value(request)
+        .map_err(|_| AppError::bad_request("invalid attribute request"))?;
     require(&user, "cmdb:attribute:create")?;
     let model_id = payload
         .get("modelId")
@@ -785,8 +794,10 @@ async fn attribute_create(
 async fn attribute_update(
     State(state): State<CmdbState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(request): Json<UpdateAttributeRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let payload = serde_json::to_value(request)
+        .map_err(|_| AppError::bad_request("invalid attribute request"))?;
     require(&user, "cmdb:attribute:update")?;
     let id = payload
         .get("id")

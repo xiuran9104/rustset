@@ -144,6 +144,67 @@ fn default_zone_type() -> String {
     "company".to_owned()
 }
 
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateModelRequest {
+    pub name: String,
+    pub code: String,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub unique_key: Option<String>,
+    #[serde(default)]
+    pub sort: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateModelRequest {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub unique_key: Option<String>,
+    #[serde(default)]
+    pub sort: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateAttributeRequest {
+    pub model_id: i64,
+    pub name: String,
+    pub code: String,
+    pub attr_type: String,
+    #[serde(default)]
+    pub required: bool,
+    pub choices: Option<Value>,
+    pub default_value: Option<Value>,
+    pub expression: Option<String>,
+    pub color: Option<String>,
+    #[serde(default = "default_true")]
+    pub show_in_list: bool,
+    #[serde(default)]
+    pub sort: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateAttributeRequest {
+    pub id: i64,
+    pub name: String,
+    pub attr_type: String,
+    #[serde(default)]
+    pub required: bool,
+    pub choices: Option<Value>,
+    pub default_value: Option<Value>,
+    pub expression: Option<String>,
+    pub color: Option<String>,
+    #[serde(default = "default_true")]
+    pub show_in_list: bool,
+    #[serde(default)]
+    pub sort: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AttrType {
@@ -417,6 +478,23 @@ mod tests {
         assert!(
             serde_json::from_value::<ResolveNetZoneRequest>(serde_json::json!({
                 "ip": "10.0.0.1", "tenantId": 9
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn metadata_writes_reject_database_managed_fields() {
+        assert!(
+            serde_json::from_value::<CreateModelRequest>(serde_json::json!({
+                "name": "Server", "code": "server", "deleted": 0
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<CreateAttributeRequest>(serde_json::json!({
+                "modelId": 1, "name": "IP", "code": "ip", "attrType": "text",
+                "creator": "forged"
             }))
             .is_err()
         );
