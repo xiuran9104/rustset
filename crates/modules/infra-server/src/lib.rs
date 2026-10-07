@@ -81,6 +81,10 @@ pub(crate) struct TableSpec {
     pub(crate) seq: &'static str,
 }
 
+pub(crate) fn request_value<T: Serialize>(request: T) -> Result<Value, AppError> {
+    serde_json::to_value(request).map_err(|_| AppError::bad_request("request cannot be serialized"))
+}
+
 pub fn routes(state: InfraState) -> ApiRouter {
     ApiRouter::new()
         .layer(DefaultBodyLimit::max(

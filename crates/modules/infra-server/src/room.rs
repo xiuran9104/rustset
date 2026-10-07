@@ -15,6 +15,7 @@ use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
+use rustset_infra_api::{CreateMachineRoomRequest, UpdateMachineRoomRequest};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -60,16 +61,16 @@ async fn get_one(
 async fn create(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<Value>,
+    Json(p): Json<CreateMachineRoomRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    tenant_table_create(&s.pool, tenant(&user)?, ROOM, p).await
+    tenant_table_create(&s.pool, tenant(&user)?, ROOM, crate::request_value(p)?).await
 }
 async fn update(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<Value>,
+    Json(p): Json<UpdateMachineRoomRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    tenant_table_update(&s.pool, tenant(&user)?, ROOM, p).await
+    tenant_table_update(&s.pool, tenant(&user)?, ROOM, crate::request_value(p)?).await
 }
 async fn delete_one(
     State(s): State<InfraState>,

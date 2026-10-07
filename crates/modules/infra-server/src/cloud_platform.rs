@@ -13,6 +13,10 @@ use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
+use rustset_infra_api::{
+    CreateCloudPlatformRequest, CreateCloudProviderConfigRequest, CreateCloudZoneRequest,
+    UpdateCloudPlatformRequest, UpdateCloudProviderConfigRequest, UpdateCloudZoneRequest,
+};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
@@ -101,16 +105,28 @@ async fn zone_get(
 async fn zone_create(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<CreateCloudZoneRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    tenant_table_create(&state.pool, tenant(&user)?.id(), CLOUD_ZONE, payload).await
+    tenant_table_create(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_ZONE,
+        crate::request_value(payload)?,
+    )
+    .await
 }
 async fn zone_update(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<UpdateCloudZoneRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    tenant_table_update(&state.pool, tenant(&user)?.id(), CLOUD_ZONE, payload).await
+    tenant_table_update(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_ZONE,
+        crate::request_value(payload)?,
+    )
+    .await
 }
 async fn zone_delete(
     State(state): State<InfraState>,
@@ -182,16 +198,28 @@ async fn platform_get(
 async fn platform_create(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<CreateCloudPlatformRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    tenant_table_create(&state.pool, tenant(&user)?.id(), CLOUD_PLATFORM, payload).await
+    tenant_table_create(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PLATFORM,
+        crate::request_value(payload)?,
+    )
+    .await
 }
 async fn platform_update(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<UpdateCloudPlatformRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    tenant_table_update(&state.pool, tenant(&user)?.id(), CLOUD_PLATFORM, payload).await
+    tenant_table_update(
+        &state.pool,
+        tenant(&user)?.id(),
+        CLOUD_PLATFORM,
+        crate::request_value(payload)?,
+    )
+    .await
 }
 async fn platform_delete(
     State(state): State<InfraState>,
@@ -255,26 +283,26 @@ async fn config_get(
 async fn config_create(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<CreateCloudProviderConfigRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     tenant_table_create(
         &state.pool,
         tenant(&user)?.id(),
         CLOUD_PROVIDER_CONFIG,
-        payload,
+        crate::request_value(payload)?,
     )
     .await
 }
 async fn config_update(
     State(state): State<InfraState>,
     user: CurrentUser,
-    Json(payload): Json<Value>,
+    Json(payload): Json<UpdateCloudProviderConfigRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     tenant_table_update(
         &state.pool,
         tenant(&user)?.id(),
         CLOUD_PROVIDER_CONFIG,
-        payload,
+        crate::request_value(payload)?,
     )
     .await
 }

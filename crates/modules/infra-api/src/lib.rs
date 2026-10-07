@@ -1,6 +1,155 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+macro_rules! update_request {
+    ($name:ident, $create:ty) => {
+        #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        pub struct $name {
+            pub id: i64,
+            #[serde(flatten)]
+            pub data: $create,
+        }
+    };
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateServiceProviderRequest {
+    pub provider_name: String,
+    pub provider_code: String,
+    pub short_name: String,
+    pub logo_url: Option<String>,
+    pub contact_person: String,
+    pub contact_phone: String,
+    pub contact_email: String,
+    pub headquarters: String,
+    pub service_area: String,
+    pub business_license: String,
+    pub remarks: Option<String>,
+    #[serde(default = "default_active")]
+    pub status: String,
+}
+update_request!(UpdateServiceProviderRequest, CreateServiceProviderRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateMachineRoomRequest {
+    pub room_name: String,
+    pub room_code: String,
+    pub facility_type: String,
+    pub address: String,
+    pub provider_id: i64,
+    pub room_type: String,
+    pub contact_person: String,
+    pub contact_phone: String,
+    pub floor: Option<String>,
+    pub cabinet_count: Option<i32>,
+    pub area_size: Option<String>,
+    pub remarks: Option<String>,
+    #[serde(default = "default_active")]
+    pub status: String,
+}
+update_request!(UpdateMachineRoomRequest, CreateMachineRoomRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateSecurityProductRequest {
+    pub name: String,
+    pub category: String,
+    pub vendor: String,
+    pub model: String,
+    pub version: String,
+    pub serial_number: Option<String>,
+    pub license_type: String,
+    pub license_expiry: Option<String>,
+    pub management_ip: Option<String>,
+    pub deployment_mode: String,
+    pub cloud_platform_id: Option<i64>,
+    pub machine_room_id: Option<i64>,
+    pub provider_id: Option<i64>,
+    #[serde(default = "default_active")]
+    pub status: String,
+    pub features: Option<String>,
+    pub throughput: Option<String>,
+    pub contact_person: String,
+    pub contact_phone: String,
+    pub remarks: Option<String>,
+}
+update_request!(UpdateSecurityProductRequest, CreateSecurityProductRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateBusinessApplicationRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub created_by: Option<String>,
+}
+update_request!(
+    UpdateBusinessApplicationRequest,
+    CreateBusinessApplicationRequest
+);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateApplicationEndpointRequest {
+    pub business_application_id: i64,
+    pub protocol: String,
+    pub dest_ip: String,
+    pub nat_ip: Option<String>,
+    pub dest_port: String,
+    pub domain: Option<String>,
+    pub created_by: Option<String>,
+}
+update_request!(
+    UpdateApplicationEndpointRequest,
+    CreateApplicationEndpointRequest
+);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateCloudZoneRequest {
+    pub zone_name: String,
+    pub zone_code: String,
+    pub description: Option<String>,
+}
+update_request!(UpdateCloudZoneRequest, CreateCloudZoneRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateCloudPlatformRequest {
+    pub zone_id: i64,
+    pub platform_name: String,
+    pub platform_code: String,
+    pub description: Option<String>,
+}
+update_request!(UpdateCloudPlatformRequest, CreateCloudPlatformRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateCloudProviderConfigRequest {
+    pub zone_id: Option<i64>,
+    pub platform_id: Option<i64>,
+    pub provider: String,
+    pub region_id: String,
+    pub region_name: String,
+    pub available_zones: Option<String>,
+    pub account_name: String,
+    pub access_key_id: String,
+    pub access_key_secret: String,
+    #[serde(default = "default_active")]
+    pub status: String,
+    pub remarks: Option<String>,
+}
+update_request!(
+    UpdateCloudProviderConfigRequest,
+    CreateCloudProviderConfigRequest
+);
+
+fn default_active() -> String {
+    "active".to_owned()
+}
+
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct InfraCapability {
     pub module: &'static str,
@@ -455,6 +604,49 @@ mod contract_tests {
             serde_json::from_value::<ApproveResourceTicketRequest>(json!({
                 "approved": true,
                 "unexpected": "field"
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn inventory_write_contracts_hide_managed_columns() {
+        let provider: UpdateServiceProviderRequest = serde_json::from_value(json!({
+            "id": 7,
+            "providerName": "Example Cloud",
+            "providerCode": "example",
+            "shortName": "EC",
+            "contactPerson": "owner",
+            "contactPhone": "10000",
+            "contactEmail": "owner@example.com",
+            "headquarters": "Shanghai",
+            "serviceArea": "CN",
+            "businessLicense": "license"
+        }))
+        .unwrap();
+        assert_eq!(provider.id, 7);
+        assert_eq!(provider.data.status, "active");
+
+        assert!(
+            serde_json::from_value::<CreateCloudZoneRequest>(json!({
+                "zoneName": "East",
+                "zoneCode": "east",
+                "tenantId": 99
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<CreateSecurityProductRequest>(json!({
+                "name": "Firewall",
+                "category": "firewall",
+                "vendor": "vendor",
+                "model": "m1",
+                "version": "1",
+                "licenseType": "subscription",
+                "deploymentMode": "inline",
+                "contactPerson": "owner",
+                "contactPhone": "10000",
+                "deleted": 0
             }))
             .is_err()
         );

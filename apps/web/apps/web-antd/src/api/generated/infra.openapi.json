@@ -1348,7 +1348,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateServiceProviderRequest"
+              }
             }
           },
           "required": true
@@ -1372,7 +1374,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateServiceProviderRequest"
+              }
             }
           },
           "required": true
@@ -1504,7 +1508,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateMachineRoomRequest"
+              }
             }
           },
           "required": true
@@ -1528,7 +1534,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMachineRoomRequest"
+              }
             }
           },
           "required": true
@@ -1660,7 +1668,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateCloudZoneRequest"
+              }
             }
           },
           "required": true
@@ -1684,7 +1694,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCloudZoneRequest"
+              }
             }
           },
           "required": true
@@ -1832,7 +1844,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateCloudPlatformRequest"
+              }
             }
           },
           "required": true
@@ -1856,7 +1870,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCloudPlatformRequest"
+              }
             }
           },
           "required": true
@@ -1988,7 +2004,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateCloudProviderConfigRequest"
+              }
             }
           },
           "required": true
@@ -2012,7 +2030,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCloudProviderConfigRequest"
+              }
             }
           },
           "required": true
@@ -2320,7 +2340,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateSecurityProductRequest"
+              }
             }
           },
           "required": true
@@ -2344,7 +2366,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSecurityProductRequest"
+              }
             }
           },
           "required": true
@@ -3442,7 +3466,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateBusinessApplicationRequest"
+              }
             }
           },
           "required": true
@@ -3466,7 +3492,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessApplicationRequest"
+              }
             }
           },
           "required": true
@@ -3598,7 +3626,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/CreateApplicationEndpointRequest"
+              }
             }
           },
           "required": true
@@ -3622,7 +3652,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": true
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApplicationEndpointRequest"
+              }
             }
           },
           "required": true
@@ -4998,6 +5030,49 @@
           "approved"
         ]
       },
+      "CreateApplicationEndpointRequest": {
+        "type": "object",
+        "properties": {
+          "businessApplicationId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destIp": {
+            "type": "string"
+          },
+          "destPort": {
+            "type": "string"
+          },
+          "domain": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "natIp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "protocol": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "businessApplicationId",
+          "protocol",
+          "destIp",
+          "destPort"
+        ]
+      },
       "CreateApprovalRuleRequest": {
         "type": "object",
         "properties": {
@@ -5050,6 +5125,211 @@
         "additionalProperties": false,
         "required": [
           "name"
+        ]
+      },
+      "CreateBusinessApplicationRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ]
+      },
+      "CreateCloudPlatformRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platformCode": {
+            "type": "string"
+          },
+          "platformName": {
+            "type": "string"
+          },
+          "zoneId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "zoneId",
+          "platformName",
+          "platformCode"
+        ]
+      },
+      "CreateCloudProviderConfigRequest": {
+        "type": "object",
+        "properties": {
+          "accessKeyId": {
+            "type": "string"
+          },
+          "accessKeySecret": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "availableZones": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platformId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "regionId": {
+            "type": "string"
+          },
+          "regionName": {
+            "type": "string"
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          },
+          "zoneId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "regionId",
+          "regionName",
+          "accountName",
+          "accessKeyId",
+          "accessKeySecret"
+        ]
+      },
+      "CreateCloudZoneRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zoneCode": {
+            "type": "string"
+          },
+          "zoneName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "zoneName",
+          "zoneCode"
+        ]
+      },
+      "CreateMachineRoomRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "areaSize": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cabinetCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "contactPerson": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "type": "string"
+          },
+          "facilityType": {
+            "type": "string"
+          },
+          "floor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roomCode": {
+            "type": "string"
+          },
+          "roomName": {
+            "type": "string"
+          },
+          "roomType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "roomName",
+          "roomCode",
+          "facilityType",
+          "address",
+          "providerId",
+          "roomType",
+          "contactPerson",
+          "contactPhone"
         ]
       },
       "CreateNetworkZoneRequest": {
@@ -5420,6 +5700,171 @@
           "name",
           "target",
           "portPolicy"
+        ]
+      },
+      "CreateSecurityProductRequest": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "cloudPlatformId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "contactPerson": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "type": "string"
+          },
+          "deploymentMode": {
+            "type": "string"
+          },
+          "features": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "licenseExpiry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "licenseType": {
+            "type": "string"
+          },
+          "machineRoomId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "managementIp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serialNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          },
+          "throughput": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "category",
+          "vendor",
+          "model",
+          "version",
+          "licenseType",
+          "deploymentMode",
+          "contactPerson",
+          "contactPhone"
+        ]
+      },
+      "CreateServiceProviderRequest": {
+        "type": "object",
+        "properties": {
+          "businessLicense": {
+            "type": "string"
+          },
+          "contactEmail": {
+            "type": "string"
+          },
+          "contactPerson": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "type": "string"
+          },
+          "headquarters": {
+            "type": "string"
+          },
+          "logoUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serviceArea": {
+            "type": "string"
+          },
+          "shortName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "providerName",
+          "providerCode",
+          "shortName",
+          "contactPerson",
+          "contactPhone",
+          "contactEmail",
+          "headquarters",
+          "serviceArea",
+          "businessLicense"
         ]
       },
       "DeliverResourceTicketRequest": {
@@ -6212,6 +6657,54 @@
           "ports"
         ]
       },
+      "UpdateApplicationEndpointRequest": {
+        "type": "object",
+        "properties": {
+          "businessApplicationId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destIp": {
+            "type": "string"
+          },
+          "destPort": {
+            "type": "string"
+          },
+          "domain": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "natIp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "protocol": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "businessApplicationId",
+          "protocol",
+          "destIp",
+          "destPort"
+        ]
+      },
       "UpdateApprovalRuleRequest": {
         "type": "object",
         "properties": {
@@ -6269,6 +6762,236 @@
         "required": [
           "id",
           "name"
+        ]
+      },
+      "UpdateBusinessApplicationRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "UpdateCloudPlatformRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "platformCode": {
+            "type": "string"
+          },
+          "platformName": {
+            "type": "string"
+          },
+          "zoneId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "zoneId",
+          "platformName",
+          "platformCode"
+        ]
+      },
+      "UpdateCloudProviderConfigRequest": {
+        "type": "object",
+        "properties": {
+          "accessKeyId": {
+            "type": "string"
+          },
+          "accessKeySecret": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "availableZones": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "platformId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "regionId": {
+            "type": "string"
+          },
+          "regionName": {
+            "type": "string"
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          },
+          "zoneId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "provider",
+          "regionId",
+          "regionName",
+          "accountName",
+          "accessKeyId",
+          "accessKeySecret"
+        ]
+      },
+      "UpdateCloudZoneRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "zoneCode": {
+            "type": "string"
+          },
+          "zoneName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "zoneName",
+          "zoneCode"
+        ]
+      },
+      "UpdateMachineRoomRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "areaSize": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cabinetCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "contactPerson": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "type": "string"
+          },
+          "facilityType": {
+            "type": "string"
+          },
+          "floor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "providerId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roomCode": {
+            "type": "string"
+          },
+          "roomName": {
+            "type": "string"
+          },
+          "roomType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "roomName",
+          "roomCode",
+          "facilityType",
+          "address",
+          "providerId",
+          "roomType",
+          "contactPerson",
+          "contactPhone"
         ]
       },
       "UpdateNetworkZoneRequest": {
@@ -6486,6 +7209,181 @@
           "name",
           "target",
           "portPolicy"
+        ]
+      },
+      "UpdateSecurityProductRequest": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "cloudPlatformId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "contactPerson": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "type": "string"
+          },
+          "deploymentMode": {
+            "type": "string"
+          },
+          "features": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "licenseExpiry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "licenseType": {
+            "type": "string"
+          },
+          "machineRoomId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "managementIp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serialNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          },
+          "throughput": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "category",
+          "vendor",
+          "model",
+          "version",
+          "licenseType",
+          "deploymentMode",
+          "contactPerson",
+          "contactPhone"
+        ]
+      },
+      "UpdateServiceProviderRequest": {
+        "type": "object",
+        "properties": {
+          "businessLicense": {
+            "type": "string"
+          },
+          "contactEmail": {
+            "type": "string"
+          },
+          "contactPerson": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "type": "string"
+          },
+          "headquarters": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "logoUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serviceArea": {
+            "type": "string"
+          },
+          "shortName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "providerName",
+          "providerCode",
+          "shortName",
+          "contactPerson",
+          "contactPhone",
+          "contactEmail",
+          "headquarters",
+          "serviceArea",
+          "businessLicense"
         ]
       }
     }

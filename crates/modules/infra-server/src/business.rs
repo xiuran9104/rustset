@@ -15,6 +15,10 @@ use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
+use rustset_infra_api::{
+    CreateApplicationEndpointRequest, CreateBusinessApplicationRequest,
+    UpdateApplicationEndpointRequest, UpdateBusinessApplicationRequest,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -86,16 +90,28 @@ async fn app_get(
 async fn app_create(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<Value>,
+    Json(p): Json<CreateBusinessApplicationRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    tenant_table_create(&s.pool, tenant(&user)?.id(), BUSINESS_APP, p).await
+    tenant_table_create(
+        &s.pool,
+        tenant(&user)?.id(),
+        BUSINESS_APP,
+        crate::request_value(p)?,
+    )
+    .await
 }
 async fn app_update(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<Value>,
+    Json(p): Json<UpdateBusinessApplicationRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    tenant_table_update(&s.pool, tenant(&user)?.id(), BUSINESS_APP, p).await
+    tenant_table_update(
+        &s.pool,
+        tenant(&user)?.id(),
+        BUSINESS_APP,
+        crate::request_value(p)?,
+    )
+    .await
 }
 async fn app_delete(
     State(s): State<InfraState>,
@@ -159,16 +175,28 @@ async fn ep_get(
 async fn ep_create(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<Value>,
+    Json(p): Json<CreateApplicationEndpointRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    tenant_table_create(&s.pool, tenant(&user)?.id(), ENDPOINT, p).await
+    tenant_table_create(
+        &s.pool,
+        tenant(&user)?.id(),
+        ENDPOINT,
+        crate::request_value(p)?,
+    )
+    .await
 }
 async fn ep_update(
     State(s): State<InfraState>,
     user: CurrentUser,
-    Json(p): Json<Value>,
+    Json(p): Json<UpdateApplicationEndpointRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    tenant_table_update(&s.pool, tenant(&user)?.id(), ENDPOINT, p).await
+    tenant_table_update(
+        &s.pool,
+        tenant(&user)?.id(),
+        ENDPOINT,
+        crate::request_value(p)?,
+    )
+    .await
 }
 async fn ep_delete(
     State(s): State<InfraState>,

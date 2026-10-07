@@ -2317,7 +2317,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateServiceProviderRequest"];
                 };
             };
             responses: {
@@ -2354,7 +2354,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateServiceProviderRequest"];
                 };
             };
             responses: {
@@ -2566,7 +2566,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateMachineRoomRequest"];
                 };
             };
             responses: {
@@ -2603,7 +2603,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateMachineRoomRequest"];
                 };
             };
             responses: {
@@ -2815,7 +2815,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateCloudZoneRequest"];
                 };
             };
             responses: {
@@ -2852,7 +2852,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateCloudZoneRequest"];
                 };
             };
             responses: {
@@ -3098,7 +3098,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateCloudPlatformRequest"];
                 };
             };
             responses: {
@@ -3135,7 +3135,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateCloudPlatformRequest"];
                 };
             };
             responses: {
@@ -3347,7 +3347,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateCloudProviderConfigRequest"];
                 };
             };
             responses: {
@@ -3384,7 +3384,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateCloudProviderConfigRequest"];
                 };
             };
             responses: {
@@ -3879,7 +3879,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateSecurityProductRequest"];
                 };
             };
             responses: {
@@ -3916,7 +3916,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateSecurityProductRequest"];
                 };
             };
             responses: {
@@ -5751,7 +5751,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateBusinessApplicationRequest"];
                 };
             };
             responses: {
@@ -5788,7 +5788,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateBusinessApplicationRequest"];
                 };
             };
             responses: {
@@ -6000,7 +6000,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CreateApplicationEndpointRequest"];
                 };
             };
             responses: {
@@ -6037,7 +6037,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UpdateApplicationEndpointRequest"];
                 };
             };
             responses: {
@@ -7473,6 +7473,16 @@ export interface components {
             approved: boolean;
             comment?: string | null;
         };
+        CreateApplicationEndpointRequest: {
+            /** Format: int64 */
+            businessApplicationId: number;
+            createdBy?: string | null;
+            destIp: string;
+            destPort: string;
+            domain?: string | null;
+            natIp?: string | null;
+            protocol: string;
+        };
         CreateApprovalRuleRequest: {
             /** @default false */
             autoProvision: boolean;
@@ -7491,6 +7501,57 @@ export interface components {
              * @default 0
              */
             status: number;
+        };
+        CreateBusinessApplicationRequest: {
+            description?: string | null;
+            createdBy?: string | null;
+            name: string;
+        };
+        CreateCloudPlatformRequest: {
+            description?: string | null;
+            platformCode: string;
+            platformName: string;
+            /** Format: int64 */
+            zoneId: number;
+        };
+        CreateCloudProviderConfigRequest: {
+            accessKeyId: string;
+            accessKeySecret: string;
+            accountName: string;
+            availableZones?: string | null;
+            /** Format: int64 */
+            platformId?: number | null;
+            provider: string;
+            regionId: string;
+            regionName: string;
+            remarks?: string | null;
+            /** @default active */
+            status: string;
+            /** Format: int64 */
+            zoneId?: number | null;
+        };
+        CreateCloudZoneRequest: {
+            description?: string | null;
+            zoneCode: string;
+            zoneName: string;
+        };
+        CreateMachineRoomRequest: {
+            address: string;
+            areaSize?: string | null;
+            /** Format: int32 */
+            cabinetCount?: number | null;
+            contactPerson: string;
+            contactPhone: string;
+            facilityType: string;
+            floor?: string | null;
+            /** Format: int64 */
+            providerId: number;
+            remarks?: string | null;
+            roomCode: string;
+            roomName: string;
+            roomType: string;
+            /** @default active */
+            status: string;
         };
         CreateNetworkZoneRequest: {
             cidr: string;
@@ -7577,6 +7638,46 @@ export interface components {
             target: string;
             /** Format: int64 */
             timeoutSeconds?: number | null;
+        };
+        CreateSecurityProductRequest: {
+            category: string;
+            /** Format: int64 */
+            cloudPlatformId?: number | null;
+            contactPerson: string;
+            contactPhone: string;
+            deploymentMode: string;
+            features?: string | null;
+            licenseExpiry?: string | null;
+            licenseType: string;
+            /** Format: int64 */
+            machineRoomId?: number | null;
+            managementIp?: string | null;
+            model: string;
+            name: string;
+            /** Format: int64 */
+            providerId?: number | null;
+            remarks?: string | null;
+            serialNumber?: string | null;
+            /** @default active */
+            status: string;
+            throughput?: string | null;
+            vendor: string;
+            version: string;
+        };
+        CreateServiceProviderRequest: {
+            businessLicense: string;
+            contactEmail: string;
+            contactPerson: string;
+            contactPhone: string;
+            headquarters: string;
+            logoUrl?: string | null;
+            providerCode: string;
+            providerName: string;
+            remarks?: string | null;
+            serviceArea: string;
+            shortName: string;
+            /** @default active */
+            status: string;
         };
         DeliverResourceTicketRequest: {
             comment?: string | null;
@@ -7783,6 +7884,18 @@ export interface components {
             targetIp: string;
             taskId: string;
         };
+        UpdateApplicationEndpointRequest: {
+            /** Format: int64 */
+            businessApplicationId: number;
+            createdBy?: string | null;
+            destIp: string;
+            destPort: string;
+            domain?: string | null;
+            /** Format: int64 */
+            id: number;
+            natIp?: string | null;
+            protocol: string;
+        };
         UpdateApprovalRuleRequest: {
             /** @default false */
             autoProvision: boolean;
@@ -7803,6 +7916,67 @@ export interface components {
              * @default 0
              */
             status: number;
+        };
+        UpdateBusinessApplicationRequest: {
+            description?: string | null;
+            createdBy?: string | null;
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        UpdateCloudPlatformRequest: {
+            description?: string | null;
+            /** Format: int64 */
+            id: number;
+            platformCode: string;
+            platformName: string;
+            /** Format: int64 */
+            zoneId: number;
+        };
+        UpdateCloudProviderConfigRequest: {
+            accessKeyId: string;
+            accessKeySecret: string;
+            accountName: string;
+            availableZones?: string | null;
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            platformId?: number | null;
+            provider: string;
+            regionId: string;
+            regionName: string;
+            remarks?: string | null;
+            /** @default active */
+            status: string;
+            /** Format: int64 */
+            zoneId?: number | null;
+        };
+        UpdateCloudZoneRequest: {
+            description?: string | null;
+            /** Format: int64 */
+            id: number;
+            zoneCode: string;
+            zoneName: string;
+        };
+        UpdateMachineRoomRequest: {
+            address: string;
+            areaSize?: string | null;
+            /** Format: int32 */
+            cabinetCount?: number | null;
+            contactPerson: string;
+            contactPhone: string;
+            facilityType: string;
+            floor?: string | null;
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            providerId: number;
+            remarks?: string | null;
+            roomCode: string;
+            roomName: string;
+            roomType: string;
+            /** @default active */
+            status: string;
         };
         UpdateNetworkZoneRequest: {
             cidr: string;
@@ -7858,6 +8032,50 @@ export interface components {
             /** @default false */
             siteIdentify: boolean;
             target: string;
+        };
+        UpdateSecurityProductRequest: {
+            category: string;
+            /** Format: int64 */
+            cloudPlatformId?: number | null;
+            contactPerson: string;
+            contactPhone: string;
+            deploymentMode: string;
+            features?: string | null;
+            /** Format: int64 */
+            id: number;
+            licenseExpiry?: string | null;
+            licenseType: string;
+            /** Format: int64 */
+            machineRoomId?: number | null;
+            managementIp?: string | null;
+            model: string;
+            name: string;
+            /** Format: int64 */
+            providerId?: number | null;
+            remarks?: string | null;
+            serialNumber?: string | null;
+            /** @default active */
+            status: string;
+            throughput?: string | null;
+            vendor: string;
+            version: string;
+        };
+        UpdateServiceProviderRequest: {
+            businessLicense: string;
+            contactEmail: string;
+            contactPerson: string;
+            contactPhone: string;
+            headquarters: string;
+            /** Format: int64 */
+            id: number;
+            logoUrl?: string | null;
+            providerCode: string;
+            providerName: string;
+            remarks?: string | null;
+            serviceArea: string;
+            shortName: string;
+            /** @default active */
+            status: string;
         };
     };
     responses: never;

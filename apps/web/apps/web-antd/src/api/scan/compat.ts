@@ -2,6 +2,18 @@ import { requestClient } from '#/api/request';
 
 type EntityId = number | string;
 
+const managedWriteFields = new Set([
+  'create_time',
+  'created_at',
+  'creator',
+  'deleted',
+  'id',
+  'tenant_id',
+  'update_time',
+  'updated_at',
+  'updater',
+]);
+
 function snakeToCamel(key: string) {
   return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }
@@ -19,6 +31,13 @@ export function toInfraPayload(value: unknown): unknown {
       snakeToCamel(key),
       toInfraPayload(child),
     ]),
+  );
+}
+
+function withoutManagedFields(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+  return Object.fromEntries(
+    Object.entries(data).filter(([key]) => !managedWriteFields.has(key)),
   );
 }
 
@@ -54,13 +73,16 @@ export async function infraGet<T>(resource: string, id: EntityId): Promise<T> {
 }
 
 export function infraCreate(resource: string, data: unknown) {
-  return requestClient.post(`/infra/${resource}/create`, toInfraPayload(data));
+  return requestClient.post(
+    `/infra/${resource}/create`,
+    toInfraPayload(withoutManagedFields(data)),
+  );
 }
 
 export function infraUpdate(resource: string, id: EntityId, data: unknown) {
   return requestClient.put(
     `/infra/${resource}/update`,
-    toInfraPayload({ ...(data as Record<string, unknown>), id }),
+    toInfraPayload({ ...withoutManagedFields(data), id }),
   );
 }
 
