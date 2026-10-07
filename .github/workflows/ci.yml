@@ -51,3 +51,15 @@ jobs:
         run: bun run check:type
       - working-directory: apps/web
         run: bun run build:antd
+
+  api-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bash script/generate-infra-api-types.sh
+      - run: git diff --exit-code -- apps/web/apps/web-antd/src/api/generated
