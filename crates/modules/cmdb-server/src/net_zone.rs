@@ -523,6 +523,11 @@ async fn identify_assets(
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to read assets"))?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|_| AppError::internal("failed to start asset attribution"))?;
     let mut matched = 0i64;
     let mut unmatched = 0i64;
     for asset in &assets {
@@ -531,7 +536,7 @@ async fn identify_assets(
         match resolve_segment(&state, tenant_id, &ip).await? {
             Some((zone_id, _, _)) => {
                 let organization = organization_for_zone(&state, tenant_id, zone_id).await;
-                let _ = sqlx::query(
+                sqlx::query(
                     "UPDATE infra_asset SET net_zone_id = $2, organization_name = $3,
                             ownership_source = 'segment', update_time = now()
                      WHERE id = $1 AND tenant_id = $4",
@@ -540,24 +545,29 @@ async fn identify_assets(
                 .bind(zone_id)
                 .bind(organization)
                 .bind(tenant_id)
-                .execute(&state.pool)
-                .await;
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| AppError::internal("failed to attribute asset"))?;
                 matched += 1;
             }
             None => {
-                let _ = sqlx::query(
+                sqlx::query(
                     "UPDATE infra_asset SET net_zone_id = NULL, ownership_source = 'segment',
                             update_time = now()
                      WHERE id = $1 AND tenant_id = $2",
                 )
                 .bind(id)
                 .bind(tenant_id)
-                .execute(&state.pool)
-                .await;
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| AppError::internal("failed to clear asset attribution"))?;
                 unmatched += 1;
             }
         }
     }
+    tx.commit()
+        .await
+        .map_err(|_| AppError::internal("failed to commit asset attribution"))?;
     Ok(Json(ApiResponse::new(
         json!({ "matched": matched, "unmatched": unmatched }),
     )))

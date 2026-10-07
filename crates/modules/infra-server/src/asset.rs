@@ -258,7 +258,7 @@ async fn asset_create(
     let tenant = TenantContext::from_user(&user)?;
     let Json(created) = repository::create(&state.pool, ASSET, &tenant, p).await?;
     if let Ok(asset_id) = created.data.parse::<i64>() {
-        auto_attribute_ownership(&state.pool, &tenant, asset_id).await;
+        auto_attribute_ownership(&state.pool, &tenant, asset_id).await?;
     }
     Ok(Json(created))
 }
@@ -270,8 +270,8 @@ pub(crate) async fn auto_attribute_ownership(
     pool: &sqlx::PgPool,
     tenant: &TenantContext,
     asset_id: i64,
-) {
-    let Ok((asset_id, ip)) = sqlx::query_as::<_, (i64, String)>(
+) -> Result<(), AppError> {
+    let Some((asset_id, ip)) = sqlx::query_as::<_, (i64, String)>(
         // Skip only assets whose organization a human chose; the default
         // 'manual' marker with an empty organization still gets attributed.
         "SELECT id, ip FROM infra_asset WHERE id = $1 AND tenant_id = $2 AND deleted = 0
@@ -280,10 +280,11 @@ pub(crate) async fn auto_attribute_ownership(
     )
     .bind(asset_id)
     .bind(tenant.id())
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
+    .map_err(|_| AppError::internal("failed to read asset ownership"))?
     else {
-        return;
+        return Ok(());
     };
     let segments = sqlx::query(
         "SELECT id, cidr FROM cmdb_net_zone WHERE deleted = 0 AND tenant_id = $1 AND cidr IS NOT NULL AND cidr <> ''",
@@ -291,7 +292,7 @@ pub(crate) async fn auto_attribute_ownership(
     .bind(tenant.id())
     .fetch_all(pool)
     .await
-    .unwrap_or_default();
+    .map_err(|_| AppError::internal("failed to read network segments"))?;
     let mut best: Option<(u8, i64)> = None;
     for row in &segments {
         let cidr: String = row.get("cidr");
@@ -308,7 +309,7 @@ pub(crate) async fn auto_attribute_ownership(
             continue;
         }
         let Ok(ip_addr) = ip.trim().parse::<std::net::Ipv4Addr>() else {
-            return;
+            return Ok(());
         };
         let mask = if prefix == 0 {
             0
@@ -324,10 +325,12 @@ pub(crate) async fn auto_attribute_ownership(
             best = Some((prefix, row.get("id")));
         }
     }
-    let Some((_, zone_id)) = best else { return };
+    let Some((_, zone_id)) = best else {
+        return Ok(());
+    };
     // Attribute the nearest company/subsidiary ancestor's name, falling
     // back to the matched segment itself.
-    let _ = sqlx::query(
+    sqlx::query(
         "UPDATE infra_asset a
          SET net_zone_id = $2,
              organization_name = COALESCE((
@@ -349,7 +352,9 @@ pub(crate) async fn auto_attribute_ownership(
     .bind(zone_id)
     .bind(tenant.id())
     .execute(pool)
-    .await;
+    .await
+    .map_err(|_| AppError::internal("failed to update asset ownership"))?;
+    Ok(())
 }
 async fn asset_update(
     State(state): State<InfraState>,
@@ -363,7 +368,7 @@ async fn asset_update(
         .filter(|value| *value > 0)
         .ok_or_else(|| AppError::bad_request("id is required"))?;
     let _ = repository::update(&state.pool, ASSET, &tenant, p).await?;
-    auto_attribute_ownership(&state.pool, &tenant, id).await;
+    auto_attribute_ownership(&state.pool, &tenant, id).await?;
     Ok(Json(ApiResponse::new(())))
 }
 async fn asset_delete(

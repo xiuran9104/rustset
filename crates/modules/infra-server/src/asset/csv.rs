@@ -332,12 +332,18 @@ async fn import_bytes(
         };
         match created {
             Ok(Json(created)) => {
-                result.created += 1;
                 if spec.table == ASSET.table {
                     if let Ok(id) = created.data.parse() {
-                        auto_attribute_ownership(&s.pool, tenant, id).await;
+                        if let Err(error) = auto_attribute_ownership(&s.pool, tenant, id).await {
+                            result.failed(
+                                index + 2,
+                                format!("已创建，但自动归属失败: {}", error.message()),
+                            );
+                            continue;
+                        }
                     }
                 }
+                result.created += 1;
             }
             Err(error) => result.failed(index + 2, error.message()),
         }
