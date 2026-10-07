@@ -53,6 +53,7 @@ pub fn routes() -> ApiRouter<InfraState> {
         .api_route("/infra/asset/delete", delete(asset_delete))
         .api_route("/infra/asset/delete-list", delete(asset_delete_list))
         .api_route("/infra/asset/discover", post(asset_discover))
+        .api_route("/infra/asset/sync-cmdb", post(asset_sync_cmdb))
         .api_route("/infra/asset/{id}/port/add", post(asset_add_port))
         .api_route("/infra/asset/{id}/port/{port}", put(asset_update_port))
         .api_route("/infra/asset/{id}/port/{port}", delete(asset_delete_port))
@@ -209,7 +210,8 @@ async fn asset_sync_cmdb(
     State(state): State<InfraState>,
     user: CurrentUser,
 ) -> Result<Json<ApiResponse<crate::asset_cmdb_sync::SyncSummary>>, AppError> {
-    let summary = crate::asset_cmdb_sync::sync_assets(&state.pool, &user.username).await?;
+    let tenant = TenantContext::from_user(&user)?;
+    let summary = crate::asset_cmdb_sync::sync_assets(&state.pool, &tenant, &user.username).await?;
     Ok(Json(ApiResponse::new(summary)))
 }
 

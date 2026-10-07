@@ -7,6 +7,7 @@
 
 use rustset_cmdb_api::AttrType;
 use rustset_framework_database::PgPool;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -145,7 +146,11 @@ struct AttributeDefinition {
     default_value: Option<Value>,
 }
 
-pub(crate) async fn sync_assets(pool: &PgPool, actor: &str) -> Result<SyncSummary, AppError> {
+pub(crate) async fn sync_assets(
+    pool: &PgPool,
+    tenant: &TenantContext,
+    actor: &str,
+) -> Result<SyncSummary, AppError> {
     let mut tx = pool
         .begin()
         .await
@@ -206,11 +211,14 @@ pub(crate) async fn sync_assets(pool: &PgPool, actor: &str) -> Result<SyncSummar
     ensure_attributes(&mut tx, model_id, actor).await?;
     let definitions = load_definitions(&mut tx, model_id).await?;
 
-    let source_rows: Vec<Value> =
-        sqlx::query_scalar("SELECT to_jsonb(a) FROM infra_asset a WHERE deleted = 0 ORDER BY id")
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::internal("failed to read the active asset ledger"))?;
+    let source_rows: Vec<Value> = sqlx::query_scalar(
+        "SELECT to_jsonb(a) - 'tenant_id' FROM infra_asset a
+             WHERE tenant_id = $1 AND deleted = 0 ORDER BY id",
+    )
+    .bind(tenant.id())
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::internal("failed to read the active asset ledger"))?;
     let mut sources = BTreeMap::new();
     for row in source_rows {
         let attributes = map_asset(row)?;
@@ -228,9 +236,10 @@ pub(crate) async fn sync_assets(pool: &PgPool, actor: &str) -> Result<SyncSummar
 
     let instance_rows = sqlx::query(
         "SELECT id, attributes FROM cmdb_instance
-         WHERE model_id = $1 AND deleted = 0 ORDER BY id FOR UPDATE",
+         WHERE model_id = $1 AND tenant_id = $2 AND deleted = 0 ORDER BY id FOR UPDATE",
     )
     .bind(model_id)
+    .bind(tenant.id())
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to lock asset CMDB instances"))?;
@@ -286,11 +295,12 @@ pub(crate) async fn sync_assets(pool: &PgPool, actor: &str) -> Result<SyncSummar
                 sqlx::query(
                     "UPDATE cmdb_instance
                      SET attributes = $2, updater = $3, update_time = now()
-                     WHERE id = $1 AND deleted = 0",
+                     WHERE id = $1 AND tenant_id = $4 AND deleted = 0",
                 )
                 .bind(instance_id)
                 .bind(merged)
                 .bind(actor)
+                .bind(tenant.id())
                 .execute(&mut *tx)
                 .await
                 .map_err(|_| AppError::internal("failed to update asset CMDB instance"))?;
@@ -302,12 +312,13 @@ pub(crate) async fn sync_assets(pool: &PgPool, actor: &str) -> Result<SyncSummar
                 AppError::bad_request(format!("asset {asset_id} cannot be created: {error}"))
             })?;
             sqlx::query(
-                "INSERT INTO cmdb_instance (model_id, attributes, creator, updater)
-                 VALUES ($1, $2, $3, $3)",
+                "INSERT INTO cmdb_instance (model_id, attributes, creator, updater, tenant_id)
+                 VALUES ($1, $2, $3, $3, $4)",
             )
             .bind(model_id)
             .bind(Value::Object(attributes))
             .bind(actor)
+            .bind(tenant.id())
             .execute(&mut *tx)
             .await
             .map_err(|_| AppError::internal("failed to create asset CMDB instance"))?;
@@ -606,20 +617,28 @@ mod tests {
             format!("{} {sql_type}", field.source)
         }));
         columns.push("deleted smallint DEFAULT 0 NOT NULL".to_string());
+        columns.push("tenant_id bigint".to_string());
         sqlx::raw_sql(&format!("CREATE TABLE infra_asset ({})", columns.join(",")))
             .execute(&pool)
             .await
             .unwrap();
+        sqlx::query("ALTER TABLE cmdb_instance ADD COLUMN tenant_id bigint")
+            .execute(&pool)
+            .await
+            .unwrap();
         sqlx::query(
-            "INSERT INTO infra_asset (id, name, ip, zone, ports, labels, weight)
-             VALUES (1, 'server-1', '10.0.0.1', 'Intranet', '[]', '[]', 50)",
+            "INSERT INTO infra_asset (id, name, ip, zone, ports, labels, weight, tenant_id)
+             VALUES (1, 'server-1', '10.0.0.1', 'Intranet', '[]', '[]', 50, 1)",
         )
         .execute(&pool)
         .await
         .unwrap();
 
-        let (first, second) =
-            tokio::join!(sync_assets(&pool, "tester"), sync_assets(&pool, "tester"));
+        let tenant = TenantContext::from_persisted_id(Some(1)).unwrap();
+        let (first, second) = tokio::join!(
+            sync_assets(&pool, &tenant, "tester"),
+            sync_assets(&pool, &tenant, "tester")
+        );
         let first = first.unwrap();
         let second = second.unwrap();
         assert_eq!(first.created + second.created, 1);
@@ -658,7 +677,7 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        let refreshed = sync_assets(&pool, "tester").await.unwrap();
+        let refreshed = sync_assets(&pool, &tenant, "tester").await.unwrap();
         assert_eq!(refreshed.updated, 1);
         let attributes: Value = sqlx::query_scalar("SELECT attributes FROM cmdb_instance")
             .fetch_one(&pool)
@@ -671,7 +690,7 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        let without_source = sync_assets(&pool, "tester").await.unwrap();
+        let without_source = sync_assets(&pool, &tenant, "tester").await.unwrap();
         assert_eq!(without_source.total, 0);
         assert_eq!(without_source.stale, 1);
         let instances: i64 = sqlx::query_scalar(

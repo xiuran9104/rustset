@@ -124,6 +124,11 @@ export function discoverAssets(data: ScanAssetApi.DiscoverAssetsRequest) {
     toInfraPayload(data),
   );
 }
+export function syncAssetsToCmdb() {
+  return requestClient.post<ScanAssetApi.CmdbSyncSummary>(
+    '/infra/asset/sync-cmdb',
+  );
+}
 export function exportAssetCsv() { return requestClient.download('/infra/asset/export-csv'); }
 export function downloadAssetImportTemplate() { return requestClient.download('/infra/asset/import-template'); }
 export function importAssetCsv(file: File) { return requestClient.upload('/infra/asset/import-csv', { file }); }
