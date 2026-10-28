@@ -1,11 +1,12 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 
-import { getCloudProviderConfigList } from '#/api/scan/cloud-provider-config';
+import { getCloudPlatformList, getCloudZoneList } from '#/api/scan/cloud-platform';
+import { getUserPage } from '#/api/system/user';
 import {
   createCloudResource,
   deleteCloudResource,
@@ -41,21 +42,28 @@ interface Resource {
   ecs_name: string;
   ecs_status: string;
   cloud_region: string;
-  cloud_category: string;
-  customer_name: string;
+  cloud_category?: string;
+  customer_name?: string;
+  customer_user_id?: number;
   cpu_cores: number;
   memory_gb: number;
   ip_address: string;
   application_status: string;
   delivery_status: string;
   machine_room_id?: number;
-  cloud_provider_config_id?: number;
-  cabinet_id?: number;
-  cabinet_name?: string;
-  chassis_name?: string;
-  chassis_slot?: string;
+  cloud_platform_id?: number;
+  platform_name?: string;
+  zone_name?: string;
+  cabinet_no?: string;
   rack_start_u?: number;
   rack_end_u?: number;
+  serial_number?: string;
+  hardware_model?: string;
+  ipmi_address?: string;
+  warranty_expiry?: string;
+  project_name?: string;
+  contract_name?: string;
+  supplier_name?: string;
   deployment_type?: string;
   management_ip?: string;
   business_ip?: string;
@@ -64,8 +72,6 @@ interface Resource {
   vlan_id?: string;
   dns_servers?: string;
   mac_address?: string;
-  switch_name?: string;
-  switch_port?: string;
   ecs_type: string;
   ecs_os: string;
   system_disk: string;
@@ -95,9 +101,9 @@ const loading = ref(false);
 const modalVisible = ref(false);
 const editingId = ref<number | undefined>();
 const rooms = ref<any[]>([]);
-const configs = ref<any[]>([]);
-const cabinetRows = ref<any[]>([]);
-const cabinets = ref<any[]>([]);
+const platforms = ref<any[]>([]);
+const zones = ref<any[]>([]);
+const users = ref<any[]>([]);
 const { filteredRows, searchText } = useLocalTableSearch(data, [
   'ecs_name',
   'cloud_region',
@@ -110,7 +116,6 @@ const emptyForm = (): Resource => ({
   ecs_name: '',
   ecs_status: isPhysical.value ? 'available' : '运行中',
   cloud_region: '',
-  cloud_category: '',
   customer_name: '',
   cpu_cores: 4,
   memory_gb: 8,
@@ -145,9 +150,9 @@ const columns = computed(() => {
 });
 
 const deploymentLabel: Record<string, string> = {
-  cloud_managed: '云平台托管',
-  datacenter_managed: '机房托管',
-  standalone: '独立部署',
+  cloud_managed: '云平台自有节点',
+  datacenter_managed: '机柜托管',
+  standalone: '本地自建',
 };
 const statusLabel: Record<string, string> = {
   available: '空闲',
@@ -181,16 +186,18 @@ const permissionCode = computed(() => (suffix: string) =>
 async function fetchData() {
   loading.value = true;
   try {
-    const [resources, roomRows, configRows] = await Promise.all([
+    const [resources, roomRows, platformRows, zoneRows, userPage] = await Promise.all([
       api.value.list(),
       getMachineRoomList(),
-      getCloudProviderConfigList(),
+      getCloudPlatformList(),
+      getCloudZoneList(),
+      getUserPage({ pageNo: 1, pageSize: 500 }),
     ]);
     data.value = resources as any;
     rooms.value = roomRows as any;
-    configs.value = configRows as any;
-    cabinetRows.value = [];
-    cabinets.value = [];
+    platforms.value = platformRows as any;
+    zones.value = zoneRows as any;
+    users.value = ((userPage as any)?.list ?? []) as any;
   } catch {
     message.error('加载失败');
   } finally {
@@ -198,26 +205,56 @@ async function fetchData() {
   }
 }
 onMounted(fetchData);
+// keep-alive 标签页切回时刷新，机房/云平台增改后下拉不会过期
+onActivated(fetchData);
 
-function openCreate() {
+async function openCreate() {
+  await fetchData();
   editingId.value = undefined;
   form.value = emptyForm();
   modalVisible.value = true;
 }
 
-function openEdit(r: Resource) {
+async function openEdit(r: Resource) {
+  await fetchData();
   editingId.value = r.id;
-  form.value = { ...r };
+  // 以 emptyForm 兜底合并：列表行不含 resource_type 等默认字段，直接展开会让
+  // 云资源/物理资源的专属表单区块在编辑弹窗里消失，与新建弹窗不一致
+  form.value = { ...emptyForm(), ...r, has_security_product: !!r.has_security_product };
   modalVisible.value = true;
+}
+
+/** 云资源选定平台后，区域随平台所属资源区自动带出。 */
+function changeCloudPlatform(platformId: number) {
+  const platform = platforms.value.find((item) => item.id === platformId);
+  const zone = zones.value.find((item) => item.id === platform?.zone_id);
+  form.value.cloud_platform_id = platformId;
+  form.value.platform_name = platform?.platform_name || '';
+  form.value.zone_name = zone?.zone_name || '';
+  form.value.cloud_region = zone?.zone_name || platform?.platform_name || '';
+}
+
+/** 客户从系统用户中选定，名称随选择自动带出。 */
+function changeCustomer(userId: number) {
+  const u = users.value.find((item) => item.id === userId);
+  form.value.customer_user_id = userId;
+  form.value.customer_name = u?.nickname || u?.username || '';
 }
 
 async function handleSubmit() {
   if (
+    form.value.resource_type === 'cloud' &&
+    !form.value.cloud_platform_id
+  ) {
+    message.warning('请选择归属云平台');
+    return;
+  }
+  if (
     form.value.resource_type === 'physical' &&
     form.value.deployment_type === 'cloud_managed' &&
-    !form.value.cloud_provider_config_id
+    !form.value.cloud_platform_id
   ) {
-    message.warning('请选择已认证的云平台对接配置');
+    message.warning('云平台自有节点必须选择归属云平台');
     return;
   }
   if (
@@ -230,13 +267,13 @@ async function handleSubmit() {
   }
   if (
     form.value.resource_type === 'physical' &&
-    form.value.deployment_type === 'datacenter_managed' &&
-    (!form.value.cabinet_id ||
+    form.value.deployment_type !== 'standalone' &&
+    (!form.value.cabinet_no?.trim() ||
       !form.value.rack_start_u ||
       !form.value.rack_end_u ||
       form.value.rack_end_u < form.value.rack_start_u)
   ) {
-    message.warning('请选择机柜并填写有效的起止 U 位');
+    message.warning('请填写机柜编号和有效的起止 U 位');
     return;
   }
   if (
@@ -301,34 +338,10 @@ async function handleSubmit() {
             {{
               rooms.find((room) => room.id === record.machine_room_id)
                 ?.room_name ||
-              (record.deployment_type === 'standalone' ? '独立部署' : '-')
-            }}<template
-              v-if="cabinets.find((item) => item.id === record.cabinet_id)"
-            >
-              /
-              {{
-                cabinetRows.find(
-                  (row) =>
-                    row.id ===
-                    cabinets.find((item) => item.id === record.cabinet_id)
-                      ?.row_id,
-                )?.row_name
-              }}
-              /
-              {{ cabinets.find((item) => item.id === record.cabinet_id)?.cabinet_name }}（{{
-                cabinets.find((item) => item.id === record.cabinet_id)?.total_u
-              }}U）</template
-            ><span v-else-if="record.cabinet_name">
-              / {{ record.cabinet_name }}</span
-            >
+              (record.deployment_type === 'standalone' ? '本地自建' : '-')
+            }}<span v-if="record.cabinet_no"> / {{ record.cabinet_no }}</span>
             <span v-if="record.rack_start_u">
               / U{{ record.rack_start_u }}-U{{ record.rack_end_u }}</span
-            >
-            <span v-if="record.chassis_name">
-              / {{ record.chassis_name
-              }}<template v-if="record.chassis_slot"
-                >-{{ record.chassis_slot }}</template
-              ></span
             >
           </template>
           <template v-if="column.key === 'ecs_status'">
@@ -416,9 +429,7 @@ async function handleSubmit() {
               v-if="form.resource_type === 'physical'"
               v-model:form="form"
               :rooms="rooms"
-              :configs="configs"
-              :cabinet-rows="cabinetRows"
-              :cabinets="cabinets"
+              :platforms="platforms"
             />
             <a-col :span="8">
               <a-form-item label="状态" required>
@@ -457,24 +468,86 @@ async function handleSubmit() {
                 />
               </a-form-item>
             </a-col>
-            <a-col :span="12">
+            <a-col v-if="form.resource_type === 'cloud'" :span="12">
+              <a-form-item label="归属云平台" required>
+                <a-select
+                  v-model:value="form.cloud_platform_id"
+                  :options="platforms.map(p => ({ value: p.id, label: p.platform_name }))"
+                  placeholder="请选择云平台"
+                  @update:value="changeCloudPlatform"
+                />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'cloud'" :span="12">
+              <a-form-item label="区域（随平台自动带出）">
+                <a-input v-model:value="form.cloud_region" disabled placeholder="选择云平台后自动带出其资源区" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'physical'" :span="12">
               <a-form-item label="区域" required>
                 <a-input v-model:value="form.cloud_region" />
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="云类别/机房" required>
-                <a-input v-model:value="form.cloud_category" />
+              <a-form-item label="客户" required>
+                <a-select
+                  v-model:value="form.customer_user_id"
+                  :options="users.map(u => ({ value: u.id, label: u.nickname || u.username }))"
+                  placeholder="请选择客户用户"
+                  show-search
+                  option-filter-prop="label"
+                  @update:value="changeCustomer"
+                />
               </a-form-item>
             </a-col>
-            <a-col :span="12">
-              <a-form-item label="客户" required>
-                <a-input v-model:value="form.customer_name" />
+            <a-col v-if="form.resource_type === 'physical'" :span="12">
+              <a-form-item label="SN 序列号">
+                <a-input v-model:value="form.serial_number" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'physical'" :span="12">
+              <a-form-item label="硬件型号">
+                <a-input v-model:value="form.hardware_model" placeholder="如 Dell R740" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'physical'" :span="12">
+              <a-form-item label="带外 IP（BMC/IPMI）">
+                <a-input v-model:value="form.ipmi_address" placeholder="如 10.10.1.100" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'physical'" :span="12">
+              <a-form-item label="保修到期">
+                <a-input v-model:value="form.warranty_expiry" placeholder="如 2027-12-31" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'physical'" :span="12">
+              <a-form-item label="采购立项项目">
+                <a-input v-model:value="form.project_name" placeholder="如 2026年政务云扩容项目" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'physical'" :span="12">
+              <a-form-item label="合同编号">
+                <a-input v-model:value="form.contract_name" placeholder="如 HT-2026-001" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'physical'" :span="12">
+              <a-form-item label="供应商（可选）">
+                <a-input v-model:value="form.supplier_name" placeholder="如 联想/戴尔/集成商名称" />
               </a-form-item>
             </a-col>
             <a-col v-if="form.resource_type === 'cloud'" :span="12">
               <a-form-item label="IP地址" required>
                 <a-input v-model:value="form.ip_address" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'cloud'" :span="12">
+              <a-form-item label="合同编号（云框架合同）">
+                <a-input v-model:value="form.contract_name" placeholder="如 HT-2026-政务云框架" />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.resource_type === 'cloud'" :span="12">
+              <a-form-item label="所属业务项目">
+                <a-input v-model:value="form.project_name" placeholder="如 惠企通平台 / 不动产系统" />
               </a-form-item>
             </a-col>
           </a-row>

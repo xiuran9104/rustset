@@ -1,4 +1,4 @@
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onActivated, computed } from 'vue';
 import { message } from 'ant-design-vue';
 
 export interface CrudApi<T> {
@@ -51,6 +51,8 @@ export function useCrudList<T extends Record<string, any>>(options: UseCrudListO
   }
 
   onMounted(fetchData);
+  // keep-alive 标签页切回时刷新，其他页面增改数据后本页列表不会过期
+  onActivated(fetchData);
 
   function openCreate() {
     editingId.value = undefined;

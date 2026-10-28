@@ -1,7 +1,7 @@
 import { infraCreate, infraDelete, infraGet, infraList, infraUpdate } from './compat';
 
 export namespace ScanCloudZoneApi {
-  export interface CloudZone { id?: number; zone_name: string; zone_code: string; description?: string; created_at: string; }
+  export interface CloudZone { id?: number; zone_name: string; zone_code: string; provider_id?: number; description?: string; created_at: string; }
 }
 export namespace ScanCloudPlatformApi {
   export interface CloudPlatform { id?: number; zone_id: number; platform_name: string; platform_code: string; description?: string; created_at: string; }

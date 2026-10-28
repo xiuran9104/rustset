@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, onActivated } from 'vue';
 import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 import { getCloudProviderConfigList, createCloudProviderConfig, updateCloudProviderConfig, deleteCloudProviderConfig, testCloudConnection } from '#/api/scan/cloud-provider-config';
@@ -41,9 +41,11 @@ const columns = [
 
 async function fetchData() { loading.value=true; try { const [configRows, platformRows] = await Promise.all([getCloudProviderConfigList(), getCloudPlatformList()]); data.value=configRows as any; platforms.value=platformRows as any; } catch { message.error('加载失败'); } finally { loading.value=false; } }
 onMounted(fetchData);
+// keep-alive 标签页切回时刷新，云平台增改后下拉不会过期
+onActivated(fetchData);
 
-function openCreate() { if (!platforms.value.length) { message.warning('请先创建云平台'); return; } editingId.value=undefined; form.value={ platform_id:platforms.value[0].id,provider:'huawei',region_id:'',region_name:'',account_name:'',access_key_id:'',access_key_secret:'',auth_type:'access_key',status:'active' }; modalVisible.value=true; }
-function openEdit(r:Config) { editingId.value=r.id; form.value={...r}; modalVisible.value=true; }
+async function openCreate() { await fetchData(); if (!platforms.value.length) { message.warning('请先创建云平台'); return; } editingId.value=undefined; form.value={ platform_id:platforms.value[0].id,provider:'huawei',region_id:'',region_name:'',account_name:'',access_key_id:'',access_key_secret:'',auth_type:'access_key',status:'active' }; modalVisible.value=true; }
+async function openEdit(r:Config) { await fetchData(); editingId.value=r.id; form.value={...r}; modalVisible.value=true; }
 async function handleSubmit() {
   if (!form.value.platform_id) { message.warning('请选择所属云平台'); return; }
   if (!form.value.region_id || !form.value.region_name || !form.value.account_name) { message.warning('请完整填写端点、区域和账号名称'); return; }

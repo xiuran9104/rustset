@@ -39,7 +39,7 @@ pub struct CreateMachineRoomRequest {
     pub room_code: String,
     pub facility_type: String,
     pub address: String,
-    pub provider_id: i64,
+    pub zone_id: Option<i64>,
     pub room_type: String,
     pub contact_person: String,
     pub contact_phone: String,
@@ -111,6 +111,7 @@ update_request!(
 pub struct CreateCloudZoneRequest {
     pub zone_name: String,
     pub zone_code: String,
+    pub provider_id: Option<i64>,
     pub description: Option<String>,
 }
 update_request!(UpdateCloudZoneRequest, CreateCloudZoneRequest);
@@ -460,6 +461,8 @@ pub struct CreateResourceTicketRequest {
     pub idempotency_key: Option<String>,
     pub ticket_type: Option<String>,
     pub risk_level: Option<String>,
+    pub applicant_user_id: Option<i64>,
+    pub applicant_name: Option<String>,
     pub target_resource_id: Option<i64>,
     pub target_resource_type: Option<String>,
     pub target_config: Option<String>,

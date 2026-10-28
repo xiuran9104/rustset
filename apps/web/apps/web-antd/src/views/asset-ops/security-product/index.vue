@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onActivated } from 'vue';
 import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 import { getSecurityProductList, createSecurityProduct, updateSecurityProduct, deleteSecurityProduct } from '#/api/scan/security-product';
@@ -13,8 +13,10 @@ const form = ref<Product>({ name: '', category: '', vendor: '', model: '', versi
 const columns = [{ title: '名称', dataIndex: 'name' }, { title: '类别', dataIndex: 'category' }, { title: '厂商', dataIndex: 'vendor' }, { title: '型号', dataIndex: 'model' }, { title: '版本', dataIndex: 'version' }, { title: '部署模式', dataIndex: 'deployment_mode' }, { title: '状态', dataIndex: 'status' }, { title: '操作', key: 'actions', width: 200 }];
 async function fetchData() { loading.value = true; try { const [rows, roomRows] = await Promise.all([getSecurityProductList(), getMachineRoomList()]); data.value = rows as any; rooms.value = roomRows as any; } catch { message.error('加载失败'); } finally { loading.value = false; } }
 onMounted(fetchData);
-function openCreate() { editingId.value = undefined; form.value = { name: '', category: '', vendor: '', model: '', version: '', license_type: '', deployment_mode: 'standalone', status: 'active', contact_person: '', contact_phone: '' }; modalVisible.value = true; }
-function openEdit(r: Product) { editingId.value = r.id; form.value = { ...r }; modalVisible.value = true; }
+// keep-alive 标签页切回时刷新，机房增改后下拉不会过期
+onActivated(fetchData);
+async function openCreate() { await fetchData(); editingId.value = undefined; form.value = { name: '', category: '', vendor: '', model: '', version: '', license_type: '', deployment_mode: 'standalone', status: 'active', contact_person: '', contact_phone: '' }; modalVisible.value = true; }
+async function openEdit(r: Product) { await fetchData(); editingId.value = r.id; form.value = { ...r }; modalVisible.value = true; }
 async function handleSubmit() {
   const payload = { ...form.value };
   // Convert Dayjs object from date-picker to string for API

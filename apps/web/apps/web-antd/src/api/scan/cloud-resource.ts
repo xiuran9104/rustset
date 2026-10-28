@@ -8,8 +8,9 @@ export namespace ScanCloudResourceApi {
     ecs_status: string;
     resource_id?: string;
     cloud_region: string;
-    cloud_category: string;
+    cloud_category?: string;
     cloud_provider_config_id?: number;
+    cloud_platform_id?: number;
     zone_name?: string;
     platform_name?: string;
     county_city?: string;
@@ -17,6 +18,7 @@ export namespace ScanCloudResourceApi {
     customer_name: string;
     application_name?: string;
     contract_name?: string;
+    project_name?: string;
     instance_id?: string;
     ecs_type?: string;
     ecs_os?: string;

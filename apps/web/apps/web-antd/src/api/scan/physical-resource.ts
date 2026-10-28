@@ -6,9 +6,13 @@ export namespace ScanPhysicalResourceApi {
     ecs_name: string;
     ecs_status: string;
     cloud_region: string;
-    cloud_category: string;
+    cloud_category?: string;
     customer_name: string;
     machine_room_id?: number;
+    cloud_platform_id?: number;
+    cabinet_no?: string;
+    rack_start_u?: number;
+    rack_end_u?: number;
     deployment_type?: 'cloud_managed' | 'datacenter_managed' | 'standalone';
     management_ip?: string;
     business_ip?: string;
@@ -21,6 +25,9 @@ export namespace ScanPhysicalResourceApi {
     hardware_model?: string;
     warranty_expiry?: string;
     ipmi_address?: string;
+    project_name?: string;
+    contract_name?: string;
+    supplier_name?: string;
     cpu_cores: number;
     memory_gb: number;
     has_security_product: boolean;

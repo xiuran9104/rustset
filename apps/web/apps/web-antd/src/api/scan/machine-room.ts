@@ -3,7 +3,7 @@ import { infraCreate, infraDelete, infraGet, infraList, infraUpdate } from './co
 export namespace ScanMachineRoomApi {
   export interface MachineRoom {
     id?: number; room_name: string; room_code: string;
-    facility_type: string; address: string; provider_id: number;
+    facility_type: string; address: string; zone_id?: number;
     room_type: string; contact_person: string; contact_phone: string;
     floor?: string; cabinet_count?: number; area_size?: string;
     remarks?: string; status: string; created_at?: string; updated_at?: string;

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onActivated } from 'vue';
 import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 import { getServiceProviderList, createServiceProvider, updateServiceProvider, deleteServiceProvider } from '#/api/scan/service-provider';
@@ -11,8 +11,10 @@ const form = ref<Provider>({ provider_name: '', provider_code: '', short_name: '
 const columns = [{ title: '服务商名称', dataIndex: 'provider_name' }, { title: '编码', dataIndex: 'provider_code' }, { title: '简称', dataIndex: 'short_name' }, { title: '总部', dataIndex: 'headquarters' }, { title: '服务区域', dataIndex: 'service_area' }, { title: '状态', dataIndex: 'status' }, { title: '操作', key: 'actions', width: 200 }];
 async function fetchData() { loading.value = true; try { data.value = await getServiceProviderList() as any; } catch { message.error('加载失败'); } finally { loading.value = false; } }
 onMounted(fetchData);
-function openCreate() { editingId.value = undefined; form.value = { provider_name: '', provider_code: '', short_name: '', contact_person: '', contact_phone: '', contact_email: '', headquarters: '', service_area: '', business_license: '', status: 'active' }; modalVisible.value = true; }
-function openEdit(r: Provider) { editingId.value = r.id; form.value = { ...r }; modalVisible.value = true; }
+// keep-alive 标签页切回时刷新列表
+onActivated(fetchData);
+async function openCreate() { await fetchData(); editingId.value = undefined; form.value = { provider_name: '', provider_code: '', short_name: '', contact_person: '', contact_phone: '', contact_email: '', headquarters: '', service_area: '', business_license: '', status: 'active' }; modalVisible.value = true; }
+async function openEdit(r: Provider) { await fetchData(); editingId.value = r.id; form.value = { ...r }; modalVisible.value = true; }
 async function handleSubmit() { if (editingId.value) { await updateServiceProvider(editingId.value, form.value as any); message.success('更新成功'); } else { await createServiceProvider(form.value as any); message.success('创建成功'); } modalVisible.value = false; fetchData(); }
 </script>
 <template>

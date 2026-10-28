@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onActivated } from 'vue';
 import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 import { getCloudPlatformList, getCloudZoneList, createCloudPlatform, updateCloudPlatform, deleteCloudPlatform } from '#/api/scan/cloud-platform';
@@ -15,7 +15,11 @@ const columns = [{ title: '平台名称', dataIndex: 'platform_name' }, { title:
 async function fetchData() { loading.value = true; try { const [platformRows, zoneRows] = await Promise.all([getCloudPlatformList(), getCloudZoneList()]); data.value=platformRows as any; rawZones.value=zoneRows as any; zones.value=(zoneRows as any[]).map(z=>({id:z.id,label:z.zone_name})); } catch { message.error('加载失败'); } finally { loading.value = false; } }
 function getZone(zoneId: number) { return rawZones.value.find(zone => zone.id === zoneId); }
 onMounted(fetchData);
-function openCreate() {
+// keep-alive 标签页切回时刷新，云资源区在其他页面增改后下拉不会过期
+onActivated(fetchData);
+async function openCreate() {
+  // 页面是 keep-alive 缓存的，资源区可能在别的标签页刚创建，先重新拉取再校验
+  await fetchData();
   if (zones.value.length === 0) {
     message.warning('请先为服务商创建云资源区');
     return;
@@ -24,7 +28,7 @@ function openCreate() {
   form.value = { zone_id: zones.value[0]!.id, platform_name: '', platform_code: '', description: '' };
   modalVisible.value = true;
 }
-function openEdit(r: Platform) { editingId.value = r.id; form.value = { ...r }; modalVisible.value = true; }
+async function openEdit(r: Platform) { await fetchData(); editingId.value = r.id; form.value = { ...r }; modalVisible.value = true; }
 async function handleSubmit() { if (!form.value.zone_id) { message.warning('请选择云资源区'); return; } if (editingId.value) { await updateCloudPlatform(editingId.value, form.value as any); message.success('更新成功'); } else { await createCloudPlatform(form.value as any); message.success('创建成功'); } modalVisible.value = false; fetchData(); }
 </script>
 <template>

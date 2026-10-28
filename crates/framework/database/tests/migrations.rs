@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 40);
+    assert_eq!(applied, 46);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -141,12 +141,8 @@ async fn applies_all_migrations_to_empty_postgres() {
     .execute(&pool)
     .await
     .expect("rerun attribute trigger migration");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0034_provider_room_tenants.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun provider and room tenant migration");
+    // 0034 is deliberately not replayed: 0041 drops machine_room.provider_id,
+    // so 0034's foreign-key recreation can no longer run on the final schema.
     for table in ["infra_service_provider", "infra_machine_room"] {
         let nullable: String = sqlx::query_scalar(
             "SELECT is_nullable FROM information_schema.columns
@@ -161,15 +157,18 @@ async fn applies_all_migrations_to_empty_postgres() {
             "historical ownership must remain unassigned"
         );
     }
-    let room_provider_tenant_fk: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM pg_constraint
-         WHERE conrelid='infra_machine_room'::regclass
-           AND conname='infra_machine_room_provider_tenant_fk')",
+    let room_provider_column: Option<String> = sqlx::query_scalar(
+        "SELECT column_name FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_machine_room'
+           AND column_name='provider_id'",
     )
-    .fetch_one(&pool)
+    .fetch_optional(&pool)
     .await
-    .expect("inspect room/provider tenant foreign key");
-    assert!(room_provider_tenant_fk);
+    .expect("inspect machine room provider column");
+    assert!(
+        room_provider_column.is_none(),
+        "0041 must move provider attribution to the cloud zone"
+    );
     sqlx::raw_sql(include_str!(
         "../../../../sql/postgresql/0035_cloud_security_tenants.sql"
     ))
@@ -297,6 +296,126 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect network zone tenant references");
     assert_eq!(network_zone_tenant_references, 2);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0041_cloud_zone_provider_room_zone.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun cloud zone provider and room zone migration");
+    let zone_provider_tenant_fk: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint
+         WHERE conrelid='infra_cloud_zone'::regclass
+           AND conname='infra_cloud_zone_provider_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect cloud zone provider foreign key");
+    assert!(zone_provider_tenant_fk);
+    let room_zone_tenant_fk: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint
+         WHERE conrelid='infra_machine_room'::regclass
+           AND conname='infra_machine_room_cloud_zone_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect machine room zone foreign key");
+    assert!(room_zone_tenant_fk);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0042_physical_resource_rack_platform.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun physical resource rack and platform migration");
+    let physical_resource_platform_fk: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint
+         WHERE conrelid='infra_physical_resource'::regclass
+           AND conname='infra_physical_resource_platform_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect physical resource platform foreign key");
+    assert!(physical_resource_platform_fk);
+    let physical_resource_rack_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_physical_resource'
+           AND column_name IN ('cloud_platform_id','cabinet_no','rack_start_u','rack_end_u')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect physical resource rack columns");
+    assert_eq!(physical_resource_rack_columns, 4);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0043_physical_resource_supplier.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun physical resource supplier migration");
+    let physical_resource_supplier: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_physical_resource'
+           AND column_name='supplier_name')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect physical resource supplier column");
+    assert!(physical_resource_supplier);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0044_cloud_resource_platform.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun cloud resource platform migration");
+    let cloud_resource_platform_fk: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint
+         WHERE conrelid='infra_cloud_resource'::regclass
+           AND conname='infra_cloud_resource_platform_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect cloud resource platform foreign key");
+    assert!(cloud_resource_platform_fk);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0045_drop_cloud_category_required.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun cloud category nullable migration");
+    for table in ["infra_cloud_resource", "infra_physical_resource"] {
+        let category_nullable: String = sqlx::query_scalar(
+            "SELECT is_nullable FROM information_schema.columns
+             WHERE table_schema='public' AND table_name=$1
+               AND column_name='cloud_category'",
+        )
+        .bind(table)
+        .fetch_one(&pool)
+        .await
+        .expect("inspect cloud category column");
+        assert_eq!(
+            category_nullable, "YES",
+            "cloud_category must no longer be required"
+        );
+    }
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0046_user_bindings.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun user binding migration");
+    let user_binding_columns: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='infra_cloud_resource'
+                   AND column_name='customer_user_id')
+             + (SELECT count(*) FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='infra_physical_resource'
+                   AND column_name='customer_user_id')
+             + (SELECT count(*) FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='infra_resource_ticket'
+                   AND column_name='applicant_user_id')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect user binding columns");
+    assert_eq!(user_binding_columns, 3);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

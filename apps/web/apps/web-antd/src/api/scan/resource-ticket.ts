@@ -6,6 +6,7 @@ export namespace ScanResourceTicketApi {
   export interface CreateResourceTicketRequest {
     resource_type: string; ecs_name: string; idempotency_key?: string;
     ticket_type?: string; risk_level?: string; target_resource_id?: number;
+    applicant_user_id?: number; applicant_name?: string;
     target_resource_type?: string; target_config?: string;
     maintenance_window?: string; allow_interruption?: boolean;
     backup_confirmed?: boolean; rollback_plan?: string; retention_until?: string;
