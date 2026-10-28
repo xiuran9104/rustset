@@ -10,7 +10,6 @@ anyhow.workspace = true
 axum.workspace = true
 aide.workspace = true
 schemars.workspace = true
-base64.workspace = true
 calamine.workspace = true
 chrono.workspace = true
 rustset-framework-common.workspace = true

@@ -2819,7 +2819,6 @@ name = "rustset-framework-telemetry"
 version = "0.1.0"
 dependencies = [
  "rustset-framework-common",
- "tracing",
 ]
 
 [[package]]
@@ -2851,8 +2850,6 @@ dependencies = [
  "tokio",
  "tower",
  "tower-http",
- "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -2897,7 +2894,6 @@ dependencies = [
  "aide",
  "aws-sdk-s3",
  "axum",
- "base64 0.22.1",
  "chrono",
  "redis",
  "rust_xlsxwriter",
@@ -2936,7 +2932,6 @@ dependencies = [
  "aide",
  "anyhow",
  "axum",
- "base64 0.22.1",
  "calamine",
  "chrono",
  "rust_xlsxwriter",

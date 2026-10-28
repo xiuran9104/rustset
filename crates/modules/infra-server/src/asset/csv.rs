@@ -225,13 +225,12 @@ fn payload(spec: TableSpec, headers: &[String], row: &[String]) -> Result<Value,
             }
             json!(parsed.to_string())
         } else {
-            if key.ends_with("_date") || key == "expire_at" {
-                if value.len() != 10
-                    || chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").is_err()
+            if (key.ends_with("_date") || key == "expire_at")
+                && (value.len() != 10
+                    || chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").is_err())
                 {
                     return Err(format!("{key} 必须为 YYYY-MM-DD"));
                 }
-            }
             json!(value)
         };
         result.insert(key.clone(), parsed);
@@ -332,17 +331,15 @@ async fn import_bytes(
         };
         match created {
             Ok(Json(created)) => {
-                if spec.table == ASSET.table {
-                    if let Ok(id) = created.data.parse() {
-                        if let Err(error) = auto_attribute_ownership(&s.pool, tenant, id).await {
+                if spec.table == ASSET.table
+                    && let Ok(id) = created.data.parse()
+                        && let Err(error) = auto_attribute_ownership(&s.pool, tenant, id).await {
                             result.failed(
                                 index + 2,
                                 format!("已创建，但自动归属失败: {}", error.message()),
                             );
                             continue;
                         }
-                    }
-                }
                 result.created += 1;
             }
             Err(error) => result.failed(index + 2, error.message()),

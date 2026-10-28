@@ -129,7 +129,7 @@ async fn match_approval_rule(
     tenant: &TenantContext,
     ticket_id: i64,
 ) -> Result<Option<Value>, AppError> {
-    let ticket = repository::get(&s.pool, &tenant, ticket_id).await?;
+    let ticket = repository::get(&s.pool, tenant, ticket_id).await?;
     let rows = sqlx::query(
         "SELECT id, name, resource_type, max_cpu_cores, max_memory_gb, max_resource_count, auto_provision
          FROM infra_approval_rule WHERE tenant_id=$1 AND deleted = 0 AND status = 0 ORDER BY id",
@@ -182,7 +182,7 @@ async fn apply_auto_approval(
 ) -> Result<(), AppError> {
     let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
     let rule_name = rule.get("name").and_then(Value::as_str).unwrap_or("rule");
-    let ticket = repository::get(&s.pool, &tenant, id).await?;
+    let ticket = repository::get(&s.pool, tenant, id).await?;
     // 新建类工单走开通/交付流水线；针对既有资源的工单（变更/停机/回收）
     // 没有开通环节，审批通过即为执行完成，并立即回写台账状态形成闭环。
     let new_status = approved_next_status(&ticket);

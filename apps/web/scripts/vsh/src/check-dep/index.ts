@@ -14,9 +14,13 @@ const knipCli = join(dirname(knipMain), '..', 'bin', 'knip.js');
 const DEFAULT_CONFIG = {
   ignore: ['dist/**', 'docs/**', 'node_modules/**', 'public/**'],
   ignoreBinaries: [] as string[],
-  ignoreDependencies: ['@iconify/json', '@vben-core/design'],
-  // 需要忽略的包
-  ignorePackages: [
+  ignoreDependencies: [
+    '@iconify/json',
+    '@vben-core/design',
+    // internal/tsconfig 通过 tsconfig "types" 数组引用，knip 无法静态解析
+    '@vben/types',
+    'vite',
+    // 需要忽略的包（通过配置文件引用，knip 无法静态解析）
     '@vben/commitlint-config',
     '@vben/eslint-config',
     '@vben/stylelint-config',

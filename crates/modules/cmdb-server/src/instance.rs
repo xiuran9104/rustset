@@ -330,11 +330,10 @@ fn csv_cell(def: &AttributeDef, text: &str) -> Result<Value, String> {
             serde_json::from_str(text).map_err(|_| format!("{} 必须为 JSON", def.code))
         }
         AttrType::MultiSelect => {
-            if let Ok(value) = serde_json::from_str::<Value>(text) {
-                if value.is_array() {
+            if let Ok(value) = serde_json::from_str::<Value>(text)
+                && value.is_array() {
                     return Ok(value);
                 }
-            }
             Ok(Value::Array(
                 text.split(',')
                     .map(str::trim)

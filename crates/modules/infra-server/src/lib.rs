@@ -433,7 +433,7 @@ async fn file_upload(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let mut uploaded: Option<(String, String, Vec<u8>)> = None;
     let max_bytes = max_upload_bytes();
-    while let Some(field) = multipart
+    if let Some(field) = multipart
         .next_field()
         .await
         .map_err(|_| AppError::bad_request("failed to read upload file"))?
@@ -464,7 +464,6 @@ async fn file_upload(
             bytes.extend_from_slice(&chunk);
         }
         uploaded = Some((file_name, content_type, bytes));
-        break;
     }
     let Some((name, content_type, bytes)) = uploaded else {
         return Err(AppError::bad_request("file is required"));
@@ -1586,13 +1585,11 @@ async fn missing_required_fields(
 /// and surface as 400 with the database's field-level detail; anything else
 /// stays a 500 without leaking internals.
 fn record_query_error(action: &str, error: sqlx::Error) -> AppError {
-    if let sqlx::Error::Database(database) = &error {
-        if let Some(code) = database.code() {
-            if is_client_data_violation(&code) {
+    if let sqlx::Error::Database(database) = &error
+        && let Some(code) = database.code()
+            && is_client_data_violation(&code) {
                 return AppError::bad_request(format!("{action}: {}", database.message()));
             }
-        }
-    }
     AppError::internal(format!("failed to {action} record"))
 }
 

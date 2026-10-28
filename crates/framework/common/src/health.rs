@@ -18,6 +18,6 @@ pub fn health_route(service_name: &'static str) -> axum::Router {
         })
     };
     axum::Router::new()
-        .route("/health", get(handler.clone()))
+        .route("/health", get(handler))
         .route("/health/live", get(handler))
 }

@@ -119,16 +119,14 @@ mod tests {
     use super::*;
     #[test]
     fn roundtrip_quotes_unicode_newlines_and_formula_text() {
-        let row = vec![
-            "中文,列",
+        let row = ["中文,列",
             "a\"b\nc",
             "=SUM(A1)",
             "'literal",
             "-10",
             "  +1",
             "\t@x",
-            "",
-        ];
+            ""];
         let rows = vec![row.iter().map(|v| v.to_string()).collect::<Vec<_>>()];
         let data = encode(&["a", "b", "c", "d", "e", "f", "g", "h"], &rows).unwrap();
         assert!(String::from_utf8_lossy(&data).contains("'=SUM"));

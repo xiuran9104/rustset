@@ -94,7 +94,7 @@ pub(super) async fn run(
     if !acquired {
         return Err(AppError::bad_request("该工单正在开通，请勿重复执行"));
     }
-    let mut ticket = repository::get(&s.pool, &tenant, id).await?;
+    let mut ticket = repository::get(&s.pool, tenant, id).await?;
     let status = ticket
         .get("ticketStatus")
         .and_then(Value::as_str)
@@ -473,8 +473,8 @@ async fn upsert_cmdb_instance(
     attributes.insert("cloud_category".to_string(), json!(cloud_category));
     attributes.insert("tf_outputs".to_string(), tf_outputs.clone());
     let unique_key: Option<String> = model.get("unique_key");
-    if let Some(key) = unique_key.as_deref().filter(|key| !key.is_empty()) {
-        if let Some(value) = attributes.get(key).filter(|value| {
+    if let Some(key) = unique_key.as_deref().filter(|key| !key.is_empty())
+        && let Some(value) = attributes.get(key).filter(|value| {
             !value.is_null()
                 && !value.as_str().is_some_and(|s| s.trim().is_empty())
                 && !value.as_array().is_some_and(|a| a.is_empty())
@@ -489,7 +489,6 @@ async fn upsert_cmdb_instance(
                 ));
             }
         }
-    }
     let payload = Value::Object(attributes);
 
     let updated = sqlx::query(
@@ -532,6 +531,17 @@ fn truncate_log(log: &str) -> String {
         start += 1;
     }
     format!("...\n{}", &log[start..])
+}
+
+fn tail(text: &str) -> String {
+    text.lines()
+        .rev()
+        .take(5)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg(test)]
@@ -674,15 +684,4 @@ mod provision_tests {
         assert!(truncated.ends_with('x'));
         assert!(truncated.len() <= 60 * 1024 + 4);
     }
-}
-
-fn tail(text: &str) -> String {
-    text.lines()
-        .rev()
-        .take(5)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect::<Vec<_>>()
-        .join("\n")
 }

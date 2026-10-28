@@ -1,0 +1,4 @@
+[tools]
+rust = { version = "stable", components = ["rustfmt", "clippy"] }
+bun = "1.4.2"
+node = "24"

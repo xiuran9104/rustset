@@ -7,7 +7,7 @@
 //! exists so the provision pipeline can be exercised end-to-end without
 //! cloud credentials. Design doc: docs/cmdb-roadmap.md.
 
-use std::{collections::BTreeMap, path::PathBuf, process::Stdio, time::Duration};
+use std::{collections::BTreeMap, path::Path, path::PathBuf, process::Stdio, time::Duration};
 
 use serde_json::{Map, Value, json};
 
@@ -107,12 +107,12 @@ impl TofuExecutor {
         Ok(path)
     }
 
-    pub fn write_file(workspace: &PathBuf, name: &str, content: &str) -> Result<(), String> {
+    pub fn write_file(workspace: &Path, name: &str, content: &str) -> Result<(), String> {
         std::fs::write(workspace.join(name), content)
             .map_err(|error| format!("write {name}: {error}"))
     }
 
-    pub fn read_file(workspace: &PathBuf, name: &str) -> Result<String, String> {
+    pub fn read_file(workspace: &Path, name: &str) -> Result<String, String> {
         std::fs::read_to_string(workspace.join(name))
             .map_err(|error| format!("read {name}: {error}"))
     }
@@ -123,7 +123,7 @@ impl TofuExecutor {
         &self,
         args: &[&str],
         env: &[(String, String)],
-        workspace: &PathBuf,
+        workspace: &Path,
     ) -> TofuRun {
         let chdir = format!("-chdir={}", workspace.display());
         let mut command = tokio::process::Command::new(&self.binary);
@@ -183,12 +183,12 @@ impl TofuExecutor {
         }
     }
 
-    pub async fn init(&self, workspace: &PathBuf) -> TofuRun {
+    pub async fn init(&self, workspace: &Path) -> TofuRun {
         self.run(&["init", "-input=false", "-no-color"], &[], workspace)
             .await
     }
 
-    pub async fn apply(&self, env: &[(String, String)], workspace: &PathBuf) -> TofuRun {
+    pub async fn apply(&self, env: &[(String, String)], workspace: &Path) -> TofuRun {
         self.run(
             &["apply", "-auto-approve", "-input=false", "-no-color"],
             env,
@@ -198,7 +198,7 @@ impl TofuExecutor {
     }
 
     /// `tofu output -json` -> flat {name: value}; errors must block delivery.
-    pub async fn outputs(&self, workspace: &PathBuf) -> Result<BTreeMap<String, Value>, String> {
+    pub async fn outputs(&self, workspace: &Path) -> Result<BTreeMap<String, Value>, String> {
         let run = self
             .run(&["output", "-json", "-no-color"], &[], workspace)
             .await;
@@ -352,11 +352,10 @@ output "spec" {{
 /// Validate before starting a provider process. Values remain JSON data,
 /// never interpolated into HCL source.
 pub fn validate_compute_spec(spec: &Value) -> Result<(), String> {
-    if let Some(size) = spec.get("system_disk_size_gb") {
-        if size.as_u64().is_none_or(|v| v == 0) {
+    if let Some(size) = spec.get("system_disk_size_gb")
+        && size.as_u64().is_none_or(|v| v == 0) {
             return Err("system_disk_size_gb must be a positive integer".into());
         }
-    }
     for key in [
         "ecs_name",
         "ecs_type",

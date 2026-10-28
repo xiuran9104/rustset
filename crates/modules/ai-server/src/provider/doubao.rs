@@ -86,16 +86,14 @@ impl DouBaoMediaProvider {
                 body.insert(key.into(), value);
             }
         }
-        if !body.contains_key("ratio") {
-            if let Some(value) = payload.get("aspect_ratio").cloned() {
+        if !body.contains_key("ratio")
+            && let Some(value) = payload.get("aspect_ratio").cloned() {
                 body.insert("ratio".into(), value);
             }
-        }
-        if !body.contains_key("generate_audio") {
-            if let Some(value) = payload.get("audio").cloned() {
+        if !body.contains_key("generate_audio")
+            && let Some(value) = payload.get("audio").cloned() {
                 body.insert("generate_audio".into(), value);
             }
-        }
         Ok(Value::Object(body))
     }
 

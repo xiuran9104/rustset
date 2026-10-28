@@ -11,7 +11,6 @@ rustset-framework-tenant.workspace = true
 axum.workspace = true
 aide.workspace = true
 schemars.workspace = true
-base64.workspace = true
 chrono.workspace = true
 rustset-framework-common.workspace = true
 rustset-framework-database.workspace = true

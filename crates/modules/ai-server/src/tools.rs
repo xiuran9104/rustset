@@ -107,7 +107,7 @@ pub(crate) async fn execute(
                 .get("limit")
                 .and_then(Value::as_i64)
                 .unwrap_or(10)
-                .clamp(1, 20) as i64;
+                .clamp(1, 20);
             let model_id: Option<i64> =
                 sqlx::query_scalar("SELECT id FROM cmdb_model WHERE code=$1 AND deleted=0")
                     .bind(model_code)
@@ -145,7 +145,7 @@ pub(crate) async fn execute(
                 .get("limit")
                 .and_then(Value::as_i64)
                 .unwrap_or(10)
-                .clamp(1, 20) as i64;
+                .clamp(1, 20);
             let rows = sqlx::query(
                 "SELECT name, ip, zone, device_type, os, owner, organization_name,
                         application_name, classified_protection_level, status
@@ -186,7 +186,7 @@ pub(crate) async fn execute(
                 .get("limit")
                 .and_then(Value::as_i64)
                 .unwrap_or(10)
-                .clamp(1, 20) as i64;
+                .clamp(1, 20);
             let rows = sqlx::query(
                 "SELECT id, resource_type, ecs_name, ecs_type, cpu_cores, memory_gb, resource_count,
                         cloud_platform_name, cloud_region, ticket_status, apply_status,

@@ -41,11 +41,10 @@ pub(super) fn start(pool: PgPool) {
         let mut polls = 0_u8;
         loop {
             poll_tick.tick().await;
-            if polls == 0 {
-                if let Err(error) = recover_expired(&pool).await {
+            if polls == 0
+                && let Err(error) = recover_expired(&pool).await {
                     tracing::error!(?error, "failed to recover expired scan leases");
                 }
-            }
             polls = (polls + 1) % 10;
             while let Ok(permit) = slots.clone().try_acquire_owned() {
                 let job = match claim(&pool, &worker_id).await {
