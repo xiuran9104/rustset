@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 49);
+    assert_eq!(applied, 50);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -458,6 +458,35 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect expiry reminder template");
     assert!(expiry_reminder_template >= 1);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0050_menu_supply_ledger_split.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun menu restructure migration");
+    let supply_chain_parented: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu
+         WHERE id IN (30246, 30247, 30248) AND parent_id = 30340 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect supply chain parents");
+    assert_eq!(supply_chain_parented, 3);
+    let ledger_parented: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu
+         WHERE id IN (30252, 30345) AND parent_id = 30342 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect ledger parents");
+    assert_eq!(ledger_parented, 2);
+    let retired_cloud_center: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu WHERE id = 30341 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect retired cloud center");
+    assert_eq!(retired_cloud_center, 0);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(
@@ -568,7 +597,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     // 0020 splits 业务资源 into 云资源 + 物理资源 pages.
     let split_resource_menus: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
-         WHERE deleted = 0 AND parent_id = 30343
+         WHERE deleted = 0 AND parent_id = 30342
            AND path IN ('cloud-resource', 'physical-resource')
            AND component IN (
                'asset-ops/business-resource/cloud/index',
@@ -579,7 +608,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .expect("read split business-resource menus");
     assert_eq!(
         split_resource_menus, 2,
-        "业务管理 must expose separate 云资源 and 物理资源 pages"
+        "0050 起云资源/物理资源台账归资产中心（30342）"
     );
 
     let demo_analytics_menu: i64 = sqlx::query_scalar(
@@ -632,12 +661,12 @@ async fn applies_all_migrations_to_empty_postgres() {
     let new_roots: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
          WHERE deleted = 0 AND parent_id = 0
-           AND path IN ('/asset-center','/cloud-center','/infra-center','/biz-center','/ops-center')",
+           AND path IN ('/asset-center','/infra-center','/biz-center','/ops-center')",
     )
     .fetch_one(&pool)
     .await
     .expect("read new module roots");
-    assert_eq!(new_roots, 5);
+    assert_eq!(new_roots, 4);
     let orphaned_pages: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu page
          WHERE page.deleted = 0 AND page.type = 2

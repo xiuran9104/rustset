@@ -46,7 +46,7 @@ const projectItems: WorkbenchProjectItem[] = [
     group: '云管理',
     icon: 'lucide:cloud-cog',
     title: '云平台',
-    url: '/cloud-center/cloud-platform',
+    url: '/infra-center/cloud-platform',
   },
   {
     color: '#52c41a',
