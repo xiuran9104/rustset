@@ -30,14 +30,14 @@ repository = "https://example.com/rustset"
 
 [workspace.dependencies]
 anyhow = "1.0"
-aws-sdk-s3 = "1"
+aws-sdk-s3 = { version = "1", default-features = false, features = ["behavior-version-latest", "http-1x", "rt-tokio", "sigv4a", "default-https-client"] }
 async-trait = "0.1"
 base64 = "0.22"
 axum = { version = "0.8", features = ["multipart"] }
 aide = { version = "0.15", features = ["axum", "axum-json", "axum-query", "axum-form", "axum-multipart"] }
 schemars = "0.9"
 indexmap = "2"
-calamine = "0.36"
+calamine = "0.37"
 chrono = { version = "0.4", features = ["serde"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 futures-util = "0.3"
@@ -47,7 +47,7 @@ rand = "0.8"
 rand_core = { version = "0.6", features = ["getrandom"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 redis = { version = "0.32", default-features = false, features = ["aio", "tokio-comp"] }
-rust_xlsxwriter = "0.96"
+rust_xlsxwriter = "0.102"
 rustset-framework-common = { path = "crates/framework/common" }
 rustset-framework-database = { path = "crates/framework/database" }
 rustset-framework-mq = { path = "crates/framework/mq" }
@@ -77,4 +77,4 @@ tower-http = { version = "0.6", features = ["cors", "request-id", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1.16", features = ["v4"] }
-zip = "8.6"
+zip = "9"
