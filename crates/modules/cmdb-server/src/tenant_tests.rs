@@ -85,7 +85,7 @@ async fn all_instance_paths_enforce_tenant_and_quarantine() {
             .unwrap()
             .as_nanos()
     );
-    sqlx::query(&format!("CREATE SCHEMA {schema}"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
         .execute(&admin)
         .await
         .unwrap();
@@ -102,7 +102,7 @@ async fn all_instance_paths_enforce_tenant_and_quarantine() {
         .next()
         .unwrap()
         .replace("public.", "");
-    sqlx::raw_sql(&ddl).execute(&pool).await.unwrap();
+    sqlx::raw_sql(sqlx::AssertSqlSafe(ddl)).execute(&pool).await.unwrap();
     sqlx::raw_sql("CREATE TABLE system_tenant(id bigint PRIMARY KEY); INSERT INTO system_tenant VALUES (1), (2); CREATE TABLE infra_resource_ticket(id bigint PRIMARY KEY, deleted smallint DEFAULT 0);
         INSERT INTO cmdb_model(id,name,code,unique_key) VALUES (1,'Test','test','name');
         INSERT INTO cmdb_attribute(model_id,name,code,attr_type) VALUES (1,'Name','name','text');
@@ -112,7 +112,7 @@ async fn all_instance_paths_enforce_tenant_and_quarantine() {
         include_str!("../../../../sql/postgresql/0025_cmdb_instance_unique_values.sql"),
         include_str!("../../../../sql/postgresql/0026_cmdb_tenant_isolation.sql"),
     ] {
-        sqlx::raw_sql(&migration.replace("public.", ""))
+        sqlx::raw_sql(sqlx::AssertSqlSafe(migration.replace("public.", "")))
             .execute(&pool)
             .await
             .unwrap();
@@ -352,7 +352,7 @@ async fn all_instance_paths_enforce_tenant_and_quarantine() {
             .is_err()
     );
     pool.close().await;
-    sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP SCHEMA {schema} CASCADE")))
         .execute(&admin)
         .await
         .unwrap();

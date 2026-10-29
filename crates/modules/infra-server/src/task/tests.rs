@@ -38,7 +38,7 @@ async fn bulk_delete_is_atomic_and_retryable() {
     let url = std::env::var("TEST_DATABASE_URL").unwrap();
     let admin = sqlx::PgPool::connect(&url).await.unwrap();
     let schema = format!("task_test_{}", Uuid::new_v4().simple());
-    sqlx::query(&format!("CREATE SCHEMA {schema}"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
         .execute(&admin)
         .await
         .unwrap();
@@ -75,7 +75,7 @@ async fn bulk_delete_is_atomic_and_retryable() {
         .unwrap();
     assert_eq!(active, 0);
     pool.close().await;
-    sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP SCHEMA {schema} CASCADE")))
         .execute(&admin)
         .await
         .unwrap();

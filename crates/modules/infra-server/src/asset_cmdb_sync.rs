@@ -585,7 +585,7 @@ mod tests {
         let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
         let admin = sqlx::PgPool::connect(&url).await.unwrap();
         let schema = format!("asset_cmdb_sync_test_{}", uuid::Uuid::new_v4().simple());
-        sqlx::query(&format!("CREATE SCHEMA {schema}"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
             .execute(&admin)
             .await
             .unwrap();
@@ -603,7 +603,7 @@ mod tests {
             .next()
             .unwrap()
             .replace("public.", "");
-        sqlx::raw_sql(&cmdb_ddl).execute(&pool).await.unwrap();
+        sqlx::raw_sql(sqlx::AssertSqlSafe(cmdb_ddl)).execute(&pool).await.unwrap();
         let mut columns = vec!["id bigint".to_string()];
         columns.extend(FIELDS.iter().skip(1).map(|field| {
             let sql_type = match field.attr_type {
@@ -618,7 +618,7 @@ mod tests {
         }));
         columns.push("deleted smallint DEFAULT 0 NOT NULL".to_string());
         columns.push("tenant_id bigint".to_string());
-        sqlx::raw_sql(&format!("CREATE TABLE infra_asset ({})", columns.join(",")))
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE TABLE infra_asset ({})", columns.join(","))))
             .execute(&pool)
             .await
             .unwrap();
@@ -703,7 +703,7 @@ mod tests {
         assert_eq!(instances, 1);
 
         pool.close().await;
-        sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("DROP SCHEMA {schema} CASCADE")))
             .execute(&admin)
             .await
             .unwrap();

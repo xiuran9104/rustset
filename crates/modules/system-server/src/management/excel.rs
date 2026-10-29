@@ -157,18 +157,18 @@ async fn export_kind(
     let spec = export_spec(kind).ok_or_else(|| AppError::bad_request("unsupported export kind"))?;
     require(&user, spec.permission)?;
     let rows = if spec.tenant_scoped {
-        sqlx::query_scalar::<_, Value>(&format!(
+        sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(format!(
             "SELECT to_jsonb(t) FROM {} t WHERE deleted=0 AND tenant_id=$1 ORDER BY id DESC LIMIT 10000",
             spec.table
-        ))
+        )))
         .bind(current_tenant_id(&user)?)
         .fetch_all(&state.pool)
         .await
     } else {
-        sqlx::query_scalar::<_, Value>(&format!(
+        sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(format!(
             "SELECT to_jsonb(t) FROM {} t WHERE deleted=0 ORDER BY id DESC LIMIT 10000",
             spec.table
-        ))
+        )))
         .fetch_all(&state.pool)
         .await
     }

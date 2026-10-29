@@ -1,12 +1,5 @@
 # osv-scanner 忽略清单：仅收录"已核实不可利用或不在生产路径"且无修复版的公告。
 # 每条必须写明核实结论；上游发布修复版本后应删除对应条目并升级。
-[[IgnoredVulns]]
-id = "RUSTSEC-2023-0071"
-# rsa：仅存在于 Cargo.lock 层面——sqlx 的 MySQL 后端（sqlx-mysql）非可选依赖
-# rsa，但本项目只用 PostgreSQL 特性，cargo tree（默认/全特性/全目标）均确认
-# rsa 不参与编译、不进入产物。Cargo.lock 按设计锁定全部特性组合的可达依赖，
-# 因此条目无法移除。公告影响所有版本且明确无修复计划（patched=[]）。
-reason = "lock-only via sqlx's inactive mysql backend; never compiled, no fix exists"
 
 [[IgnoredVulns]]
 id = "GHSA-qwgh-2vcv-g2f7"

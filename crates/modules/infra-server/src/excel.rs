@@ -21,10 +21,10 @@ export_handler!(api_error_log_export, "api_error_log");
 
 async fn export_kind(state: InfraState, kind: &str) -> Result<Response, AppError> {
     let spec = export_spec(kind).ok_or_else(|| AppError::bad_request("unsupported export kind"))?;
-    let rows = sqlx::query_scalar::<_, Value>(&format!(
+    let rows = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(format!(
         "SELECT to_jsonb(t) FROM {} t WHERE deleted=0 ORDER BY id DESC LIMIT 10000",
         spec.table
-    ))
+    )))
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to export records"))?;

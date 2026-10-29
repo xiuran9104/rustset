@@ -274,13 +274,13 @@ pub(crate) async fn auto_attribute_ownership(
     tenant: &TenantContext,
     asset_id: i64,
 ) -> Result<(), AppError> {
-    let Some((asset_id, ip)) = sqlx::query_as::<_, (i64, String)>(
+    let Some((asset_id, ip)) = sqlx::query_as::<_, (i64, String)>(sqlx::AssertSqlSafe(
         // Skip only assets whose organization a human chose; the default
         // 'manual' marker with an empty organization still gets attributed.
         "SELECT id, ip FROM infra_asset WHERE id = $1 AND tenant_id = $2 AND deleted = 0
            AND NOT (ownership_source = 'manual'
                     AND organization_name IS NOT NULL AND organization_name <> '')",
-    )
+    ))
     .bind(asset_id)
     .bind(tenant.id())
     .fetch_optional(pool)

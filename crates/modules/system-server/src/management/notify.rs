@@ -263,7 +263,7 @@ async fn message_list(
          ORDER BY create_time DESC, id DESC
          LIMIT $3"
     );
-    sqlx::query_scalar::<_, Value>(&sql)
+    sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .bind(user_id)
         .bind(tenant_id)
         .bind(limit)

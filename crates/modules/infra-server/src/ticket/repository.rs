@@ -81,7 +81,7 @@ pub(super) async fn create(
          RETURNING id, (xmax = 0) AS inserted",
         columns.join(", ")
     );
-    let (id, inserted): (i64, bool) = sqlx::query_as(&sql)
+    let (id, inserted): (i64, bool) = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         .bind(payload)
         .fetch_one(pool)
         .await
@@ -116,7 +116,7 @@ pub(super) async fn update(
     let sql = format!(
         "UPDATE infra_resource_ticket t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::infra_resource_ticket, $2::jsonb) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0"
     );
-    let result = sqlx::query(&sql)
+    let result = sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .bind(payload)
         .bind(tenant.id())
@@ -153,9 +153,9 @@ mod tests {
         let url = std::env::var("TEST_DATABASE_URL").unwrap();
         let admin = PgPool::connect(&url).await.unwrap();
         let database = format!("ticket_tenant_{}", uuid::Uuid::new_v4().simple());
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "CREATE DATABASE {database} TEMPLATE template0 ENCODING 'UTF8'"
-        ))
+        )))
         .execute(&admin)
         .await
         .unwrap();
@@ -220,7 +220,7 @@ mod tests {
         let _ = delete(&pool, &a, &[id]).await.unwrap();
         assert!(get(&pool, &a, id).await.is_err());
         pool.close().await;
-        sqlx::query(&format!("DROP DATABASE {database}"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {database}")))
             .execute(&admin)
             .await
             .unwrap();

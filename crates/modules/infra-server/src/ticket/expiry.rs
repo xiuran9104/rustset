@@ -37,13 +37,13 @@ struct ExpiringTicket {
 }
 
 async fn scan(pool: &PgPool) -> Result<(), sqlx::Error> {
-    let rows = sqlx::query_as::<_, (i64, i64, String, String, i16, Option<i64>, String)>(&format!(
+    let rows = sqlx::query_as::<_, (i64, i64, String, String, i16, Option<i64>, String)>(sqlx::AssertSqlSafe(format!(
         "SELECT id, tenant_id, ecs_name, expire_at, expiry_remind_stage, applicant_user_id, resource_type
          FROM infra_resource_ticket
          WHERE deleted=0 AND expire_at IS NOT NULL AND expire_at <> ''
            AND ticket_status IN ({ACTIVE_STATUSES})
            AND expiry_remind_stage < 3"
-    ))
+    )))
     .fetch_all(pool)
     .await?;
     for (id, tenant_id, ecs_name, expire_at, remind_stage, applicant_user_id, resource_type) in rows
@@ -251,10 +251,10 @@ pub(super) async fn apply_renewal(
     } else {
         "infra_cloud_resource"
     };
-    let updated = sqlx::query(&format!(
+    let updated = sqlx::query(sqlx::AssertSqlSafe(format!(
         "UPDATE {ledger_table} SET expire_at=$2, update_time=now()
          WHERE id=$1 AND tenant_id=$3 AND deleted=0"
-    ))
+    )))
     .bind(target)
     .bind(new_expire_at)
     .bind(tenant_id)
@@ -268,10 +268,10 @@ pub(super) async fn apply_renewal(
     }
     if !physical {
         // 云资源交付行以 resource_id 记录原工单号；续期即恢复该工单授权。
-        let source: Option<i64> = sqlx::query_scalar(&format!(
+        let source: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT NULLIF(regexp_replace(resource_id, '\\D', '', 'g'), '')::bigint
              FROM {ledger_table} WHERE id=$1 AND tenant_id=$2 AND deleted=0"
-        ))
+        )))
         .bind(target)
         .bind(tenant_id)
         .fetch_optional(pool)

@@ -86,7 +86,7 @@ async fn reconcile_migrations(pool: &PgPool) -> anyhow::Result<bool> {
 
     for migration in MIGRATOR.iter() {
         // Compute SHA-256 checksum matching sqlx's internal format
-        let checksum = sha2::Sha256::digest(migration.sql.as_bytes());
+        let checksum = sha2::Sha256::digest(migration.sql.as_str().as_bytes());
         sqlx::query(
             "INSERT INTO public._sqlx_migrations (version, description, installed_on, success, checksum, execution_time)
              VALUES ($1, $2, now(), true, $3, 0)

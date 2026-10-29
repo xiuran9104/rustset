@@ -146,7 +146,7 @@ pub(super) async fn create(
         .begin()
         .await
         .map_err(|_| AppError::internal("failed to start network-policy transaction"))?;
-    let id: i64 = sqlx::query_scalar(&sql)
+    let id: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
         .bind(payload)
         .fetch_one(&mut *tx)
         .await
@@ -200,7 +200,7 @@ pub(super) async fn update(
             "UPDATE {table} t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::{table}, $2::jsonb) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0",
             table = NETWORK_POLICY.table
         );
-        sqlx::query(&sql)
+        sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(id)
             .bind(payload)
             .bind(tenant.id())

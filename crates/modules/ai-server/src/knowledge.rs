@@ -309,7 +309,7 @@ where
     let count = format!(
         "SELECT count(*) FROM {table} WHERE ($1::bigint IS NULL OR {column}=$1) AND ($2::int IS NULL OR status=$2)"
     );
-    let rows = sqlx::query(&query)
+    let rows = sqlx::query(sqlx::AssertSqlSafe(query))
         .bind(parent)
         .bind(status)
         .bind(n)
@@ -317,7 +317,7 @@ where
         .fetch_all(&s.pool)
         .await
         .map_err(|_| AppError::internal("读取分页数据失败"))?;
-    let total: i64 = sqlx::query_scalar(&count)
+    let total: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(count))
         .bind(parent)
         .bind(status)
         .fetch_one(&s.pool)

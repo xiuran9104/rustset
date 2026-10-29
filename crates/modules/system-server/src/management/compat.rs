@@ -1137,7 +1137,7 @@ async fn yudao_page(
     let page_size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (page_no - 1) * page_size;
     let total_sql = format!("SELECT count(*) FROM {} WHERE deleted = 0", spec.table);
-    let total = sqlx::query_scalar::<_, i64>(&total_sql)
+    let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(total_sql))
         .fetch_one(pool)
         .await
         .map_err(|_| AppError::internal("failed to count records"))?;
@@ -1145,7 +1145,7 @@ async fn yudao_page(
         "SELECT to_jsonb(t) FROM {} t WHERE deleted = 0 ORDER BY id DESC LIMIT $1 OFFSET $2",
         spec.table
     );
-    let rows = sqlx::query_scalar::<_, Value>(&list_sql)
+    let rows = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(list_sql))
         .bind(page_size)
         .bind(offset)
         .fetch_all(pool)
@@ -1165,7 +1165,7 @@ async fn yudao_list(
         "SELECT to_jsonb(t) FROM {} t WHERE deleted = 0 ORDER BY id DESC",
         spec.table
     );
-    let rows = sqlx::query_scalar::<_, Value>(&sql)
+    let rows = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .fetch_all(pool)
         .await
         .map_err(|_| AppError::internal("failed to list records"))?;
@@ -1184,7 +1184,7 @@ async fn yudao_get(
         "SELECT to_jsonb(t) FROM {} t WHERE id = $1 AND deleted = 0",
         spec.table
     );
-    let row = sqlx::query_scalar::<_, Value>(&sql)
+    let row = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .fetch_optional(pool)
         .await
@@ -1213,7 +1213,7 @@ async fn yudao_create(
         "INSERT INTO {} (id, {}) SELECT nextval('{}'), {} FROM jsonb_populate_record(NULL::{}, $1::jsonb) AS r RETURNING id",
         spec.table, column_sql, spec.seq, record_sql, spec.table
     );
-    let id = sqlx::query_scalar::<_, i64>(&sql)
+    let id = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(sql))
         .bind(db_payload)
         .fetch_one(pool)
         .await
@@ -1241,7 +1241,7 @@ async fn yudao_update(
         "UPDATE {} t SET {}, update_time = now() FROM jsonb_populate_record(NULL::{}, $2::jsonb) AS r WHERE t.id = $1 AND t.deleted = 0",
         spec.table, set_sql, spec.table
     );
-    let result = sqlx::query(&sql)
+    let result = sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .bind(db_payload)
         .execute(pool)
@@ -1263,7 +1263,7 @@ async fn yudao_delete(
         "UPDATE {} SET deleted = 1, update_time = now() WHERE id = $1",
         spec.table
     );
-    sqlx::query(&sql)
+    sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .execute(pool)
         .await
@@ -1281,7 +1281,7 @@ async fn yudao_delete_list(
             "UPDATE {} SET deleted = 1, update_time = now() WHERE id = $1",
             spec.table
         );
-        sqlx::query(&sql)
+        sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(id)
             .execute(pool)
             .await
@@ -1458,12 +1458,12 @@ async fn core_page(
     let page_no = params.page_no.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (page_no - 1) * page_size;
-    let total = sqlx::query_scalar::<_, i64>(core_count_sql(kind)?)
+    let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(core_count_sql(kind)?))
         .fetch_one(pool)
         .await
         .map_err(|_| AppError::internal("failed to count records"))?;
     let select_sql = core_select_sql(kind, true)?;
-    let rows = sqlx::query_scalar::<_, Value>(&select_sql)
+    let rows = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(select_sql))
         .bind(page_size)
         .bind(offset)
         .fetch_all(pool)
@@ -1474,7 +1474,7 @@ async fn core_page(
 
 async fn core_list(pool: &PgPool, kind: &str) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     let select_sql = core_select_sql(kind, false)?;
-    let rows = sqlx::query_scalar::<_, Value>(&select_sql)
+    let rows = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(select_sql))
         .fetch_all(pool)
         .await
         .map_err(|_| AppError::internal("failed to list records"))?;
@@ -1487,7 +1487,7 @@ async fn core_get(
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let id = parse_i64_param(&params, "id")?;
-    let row = sqlx::query_scalar::<_, Value>(core_get_sql(kind)?)
+    let row = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(core_get_sql(kind)?))
         .bind(id)
         .fetch_optional(pool)
         .await
@@ -1653,7 +1653,7 @@ async fn core_delete(
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let id = parse_i64_param(&params, "id")?;
-    sqlx::query(core_delete_sql(kind)?)
+    sqlx::query(sqlx::AssertSqlSafe(core_delete_sql(kind)?))
         .bind(id)
         .execute(pool)
         .await
@@ -1667,7 +1667,7 @@ async fn core_delete_list(
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     for id in split_i64_ids(&params) {
-        sqlx::query(core_delete_sql(kind)?)
+        sqlx::query(sqlx::AssertSqlSafe(core_delete_sql(kind)?))
             .bind(id)
             .execute(pool)
             .await

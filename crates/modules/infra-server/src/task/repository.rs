@@ -61,7 +61,7 @@ pub(crate) async fn page(
     let query = format!(
         "{SELECT_TASK} WHERE tenant_id=$3 AND deleted=0 ORDER BY create_time DESC LIMIT $1 OFFSET $2"
     );
-    sqlx::query(&query)
+    sqlx::query(sqlx::AssertSqlSafe(query))
         .bind(limit)
         .bind(offset)
         .bind(tenant_id)
@@ -75,7 +75,7 @@ pub(crate) async fn list(
     tenant_id: i64,
 ) -> Result<Vec<ScanTaskResponse>, sqlx::Error> {
     let query = format!("{SELECT_TASK} WHERE tenant_id=$1 AND deleted=0 ORDER BY create_time DESC");
-    sqlx::query(&query)
+    sqlx::query(sqlx::AssertSqlSafe(query))
         .bind(tenant_id)
         .fetch_all(pool)
         .await
@@ -90,7 +90,7 @@ pub(crate) async fn list_kind(
     let query = format!(
         "{SELECT_TASK} WHERE tenant_id=$1 AND task_kind=$2 AND deleted=0 ORDER BY create_time DESC LIMIT 200"
     );
-    sqlx::query(&query)
+    sqlx::query(sqlx::AssertSqlSafe(query))
         .bind(tenant_id)
         .bind(task_kind)
         .fetch_all(pool)
@@ -104,7 +104,7 @@ pub(crate) async fn get(
     id: &str,
 ) -> Result<Option<ScanTaskResponse>, sqlx::Error> {
     let query = format!("{SELECT_TASK} WHERE id=$1 AND tenant_id=$2 AND deleted=0");
-    sqlx::query(&query)
+    sqlx::query(sqlx::AssertSqlSafe(query))
         .bind(id)
         .bind(tenant_id)
         .fetch_optional(pool)

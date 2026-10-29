@@ -115,7 +115,7 @@ async fn concurrent_writes_and_delete_rollback() {
             .unwrap()
             .as_nanos()
     );
-    sqlx::query(&format!("CREATE SCHEMA {schema}"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
         .execute(&admin)
         .await
         .unwrap();
@@ -132,16 +132,16 @@ async fn concurrent_writes_and_delete_rollback() {
         .next()
         .unwrap()
         .replace("public.", "");
-    sqlx::raw_sql(&ddl).execute(&pool).await.unwrap();
+    sqlx::raw_sql(sqlx::AssertSqlSafe(ddl)).execute(&pool).await.unwrap();
     let migration =
         include_str!("../../../../../sql/postgresql/0025_cmdb_instance_unique_values.sql")
             .replace("public.", "");
-    sqlx::raw_sql(&migration).execute(&pool).await.unwrap();
+    sqlx::raw_sql(sqlx::AssertSqlSafe(migration.clone())).execute(&pool).await.unwrap();
     sqlx::raw_sql("CREATE TABLE system_tenant(id bigint PRIMARY KEY); INSERT INTO system_tenant VALUES (1), (2); CREATE TABLE infra_resource_ticket(id bigint PRIMARY KEY, deleted smallint DEFAULT 0);")
         .execute(&pool).await.unwrap();
     let migration = include_str!("../../../../../sql/postgresql/0026_cmdb_tenant_isolation.sql")
         .replace("public.", "");
-    sqlx::raw_sql(&migration).execute(&pool).await.unwrap();
+    sqlx::raw_sql(sqlx::AssertSqlSafe(migration.clone())).execute(&pool).await.unwrap();
     let tenant = TenantContext::from_persisted_id(Some(1)).unwrap();
     let model_id: i64 = sqlx::query_scalar("INSERT INTO cmdb_model(name, code, unique_key) VALUES ('Test', 'test', 'name') RETURNING id")
         .fetch_one(&pool).await.unwrap();
@@ -356,7 +356,7 @@ async fn concurrent_writes_and_delete_rollback() {
         }
     }
     // Rerunning the migration reconstructs the same registrations.
-    sqlx::raw_sql(&migration).execute(&pool).await.unwrap();
+    sqlx::raw_sql(sqlx::AssertSqlSafe(migration.clone())).execute(&pool).await.unwrap();
 
     // Force relation cleanup to fail: the instance deletion must roll back.
     sqlx::query("INSERT INTO cmdb_relation(source_id, target_id, tenant_id) VALUES ($1, $2, 1)")
@@ -423,7 +423,7 @@ async fn concurrent_writes_and_delete_rollback() {
         .unwrap();
 
     pool.close().await;
-    sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP SCHEMA {schema} CASCADE")))
         .execute(&admin)
         .await
         .unwrap();

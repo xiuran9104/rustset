@@ -494,9 +494,9 @@ async fn applies_all_migrations_to_empty_postgres() {
     // 0022 asset inspection: approved TCP baselines, per-target results and a
     // dedicated page that reuses scan/risk/asset permissions.
     for inspection_table in ["infra_inspection_baseline", "infra_inspection_result"] {
-        let exists: bool = sqlx::query_scalar(&format!(
+        let exists: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT to_regclass('public.{inspection_table}') IS NOT NULL"
-        ))
+        )))
         .fetch_one(&pool)
         .await
         .expect("inspect inspection table");
@@ -547,9 +547,9 @@ async fn applies_all_migrations_to_empty_postgres() {
     assert_eq!(bpm_menus, 0, "BPM must not remain visible or authorized");
     // 0021 splits the mixed ledger table into typed cloud/physical tables.
     for split_table in ["infra_cloud_resource", "infra_physical_resource"] {
-        let exists: bool = sqlx::query_scalar(&format!(
+        let exists: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT to_regclass('public.{split_table}') IS NOT NULL"
-        ))
+        )))
         .fetch_one(&pool)
         .await
         .expect("inspect split resource table");
@@ -1063,7 +1063,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         "system_operate_log",
         "system_notify_message",
     ] {
-        let rows: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {runtime_table}"))
+        let rows: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {runtime_table}")))
             .fetch_one(&pool)
             .await
             .expect("read runtime table");

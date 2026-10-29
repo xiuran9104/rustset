@@ -1257,7 +1257,7 @@ pub(crate) async fn table_page(
     let page_size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (page_no - 1) * page_size;
     let total_sql = format!("SELECT count(*) FROM {} WHERE deleted=0", spec.table);
-    let total = sqlx::query_scalar::<_, i64>(&total_sql)
+    let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(total_sql))
         .fetch_one(pool)
         .await
         .map_err(|_| AppError::internal("failed to count records"))?;
@@ -1265,7 +1265,7 @@ pub(crate) async fn table_page(
         "SELECT to_jsonb(t) FROM {} t WHERE deleted=0 ORDER BY id DESC LIMIT $1 OFFSET $2",
         spec.table
     );
-    let list = sqlx::query_scalar::<_, Value>(&list_sql)
+    let list = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(list_sql))
         .bind(page_size)
         .bind(offset)
         .fetch_all(pool)
@@ -1285,7 +1285,7 @@ pub(crate) async fn table_list(
         "SELECT to_jsonb(t) FROM {} t WHERE deleted=0 ORDER BY id",
         spec.table
     );
-    let list = sqlx::query_scalar::<_, Value>(&sql)
+    let list = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .fetch_all(pool)
         .await
         .map_err(|_| AppError::internal("failed to list records"))?
@@ -1304,7 +1304,7 @@ pub(crate) async fn table_get_value(
         "SELECT to_jsonb(t) FROM {} t WHERE id=$1 AND deleted=0",
         spec.table
     );
-    let value = sqlx::query_scalar::<_, Value>(&sql)
+    let value = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .fetch_optional(pool)
         .await
@@ -1336,7 +1336,7 @@ pub(crate) async fn table_update(
         "UPDATE {} t SET {}, update_time=now() FROM jsonb_populate_record(NULL::{}, $2::jsonb) AS r WHERE t.id=$1 AND t.deleted=0",
         spec.table, set_sql, spec.table
     );
-    sqlx::query(&sql)
+    sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .bind(db_payload)
         .execute(pool)
@@ -1359,7 +1359,7 @@ pub(crate) async fn tenant_table_page(
         "SELECT count(*) FROM {} WHERE tenant_id=$1 AND deleted=0",
         spec.table
     );
-    let total = sqlx::query_scalar::<_, i64>(&total_sql)
+    let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(total_sql))
         .bind(tenant_id)
         .fetch_one(pool)
         .await
@@ -1368,7 +1368,7 @@ pub(crate) async fn tenant_table_page(
         "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id DESC LIMIT $2 OFFSET $3",
         spec.table
     );
-    let list = sqlx::query_scalar::<_, Value>(&list_sql)
+    let list = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(list_sql))
         .bind(tenant_id)
         .bind(page_size)
         .bind(offset)
@@ -1391,7 +1391,7 @@ pub(crate) async fn tenant_table_list(
         "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id",
         spec.table
     );
-    let list = sqlx::query_scalar::<_, Value>(&sql)
+    let list = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .bind(tenant_id)
         .fetch_all(pool)
         .await
@@ -1413,7 +1413,7 @@ pub(crate) async fn tenant_table_list_by_i64(
         "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND {column}=$2 AND deleted=0 ORDER BY id",
         spec.table
     );
-    let list = sqlx::query_scalar::<_, Value>(&sql)
+    let list = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .bind(tenant_id)
         .bind(value)
         .fetch_all(pool)
@@ -1447,7 +1447,7 @@ pub(crate) async fn tenant_table_get_value(
         "SELECT to_jsonb(t) FROM {} t WHERE id=$1 AND tenant_id=$2 AND deleted=0",
         spec.table
     );
-    let value = sqlx::query_scalar::<_, Value>(&sql)
+    let value = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .bind(tenant_id)
         .fetch_optional(pool)
@@ -1488,7 +1488,7 @@ pub(crate) async fn tenant_table_create(
         "INSERT INTO {} (id, {}) SELECT nextval('{}'), {} FROM jsonb_populate_record(NULL::{}, $1::jsonb) AS r RETURNING id",
         spec.table, column_sql, spec.seq, record_sql, spec.table
     );
-    let id = sqlx::query_scalar::<_, i64>(&sql)
+    let id = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(sql))
         .bind(db_payload)
         .fetch_one(pool)
         .await
@@ -1521,7 +1521,7 @@ pub(crate) async fn tenant_table_update(
         "UPDATE {} t SET {}, update_time=now() FROM jsonb_populate_record(NULL::{}, $3::jsonb) AS r WHERE t.id=$1 AND t.tenant_id=$2 AND t.deleted=0",
         spec.table, set_sql, spec.table
     );
-    let result = sqlx::query(&sql)
+    let result = sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .bind(tenant_id)
         .bind(db_payload)
@@ -1543,7 +1543,7 @@ pub(crate) async fn tenant_soft_delete(
     let sql = format!(
         "UPDATE {table} SET deleted=1, update_time=now() WHERE tenant_id=$1 AND id = ANY($2) AND deleted=0"
     );
-    sqlx::query(&sql)
+    sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(tenant_id)
         .bind(ids)
         .execute(pool)
@@ -1637,11 +1637,11 @@ pub(crate) async fn page(
     let page_no = params.page_no.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (page_no - 1) * page_size;
-    let total = sqlx::query_scalar::<_, i64>(count_sql)
+    let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(count_sql))
         .fetch_one(pool)
         .await
         .map_err(|_| AppError::internal("failed to count records"))?;
-    let list = sqlx::query_scalar::<_, Value>(list_sql)
+    let list = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(list_sql))
         .bind(page_size)
         .bind(offset)
         .fetch_all(pool)
@@ -1655,7 +1655,7 @@ pub(crate) async fn get_one(
     sql: &str,
     id: i64,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let value = sqlx::query_scalar::<_, Value>(sql)
+    let value = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .fetch_optional(pool)
         .await
@@ -1670,7 +1670,7 @@ pub(crate) async fn soft_delete(
     id: i64,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let sql = format!("UPDATE {table} SET deleted=1, update_time=now() WHERE id=$1");
-    sqlx::query(&sql)
+    sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .execute(pool)
         .await

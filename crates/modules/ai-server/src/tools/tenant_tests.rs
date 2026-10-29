@@ -18,9 +18,9 @@ async fn tool_queries_use_authenticated_tenant_and_permissions() {
             .unwrap()
             .as_nanos()
     );
-    sqlx::query(&format!(
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "CREATE DATABASE {database} TEMPLATE template0 ENCODING 'UTF8'"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
@@ -86,7 +86,7 @@ async fn tool_queries_use_authenticated_tenant_and_permissions() {
             .is_err()
     );
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE {database}"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {database}")))
         .execute(&admin)
         .await
         .unwrap();

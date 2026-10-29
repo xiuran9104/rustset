@@ -155,10 +155,10 @@ async fn export(
     columns: &[&str],
     filename: &'static str,
 ) -> Result<Response, AppError> {
-    let rows = sqlx::query_scalar::<_, Value>(&format!(
+    let rows = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(format!(
         "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id LIMIT 10001",
         spec.table
-    ))
+    )))
     .bind(tenant.id())
     .fetch_all(&s.pool)
     .await

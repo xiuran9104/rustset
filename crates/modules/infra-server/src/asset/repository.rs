@@ -9,10 +9,10 @@ pub(super) async fn get(
     tenant: &TenantContext,
     id: i64,
 ) -> Result<Value, AppError> {
-    let value = sqlx::query_scalar::<_, Value>(&format!(
+    let value = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(format!(
         "SELECT to_jsonb(t) FROM {table} t WHERE id=$1 AND tenant_id=$2 AND deleted=0",
         table = spec.table
-    ))
+    )))
     .bind(id)
     .bind(tenant.id())
     .fetch_optional(pool)
@@ -30,15 +30,15 @@ pub(super) async fn page(
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
     let size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (params.page_no.unwrap_or(1).max(1) - 1).saturating_mul(size);
-    let total = sqlx::query_scalar(&format!(
+    let total = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT count(*) FROM {table} WHERE tenant_id=$1 AND deleted=0",
         table = spec.table
-    ))
+    )))
     .bind(tenant.id())
     .fetch_one(pool)
     .await
     .map_err(|_| AppError::internal("failed to count records"))?;
-    let list = sqlx::query_scalar::<_, Value>(&format!("SELECT to_jsonb(t) FROM {table} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id DESC LIMIT $2 OFFSET $3", table=spec.table))
+    let list = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(format!("SELECT to_jsonb(t) FROM {table} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id DESC LIMIT $2 OFFSET $3", table=spec.table)))
         .bind(tenant.id()).bind(size).bind(offset).fetch_all(pool).await
         .map_err(|_| AppError::internal("failed to list records"))?.into_iter().map(crate::table_value).collect();
     Ok(Json(ApiResponse::new(crate::Page { list, total })))
@@ -76,7 +76,7 @@ pub(super) async fn create(
         columns.join(", "),
         table = spec.table
     );
-    let id: i64 = sqlx::query_scalar(&sql)
+    let id: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
         .bind(payload)
         .fetch_one(pool)
         .await
@@ -113,7 +113,7 @@ pub(super) async fn update(
         "UPDATE {table} t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::{table}, $2::jsonb) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0",
         table = spec.table
     );
-    let result = sqlx::query(&sql)
+    let result = sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .bind(payload)
         .bind(tenant.id())
@@ -135,7 +135,7 @@ pub(super) async fn delete(
     if ids.is_empty() || ids.iter().any(|id| *id <= 0) {
         return Err(AppError::bad_request("ids are required"));
     }
-    sqlx::query(&format!("UPDATE {table} SET deleted=1, update_time=now() WHERE id=ANY($1) AND tenant_id=$2 AND deleted=0", table=spec.table))
+    sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE {table} SET deleted=1, update_time=now() WHERE id=ANY($1) AND tenant_id=$2 AND deleted=0", table=spec.table)))
         .bind(ids).bind(tenant.id()).execute(pool).await.map_err(|_| AppError::internal("failed to delete records"))?;
     Ok(Json(ApiResponse::new(())))
 }
@@ -145,10 +145,10 @@ pub(super) async fn list(
     spec: TableSpec,
     tenant: &TenantContext,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
-    let rows = sqlx::query_scalar::<_, Value>(&format!(
+    let rows = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(format!(
         "SELECT to_jsonb(t) FROM {} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id DESC",
         spec.table
-    ))
+    )))
     .bind(tenant.id())
     .fetch_all(pool)
     .await

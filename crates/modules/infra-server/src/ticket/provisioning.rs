@@ -59,11 +59,11 @@ pub(super) async fn apply_resource_side_effect(
         "reclaim" => "retired",
         _ => return,
     };
-    let result = sqlx::query(&format!(
+    let result = sqlx::query(sqlx::AssertSqlSafe(format!(
         "UPDATE {ledger_table}
          SET ecs_status=$2, update_time=now()
          WHERE id=$1 AND tenant_id=$3 AND deleted=0"
-    ))
+    )))
     .bind(target)
     .bind(new_status)
     .bind(tenant.id())
@@ -570,7 +570,7 @@ mod provision_tests {
         let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
         let admin = sqlx::PgPool::connect(&url).await.unwrap();
         let schema = format!("cmdb_provision_test_{}", uuid::Uuid::new_v4().simple());
-        sqlx::query(&format!("CREATE SCHEMA {schema}"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
             .execute(&admin)
             .await
             .unwrap();
@@ -587,14 +587,14 @@ mod provision_tests {
             .next()
             .unwrap()
             .replace("public.", "");
-        sqlx::raw_sql(&ddl).execute(&pool).await.unwrap();
+        sqlx::raw_sql(sqlx::AssertSqlSafe(ddl)).execute(&pool).await.unwrap();
         sqlx::raw_sql("CREATE TABLE system_tenant(id bigint PRIMARY KEY); INSERT INTO system_tenant VALUES (1), (2); CREATE TABLE infra_resource_ticket(id bigint PRIMARY KEY, deleted smallint DEFAULT 0);")
             .execute(&pool).await.unwrap();
         for migration in [
             include_str!("../../../../../sql/postgresql/0025_cmdb_instance_unique_values.sql"),
             include_str!("../../../../../sql/postgresql/0026_cmdb_tenant_isolation.sql"),
         ] {
-            sqlx::raw_sql(&migration.replace("public.", ""))
+            sqlx::raw_sql(sqlx::AssertSqlSafe(migration.replace("public.", "")))
                 .execute(&pool)
                 .await
                 .unwrap();
@@ -657,7 +657,7 @@ mod provision_tests {
         assert_eq!(owners, vec![1, 2]);
         assert!(repository::get(&pool, &other_tenant, 1).await.is_err());
         pool.close().await;
-        sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("DROP SCHEMA {schema} CASCADE")))
             .execute(&admin)
             .await
             .unwrap();
