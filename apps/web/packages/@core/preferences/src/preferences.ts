@@ -331,7 +331,19 @@ class PreferenceManager {
    * @returns 缓存的偏好设置，如果不存在则返回 null
    */
   private async loadFromCache(): Promise<null | Preferences> {
-    return this.cache.getItem<Preferences>(STORAGE_KEYS.MAIN);
+    const cached = await this.cache.getItem<Preferences>(STORAGE_KEYS.MAIN);
+    // 一次性迁移：早期版本的头像/Logo 默认值指向 unpkg CDN，已被本地资源
+    // 取代；旧缓存里的 CDN 地址会在每次加载时触发跨域存储告警，这里改写。
+    if (cached) {
+      const legacy = 'https://unpkg.com/@vbenjs/static-source@0.1.7/source/';
+      if (cached.app?.defaultAvatar?.startsWith(legacy)) {
+        cached.app.defaultAvatar = defaultPreferences.app.defaultAvatar;
+      }
+      if (cached.logo?.source?.startsWith(legacy)) {
+        cached.logo.source = defaultPreferences.logo.source;
+      }
+    }
+    return cached;
   }
 
   private replaceCustomPreferences(preferences: CustomPreferencesRecord) {
