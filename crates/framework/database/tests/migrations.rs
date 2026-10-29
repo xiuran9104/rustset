@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 46);
+    assert_eq!(applied, 49);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -416,6 +416,48 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect user binding columns");
     assert_eq!(user_binding_columns, 3);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0047_ticket_project_customer.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun ticket project and customer migration");
+    let ticket_structured_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_resource_ticket'
+           AND column_name IN ('project_name','customer_user_id')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect ticket structured columns");
+    assert_eq!(ticket_structured_columns, 2);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0048_ticket_attachments.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun ticket attachment migration");
+    let ticket_attachment_table: bool = sqlx::query_scalar(
+        "SELECT to_regclass('public.infra_resource_ticket_attachment') IS NOT NULL",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect ticket attachment table");
+    assert!(ticket_attachment_table);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0049_ticket_expiry.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun ticket expiry migration");
+    let expiry_reminder_template: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_notify_template
+         WHERE code='ticket_expire_reminder' AND deleted=0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect expiry reminder template");
+    assert!(expiry_reminder_template >= 1);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

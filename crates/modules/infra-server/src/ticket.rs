@@ -1,3 +1,4 @@
+mod expiry;
 mod provisioning;
 mod repository;
 pub(crate) use provisioning::load_platform_target;
@@ -37,6 +38,10 @@ const APPROVAL_RULE: TableSpec = TableSpec {
     seq: "infra_approval_rule_seq",
 };
 
+pub(crate) fn start_expiry_scanner(pool: sqlx::PgPool) {
+    expiry::start(pool);
+}
+
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
         .api_route("/infra/resource-ticket/page", get(page))
@@ -48,6 +53,10 @@ pub fn routes() -> ApiRouter<InfraState> {
         .api_route("/infra/resource-ticket/{id}/approve", post(approve))
         .api_route("/infra/resource-ticket/{id}/provision", post(provision))
         .api_route("/infra/resource-ticket/{id}/deliver", post(deliver))
+        .api_route(
+            "/infra/resource-ticket/{id}/attachments",
+            get(attachments),
+        )
         .api_route("/infra/approval-rule/page", get(rule_page))
         .api_route("/infra/approval-rule/list", get(rule_list))
         .api_route("/infra/approval-rule/create", post(rule_create))
@@ -78,6 +87,10 @@ async fn create(
     Json(request): Json<CreateResourceTicketRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
+    let contract_file_ids = request
+        .contract_file_ids
+        .clone()
+        .filter(|ids| !ids.is_empty());
     let mut payload = serde_json::to_value(request)
         .map_err(|_| AppError::bad_request("invalid resource ticket"))?;
     if let Some(obj) = payload.as_object_mut() {
@@ -110,12 +123,15 @@ async fn create(
         obj.entry("createdBy".to_string())
             .or_insert(Value::String(user.username.clone()));
         obj.entry("applicantName".to_string())
-            .or_insert(Value::String(user.username));
+            .or_insert(Value::String(user.username.clone()));
     }
     let (Json(created), inserted) = repository::create(&s.pool, &tenant, payload).await?;
     let Ok(id) = created.data.parse::<i64>() else {
         return Ok(Json(created));
     };
+    if let Some(ids) = contract_file_ids.as_deref() {
+        bind_ticket_files(&s.pool, tenant.id(), id, ids, "contract", &user.username).await?;
+    }
     if inserted && let Some(rule) = match_approval_rule(&s, &tenant, id).await? {
         apply_auto_approval(&s, &tenant, id, &rule).await?;
     }
@@ -463,11 +479,80 @@ async fn deliver(
     {
         insert_delivered_ledger_row(&mut tx, &tenant, &ticket, &user.username).await?;
     }
+    // 交付材料（验收报告、配置清单等）与状态更新同事务绑定。
+    if let Some(ids) = payload
+        .file_ids
+        .as_deref()
+        .filter(|ids| !ids.is_empty())
+    {
+        bind_ticket_files(&mut *tx, tenant.id(), id, ids, "delivery", &user.username).await?;
+    }
     tx.commit()
         .await
         .map_err(|_| AppError::internal("failed to commit delivery"))?;
     Ok(Json(ApiResponse::new(
         json!({"message": "工单交付完成", "id": id, "ticketStatus": "delivered"}),
+    )))
+}
+
+/// 把已上传的 infra_file 绑定为工单附件；文件 ID 必须全部真实存在，
+/// 任一缺失则拒绝整批。
+async fn bind_ticket_files<'e, E>(
+    executor: E,
+    tenant_id: i64,
+    ticket_id: i64,
+    file_ids: &[i64],
+    kind: &str,
+    operator: &str,
+) -> Result<(), AppError>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    let result = sqlx::query(
+        "INSERT INTO infra_resource_ticket_attachment
+         (id, ticket_id, file_id, kind, creator, updater, tenant_id)
+         SELECT nextval('infra_resource_ticket_attachment_seq'), $1, f.file_id, $3, $4, $4, $5
+         FROM (SELECT DISTINCT unnest($2::bigint[]) AS file_id) f
+         JOIN infra_file file ON file.id = f.file_id AND file.deleted = 0",
+    )
+    .bind(ticket_id)
+    .bind(file_ids)
+    .bind(kind)
+    .bind(operator)
+    .bind(tenant_id)
+    .execute(executor)
+    .await
+    .map_err(|_| AppError::internal("failed to bind ticket attachment"))?;
+    if result.rows_affected() as usize != file_ids.len() {
+        return Err(AppError::bad_request("部分附件文件不存在或已删除"));
+    }
+    Ok(())
+}
+
+/// 工单附件清单（含文件名、下载地址、类型和大小），按绑定顺序返回。
+async fn attachments(
+    State(state): State<InfraState>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let rows = sqlx::query_scalar::<_, Value>(
+        "SELECT coalesce(json_agg(row_to_json(t)), '[]'::json) FROM (
+             SELECT a.id, a.kind, a.create_time AS \"createTime\",
+                    f.id AS \"fileId\", f.name, f.url, f.type AS \"fileType\", f.size
+             FROM infra_resource_ticket_attachment a
+             JOIN infra_file f ON f.id = a.file_id AND f.deleted = 0
+             WHERE a.ticket_id = $1 AND a.tenant_id = $2 AND a.deleted = 0
+             ORDER BY a.id
+         ) t",
+    )
+    .bind(id)
+    .bind(tenant.id())
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to load ticket attachments"))?;
+    Ok(Json(ApiResponse::new(
+        rows.as_array().cloned().unwrap_or_default(),
     )))
 }
 
@@ -494,6 +579,14 @@ async fn insert_delivered_ledger_row(
             .and_then(Value::as_i64)
             .map(|value| value as i32)
             .unwrap_or(0)
+    };
+    let opt_i64_field = |key: &str| -> Option<i64> { ticket.get(key).and_then(Value::as_i64) };
+    let opt_str_field = |key: &str| -> Option<String> {
+        ticket
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
     };
     let resource_type = {
         let value = str_field("resourceType");
@@ -532,19 +625,27 @@ async fn insert_delivered_ledger_row(
         sqlx::query(
             "INSERT INTO infra_physical_resource
              (id, ecs_name, ecs_status, cloud_region, cloud_category, customer_name,
-              management_ip, cpu_cores, memory_gb, deployment_type,
-              application_status, delivery_status, remarks, creator, updater, tenant_id)
+              customer_user_id, management_ip, cpu_cores, memory_gb, deployment_type,
+              machine_room_id, contract_name, application_name, project_name,
+              expire_at, application_status, delivery_status, remarks, creator, updater, tenant_id)
              VALUES (nextval('infra_physical_resource_seq'), $1, $2, $3, $4, $5,
-                     $6, $7, $8, 'standalone', '已批准', '已交付', $9, $10, $10, $11)",
+                     $6, $7, $8, $9, 'standalone', $10, $11, $12, $13, $14,
+                     '已批准', '已交付', $15, $16, $16, $17)",
         )
         .bind(str_field("ecsName"))
         .bind(ecs_status)
         .bind(str_field("cloudRegion"))
         .bind(str_field("cloudCategory"))
         .bind(str_field("customerName"))
+        .bind(opt_i64_field("customerUserId"))
         .bind(ip_address)
         .bind(i32_field("cpuCores"))
         .bind(i32_field("memoryGb"))
+        .bind(opt_i64_field("machineRoomId"))
+        .bind(opt_str_field("contractName"))
+        .bind(opt_str_field("applicationName"))
+        .bind(opt_str_field("projectName"))
+        .bind(opt_str_field("expireAt"))
         .bind(&remark)
         .bind(operator)
         .bind(tenant.id())
@@ -557,12 +658,15 @@ async fn insert_delivered_ledger_row(
         sqlx::query(
             "INSERT INTO infra_cloud_resource
              (id, ecs_name, ecs_status, resource_id, cloud_region, cloud_category,
-              customer_name, instance_id, ecs_type, ecs_os, cpu_cores, memory_gb,
-              system_disk, system_disk_size_gb, ip_address,
+              customer_name, customer_user_id, instance_id, ecs_type, ecs_os,
+              cpu_cores, memory_gb, system_disk, system_disk_size_gb, ip_address,
+              cloud_platform_id, platform_name, zone_name,
+              contract_name, application_name, project_name, expire_at,
               application_status, delivery_status, remarks, creator, updater, tenant_id)
              VALUES (nextval('infra_cloud_resource_seq'), $1, $2, $3, $4, $5,
-                     $6, $7, $8, $9, $10, $11, $12, $13, $14,
-                     '已批准', '已交付', $15, $16, $16, $17)",
+                     $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+                     $16, $17, $18, $19, $20, $21, $22,
+                     '已批准', '已交付', $23, $24, $24, $25)",
         )
         .bind(str_field("ecsName"))
         .bind(ecs_status)
@@ -577,6 +681,7 @@ async fn insert_delivered_ledger_row(
         .bind(str_field("cloudRegion"))
         .bind(str_field("cloudCategory"))
         .bind(str_field("customerName"))
+        .bind(opt_i64_field("customerUserId"))
         .bind(str_field("instanceId"))
         .bind(str_field("ecsType"))
         .bind(str_field("ecsOs"))
@@ -585,6 +690,13 @@ async fn insert_delivered_ledger_row(
         .bind(str_field("systemDisk"))
         .bind(i32_field("systemDiskSizeGb"))
         .bind(ip_address)
+        .bind(opt_i64_field("cloudPlatformId"))
+        .bind(opt_str_field("cloudPlatformName"))
+        .bind(opt_str_field("zoneName"))
+        .bind(opt_str_field("contractName"))
+        .bind(opt_str_field("applicationName"))
+        .bind(opt_str_field("projectName"))
+        .bind(opt_str_field("expireAt"))
         .bind(&remark)
         .bind(operator)
         .bind(tenant.id())

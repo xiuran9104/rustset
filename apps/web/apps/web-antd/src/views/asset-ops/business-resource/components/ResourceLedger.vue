@@ -144,6 +144,7 @@ const columns = computed(() => {
     { title: '客户', dataIndex: 'customer_name' },
     { title: '规格', key: 'spec' },
     { title: 'IP', key: 'ip' },
+    { title: '到期时间', key: 'expire_at', width: 105 },
     { title: '操作', key: 'actions', width: 260 },
   ];
   return base;
@@ -366,6 +367,10 @@ async function handleSubmit() {
                 ? record.management_ip || record.business_ip || '-'
                 : record.ip_address || '-'
             }}
+          </template>
+          <template v-if="column.key === 'expire_at'">
+            <a-tag v-if="record.expire_at" :color="new Date(record.expire_at.replace('T',' ')) < new Date() ? 'red' : 'blue'">{{ record.expire_at }}</a-tag>
+            <template v-else>-</template>
           </template>
           <template v-if="column.key === 'application_status'">
             <a-tag

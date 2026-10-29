@@ -14,6 +14,7 @@ export namespace ScanResourceTicketApi {
     cloud_platform_name?: string; machine_room_id?: number; machine_room_name?: string;
     cloud_region?: string; cloud_category?: string; zone_name?: string;
     zone_cabinet?: string; rack_units?: number; customer_name?: string;
+    customer_user_id?: number; project_name?: string;
     application_name?: string; application_endpoint_id?: number;
     application_domain?: string; contract_name?: string; ecs_type?: string;
     ecs_os?: string; resource_count?: number; cpu_cores?: number; memory_gb?: number;
@@ -60,4 +61,11 @@ export async function getTicketApprovalHistory(id: number) {
   return fromInfraResponse(events);
 }
 export function provisionTicket(id: number, data: { details?: string; config_id?: number; image_id?: string; flavor?: string; availability_zone?: string; subnet_id?: string; vpc_id?: string; security_groups?: string[] }) { return requestClient.post(`/infra/resource-ticket/${id}/provision`, toInfraPayload(data), { timeout: 600_000 }); }
-export function deliverTicket(id: number, data: { comment?: string }) { return requestClient.post(`/infra/resource-ticket/${id}/deliver`, toInfraPayload(data)); }
+export function deliverTicket(id: number, data: { comment?: string; fileIds?: number[] }) { return requestClient.post(`/infra/resource-ticket/${id}/deliver`, toInfraPayload(data)); }
+
+/** 工单附件清单（合同/交付材料，含文件名、下载地址、类型、大小） */
+export function getTicketAttachments(id: number) {
+  return requestClient.get<
+    Array<{ id: number; kind: string; createTime: string; fileId: number; name: string; url: string; fileType: string; size: number }>
+  >(`/infra/resource-ticket/${id}/attachments`);
+}

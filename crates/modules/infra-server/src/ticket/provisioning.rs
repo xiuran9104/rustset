@@ -35,6 +35,19 @@ pub(super) async fn apply_resource_side_effect(
         .or_else(|| ticket.get("resourceType").and_then(Value::as_str))
         .unwrap_or("cloud");
     let physical = target_type == "physical";
+    // 续期：新有效期回写台账并恢复原工单授权，不改资源状态。
+    if ticket_type == "renew" {
+        if let Some(new_expire) = ticket
+            .get("expireAt")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+        {
+            super::expiry::apply_renewal(&s.pool, tenant.id(), target, physical, new_expire).await;
+        } else {
+            warn!("renewal ticket without expireAt; ledger expiry not updated");
+        }
+        return;
+    }
     let ledger_table = if physical {
         "infra_physical_resource"
     } else {

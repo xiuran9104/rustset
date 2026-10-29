@@ -463,6 +463,7 @@ pub struct CreateResourceTicketRequest {
     pub risk_level: Option<String>,
     pub applicant_user_id: Option<i64>,
     pub applicant_name: Option<String>,
+    pub contract_file_ids: Option<Vec<i64>>,
     pub target_resource_id: Option<i64>,
     pub target_resource_type: Option<String>,
     pub target_config: Option<String>,
@@ -483,6 +484,8 @@ pub struct CreateResourceTicketRequest {
     pub zone_cabinet: Option<String>,
     pub rack_units: Option<i32>,
     pub customer_name: Option<String>,
+    pub customer_user_id: Option<i64>,
+    pub project_name: Option<String>,
     pub application_name: Option<String>,
     pub application_endpoint_id: Option<i64>,
     pub application_domain: Option<String>,
@@ -569,6 +572,7 @@ pub struct ProvisionResourceTicketRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DeliverResourceTicketRequest {
     pub comment: Option<String>,
+    pub file_ids: Option<Vec<i64>>,
 }
 
 #[cfg(test)]
