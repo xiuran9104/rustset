@@ -1,0 +1,16 @@
+{
+  "name": "@form-create/component-wangeditor",
+  "version": "3.3.0",
+  "private": true,
+  "type": "module",
+  "description": "wangEditor 5 replacement for the abandoned @form-create/component-wangeditor (v4 wrapper, XSS GHSA-g7mw-5cq6-fv82). Keeps the same default-export contract (fcEditor: modelValue/disabled/config/init) so @form-create/antd-designer and form-create render it unchanged.",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "@wangeditor/editor": "5.1.23",
+    "@wangeditor/editor-for-vue": "5.1.12",
+    "vue": "catalog:"
+  }
+}
