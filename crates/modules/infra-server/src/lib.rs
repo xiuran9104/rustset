@@ -848,7 +848,9 @@ async fn redis_monitor_info_value() -> Result<Value, String> {
         .get_multiplexed_async_connection()
         .await
         .map_err(|error| error.to_string())?;
+    // Redis 7+ 的无参数 INFO 不再返回 commandstats 段，必须显式请求全量段
     let info_text: String = redis::cmd("INFO")
+        .arg("all")
         .query_async(&mut connection)
         .await
         .map_err(|error| error.to_string())?;
