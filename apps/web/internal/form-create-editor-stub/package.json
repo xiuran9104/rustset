@@ -1,0 +1,11 @@
+{
+  "name": "@form-create/component-wangeditor",
+  "version": "3.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Local stub replacing the abandoned wangeditor form-create component. The app registers its own Tinymce editor rule and removes the built-in rich-text rule at runtime, so this component never renders; it exists only to satisfy @form-create/antd-designer's default import.",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  }
+}
