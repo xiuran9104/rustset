@@ -97,7 +97,8 @@
     "lodash.clonedeep": "catalog:",
     "nprogress": "catalog:",
     "tailwind-merge": "catalog:",
-    "theme-colors": "catalog:"
+    "theme-colors": "catalog:",
+    "@vbenjs/static-source": "catalog:"
   },
   "devDependencies": {
     "@types/crypto-js": "catalog:",

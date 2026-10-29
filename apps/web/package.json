@@ -306,7 +306,8 @@
       "watermark-js-plus": "^1.6.6",
       "yaml-eslint-parser": "^2.1.0",
       "zod": "^4.6.7",
-      "zod-defaults": "0.2.3"
+      "zod-defaults": "0.2.3",
+      "@vbenjs/static-source": "0.1.7"
     }
   },
   "overrides": {

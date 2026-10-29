@@ -266,6 +266,7 @@
       "dependencies": {
         "@ctrl/tinycolor": "catalog:",
         "@tanstack/vue-store": "catalog:",
+        "@vbenjs/static-source": "catalog:",
         "@vue/shared": "catalog:",
         "clsx": "catalog:",
         "crypto-js": "catalog:",
@@ -312,6 +313,7 @@
       "dependencies": {
         "@vben-core/shared": "workspace:*",
         "@vben-core/typings": "workspace:*",
+        "@vbenjs/static-source": "catalog:",
         "@vueuse/core": "catalog:",
         "vue": "catalog:",
       },
@@ -815,6 +817,7 @@
     "@types/qs": "^6.15.1",
     "@types/sortablejs": "^1.15.9",
     "@typescript-eslint/parser": "^8.72.1",
+    "@vbenjs/static-source": "0.1.7",
     "@videojs-player/vue": "^1.0.0",
     "@vite-pwa/vitepress": "^1.1.0",
     "@vitejs/plugin-vue": "^6.0.10",
@@ -2564,6 +2567,8 @@
     "@vben/vsh": ["@vben/vsh@workspace:scripts/vsh"],
 
     "@vben/web-antd": ["@vben/web-antd@workspace:apps/web-antd"],
+
+    "@vbenjs/static-source": ["@vbenjs/static-source@0.1.7", "https://registry.npmmirror.com/@vbenjs/static-source/-/static-source-0.1.7.tgz", {}, "sha512-KGHW1swq8tWYylNBtzLqi2pe+SOcfog80vtgO4sLo3kNNy+O8Dbh9KPNXY2LRvy9QXJkw5IHFfcvCEZkBZZs9Q=="],
 
     "@vercel/nft": ["@vercel/nft@1.11.0", "https://registry.npmmirror.com/@vercel/nft/-/nft-1.11.0.tgz", { "dependencies": { "@mapbox/node-pre-gyp": "^2.0.0", "@rollup/pluginutils": "^5.1.3", "acorn": "^8.6.0", "acorn-import-attributes": "^1.9.5", "async-sema": "^3.1.1", "bindings": "^1.4.0", "estree-walker": "2.0.2", "glob": "^13.0.0", "graceful-fs": "^4.2.9", "node-gyp-build": "^4.2.2", "picomatch": "^4.0.4", "resolve-from": "^5.0.0" }, "bin": { "nft": "out/cli.js" } }, "sha512-m1QFg+U+3yPOnP1xSYJ73UIRxLOXdts1JOhiOiyPYqEsALgrXFFINvgUaD6R6iNvaBFAjHllBCbkfx4FuOdpaA=="],
 

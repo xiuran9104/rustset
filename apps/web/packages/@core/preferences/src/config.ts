@@ -1,3 +1,5 @@
+import logoV1 from '@vbenjs/static-source/source/logo-v1.webp';
+import avatarV1 from '@vbenjs/static-source/source/avatar-v1.webp';
 import type { Preferences } from './types';
 
 const defaultPreferences: Preferences = {
@@ -16,7 +18,7 @@ const defaultPreferences: Preferences = {
     contentPaddingRight: 0,
     contentPaddingTop: 0,
     defaultAvatar:
-      'https://unpkg.com/@vbenjs/static-source@0.1.7/source/avatar-v1.webp',
+      avatarV1,
     defaultHomePath: '/analytics',
     dynamicTitle: true,
     enableCheckUpdates: true,
@@ -67,7 +69,7 @@ const defaultPreferences: Preferences = {
   logo: {
     enable: true,
     fit: 'contain',
-    source: 'https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp',
+    source: logoV1,
   },
   navigation: {
     accordion: true,

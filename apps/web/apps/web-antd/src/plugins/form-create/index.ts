@@ -4,33 +4,7 @@ import formCreate from '@form-create/ant-design-vue';
 import install from '@form-create/ant-design-vue/auto-import';
 import FcDesigner from '@form-create/antd-designer';
 // 👇使用 form-create 需额外全局引入 ant-design-vue 组件
-import Antd, {
-  Alert,
-  Badge,
-  Card,
-  Collapse,
-  CollapsePanel,
-  ConfigProvider,
-  Divider,
-  Dropdown,
-  Image,
-  Layout,
-  LayoutContent,
-  LayoutFooter,
-  LayoutHeader,
-  LayoutSider,
-  Menu,
-  MenuDivider,
-  MenuItem,
-  message,
-  Popconfirm,
-  Table,
-  TableColumn,
-  TabPane,
-  Tabs,
-  Tag,
-  Transfer,
-} from 'ant-design-vue';
+import Antd, { message } from 'ant-design-vue';
 
 // ======================= 自定义组件 =======================
 import { useApiSelect } from '#/components/form-create';
@@ -53,31 +27,9 @@ const ApiSelect = useApiSelect({
 });
 const ImagesUpload = useImagesUpload();
 
+// antd 组件已由下方 app.use(Antd) 全量全局注册，这里只登记自定义组件，
+// 避免重复注册触发 Vue 告警。
 const components = [
-  Alert,
-  Badge,
-  Card,
-  Collapse,
-  CollapsePanel,
-  ConfigProvider,
-  Divider,
-  Dropdown,
-  Image,
-  Layout,
-  LayoutContent,
-  LayoutFooter,
-  LayoutHeader,
-  LayoutSider,
-  Menu,
-  MenuDivider,
-  MenuItem,
-  Popconfirm,
-  Table,
-  TableColumn,
-  TabPane,
-  Tabs,
-  Tag,
-  Transfer,
   UserSelect,
   DeptSelect,
   ApiSelect,
