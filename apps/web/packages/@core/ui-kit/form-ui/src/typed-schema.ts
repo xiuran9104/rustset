@@ -10,6 +10,9 @@ import type { ZodType } from 'zod';
  */
 export function toTypedSchema(schema: ZodType) {
   return {
+    // vee-validate 通过 __type === 'VVTypedSchema' 识别类型化 schema，
+    // 缺少此标记会被静默忽略（表单校验不执行、提交不触发）
+    __type: 'VVTypedSchema' as const,
     async parse(value: unknown) {
       const result = await schema.safeParseAsync(value);
       if (result.success) {
