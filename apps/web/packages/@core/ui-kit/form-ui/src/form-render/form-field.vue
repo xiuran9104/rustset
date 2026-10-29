@@ -30,10 +30,10 @@ import {
 } from '@vben-core/shadcn-ui';
 import { cn, isFunction, isObject, isString } from '@vben-core/shared/utils';
 
-import { toTypedSchema } from '@vee-validate/zod';
 import { useFieldError, useFormValues } from 'vee-validate';
 
 import { injectComponentRefMap } from '../use-form-context';
+import { toTypedSchema } from '../typed-schema';
 import { injectRenderFormProps, useFormContext } from './context';
 import useDependencies from './dependencies';
 import FormLabel from './form-label.vue';
@@ -146,9 +146,12 @@ const shouldRequired = computed(() => {
   let isOptional = currentRules?.value?.isOptional?.();
 
   // 如果有设置默认值，则不是必填，需要特殊处理
-  const typeName = currentRules?.value?._def?.typeName;
-  if (typeName === 'ZodDefault') {
-    const innerType = currentRules?.value?._def.innerType;
+  const ruleSchema = currentRules?.value as any;
+  if (
+    typeof ruleSchema?.defaultValue === 'function' &&
+    typeof ruleSchema?.unwrap === 'function'
+  ) {
+    const innerType = ruleSchema.unwrap?.();
     if (innerType) {
       isOptional = innerType.isOptional?.();
     }

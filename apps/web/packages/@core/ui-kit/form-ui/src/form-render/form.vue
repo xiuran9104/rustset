@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { GenericObject } from 'vee-validate';
-import type { ZodTypeAny } from 'zod';
+import type { ZodType } from 'zod';
+
+import { ZodNullable, ZodOptional } from 'zod';
 
 import type {
   FormCommonConfig,
@@ -60,19 +62,19 @@ const shapes = computed(() => {
   const resultShapes: FormShape[] = [];
   props.schema?.forEach((schema) => {
     const { fieldName } = schema;
-    const rules = schema.rules as ZodTypeAny;
+    const rules = schema.rules as ZodType;
 
-    let typeName = '';
-    if (rules && !isString(rules)) {
-      typeName = rules._def.typeName;
-    }
-
-    const baseRules = getBaseRules(rules) as ZodTypeAny;
+    const baseRules = getBaseRules(rules) as ZodType;
 
     resultShapes.push({
       default: getDefaultValueInZodStack(rules),
       fieldName,
-      required: !['ZodNullable', 'ZodOptional'].includes(typeName),
+      // zod 4 移除了 _def.typeName 判别，直接用 instanceof 判定顶层可空类型
+      required: !(
+        rules &&
+        !isString(rules) &&
+        (rules instanceof ZodNullable || rules instanceof ZodOptional)
+      ),
       rules: baseRules,
     });
   });

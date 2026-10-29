@@ -1,4 +1,4 @@
-import type { ZodRawShape } from 'zod';
+import type { ZodType } from 'zod';
 
 import type { ComputedRef } from 'vue';
 
@@ -47,7 +47,7 @@ export function useFormInitial(
   function generateInitialValues() {
     const initialValues: Record<string, any> = {};
 
-    const zodObject: ZodRawShape = {};
+    const zodObject: Record<string, ZodType> = {};
     (unref(props).schema || []).forEach((item) => {
       if (Reflect.has(item, 'defaultValue')) {
         set(initialValues, item.fieldName, item.defaultValue);
@@ -84,8 +84,10 @@ export function useFormInitial(
       return defaultValues;
     } else if (rule instanceof ZodIntersection) {
       // 对于交集类型，从schema 提取默认值
-      const leftDefaultValue = getCustomDefaultValue(rule._def.left);
-      const rightDefaultValue = getCustomDefaultValue(rule._def.right);
+      // zod 4 将内部结构从 _def 迁到 _zod.def，做兼容访问
+      const def = (rule as any)._def ?? (rule as any)._zod?.def ?? {};
+      const leftDefaultValue = getCustomDefaultValue(def.left);
+      const rightDefaultValue = getCustomDefaultValue(def.right);
 
       // 如果左右两边都能提取默认值，合并它们
       if (

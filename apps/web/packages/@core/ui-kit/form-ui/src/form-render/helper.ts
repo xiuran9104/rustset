@@ -1,55 +1,48 @@
-import type {
-  AnyZodObject,
-  ZodDefault,
-  ZodEffects,
-  ZodNumber,
-  ZodString,
-  ZodTypeAny,
-} from 'zod';
+import type { ZodObject, ZodType } from 'zod';
 
 import { isObject, isString } from '@vben-core/shared/utils';
 
 /**
  * Get the lowest level Zod type.
  * This will unpack optionals, refinements, etc.
+ *
+ * zod 4 removed `_def.typeName` / `ZodEffects`; unwrapping now uses the
+ * public `unwrap()` (optional/default/nullable) and `.schema` shapes.
  */
-export function getBaseRules<
-  ChildType extends AnyZodObject | ZodTypeAny = ZodTypeAny,
->(schema: ChildType | ZodEffects<ChildType>): ChildType | null {
+export function getBaseRules<ChildType extends ZodObject | ZodType = ZodType>(
+  schema: ChildType | ZodType,
+): ChildType | null {
   if (!schema || isString(schema)) return null;
-  if ('innerType' in schema._def)
-    return getBaseRules(schema._def.innerType as ChildType);
-
-  if ('schema' in schema._def)
-    return getBaseRules(schema._def.schema as ChildType);
-
+  const anySchema = schema as any;
+  if (typeof anySchema.unwrap === 'function') {
+    return getBaseRules(anySchema.unwrap() as ChildType);
+  }
+  if (anySchema.schema) {
+    return getBaseRules(anySchema.schema as ChildType);
+  }
   return schema as ChildType;
 }
 
 /**
  * Search for a "ZodDefault" in the Zod stack and return its value.
  */
-export function getDefaultValueInZodStack(schema: ZodTypeAny): any {
+export function getDefaultValueInZodStack(schema: ZodType): any {
   if (!schema || isString(schema)) {
     return;
   }
-  const typedSchema = schema as unknown as ZodDefault<ZodNumber | ZodString>;
-
-  if (typedSchema._def.typeName === 'ZodDefault')
-    return typedSchema._def.defaultValue();
-
-  if ('innerType' in typedSchema._def) {
-    return getDefaultValueInZodStack(
-      typedSchema._def.innerType as unknown as ZodTypeAny,
-    );
+  const anySchema = schema as any;
+  if (
+    typeof anySchema.defaultValue === 'function' &&
+    typeof anySchema.unwrap === 'function'
+  ) {
+    return anySchema.defaultValue();
   }
-  if ('schema' in typedSchema._def) {
-    return getDefaultValueInZodStack(
-      (typedSchema._def as any).schema as ZodTypeAny,
-    );
+  if (typeof anySchema.unwrap === 'function') {
+    return getDefaultValueInZodStack(anySchema.unwrap());
   }
-
-  return undefined;
+  if (anySchema.schema) {
+    return getDefaultValueInZodStack(anySchema.schema);
+  }
 }
 
 export function isEventObjectLike(obj: any) {
