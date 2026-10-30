@@ -6,6 +6,7 @@ import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 
 import { getCloudPlatformList, getCloudZoneList } from '#/api/scan/cloud-platform';
+import { getBusinessApplicationList } from '#/api/scan/business-application';
 import { getUserPage } from '#/api/system/user';
 import {
   createCloudResource,
@@ -45,6 +46,8 @@ interface Resource {
   cloud_category?: string;
   customer_name?: string;
   customer_user_id?: number;
+  application_id?: number;
+  application_name?: string;
   cpu_cores: number;
   memory_gb: number;
   ip_address: string;
@@ -101,6 +104,7 @@ const loading = ref(false);
 const modalVisible = ref(false);
 const editingId = ref<number | undefined>();
 const rooms = ref<any[]>([]);
+const applications = ref<any[]>([]);
 const platforms = ref<any[]>([]);
 const zones = ref<any[]>([]);
 const users = ref<any[]>([]);
@@ -187,18 +191,20 @@ const permissionCode = computed(() => (suffix: string) =>
 async function fetchData() {
   loading.value = true;
   try {
-    const [resources, roomRows, platformRows, zoneRows, userPage] = await Promise.all([
+    const [resources, roomRows, platformRows, zoneRows, userPage, appRows] = await Promise.all([
       api.value.list(),
       getMachineRoomList(),
       getCloudPlatformList(),
       getCloudZoneList(),
       getUserPage({ pageNo: 1, pageSize: 500 }),
+      getBusinessApplicationList(),
     ]);
     data.value = resources as any;
     rooms.value = roomRows as any;
     platforms.value = platformRows as any;
     zones.value = zoneRows as any;
     users.value = ((userPage as any)?.list ?? []) as any;
+    applications.value = appRows as any;
   } catch {
     message.error('加载失败');
   } finally {
@@ -233,6 +239,13 @@ function changeCloudPlatform(platformId: number) {
   form.value.platform_name = platform?.platform_name || '';
   form.value.zone_name = zone?.zone_name || '';
   form.value.cloud_region = zone?.zone_name || platform?.platform_name || '';
+}
+
+/** 应用归属账户：选定业务应用后同时落 application_id 与显示名。 */
+function changeApplication(appId: number) {
+  const app = applications.value.find((item) => item.id === appId);
+  form.value.application_id = appId;
+  form.value.application_name = app?.name || '';
 }
 
 /** 客户从系统用户中选定，名称随选择自动带出。 */
@@ -543,6 +556,19 @@ async function handleSubmit() {
             <a-col v-if="form.resource_type === 'cloud'" :span="12">
               <a-form-item label="IP地址" required>
                 <a-input v-model:value="form.ip_address" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="归属应用">
+                <a-select
+                  v-model:value="form.application_id"
+                  :options="applications.map(a => ({ value: a.id, label: a.name }))"
+                  placeholder="请选择业务应用（归属账户）"
+                  show-search
+                  option-filter-prop="label"
+                  allow-clear
+                  @update:value="changeApplication"
+                />
               </a-form-item>
             </a-col>
             <a-col v-if="form.resource_type === 'cloud'" :span="12">

@@ -10,6 +10,7 @@ export namespace ScanPhysicalResourceApi {
     customer_name: string;
     machine_room_id?: number;
     cloud_platform_id?: number;
+    application_id?: number;
     cabinet_no?: string;
     rack_start_u?: number;
     rack_end_u?: number;

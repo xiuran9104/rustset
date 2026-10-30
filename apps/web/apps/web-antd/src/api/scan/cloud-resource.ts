@@ -11,6 +11,7 @@ export namespace ScanCloudResourceApi {
     cloud_category?: string;
     cloud_provider_config_id?: number;
     cloud_platform_id?: number;
+    application_id?: number;
     zone_name?: string;
     platform_name?: string;
     county_city?: string;

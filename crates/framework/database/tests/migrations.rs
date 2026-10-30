@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 51);
+    assert_eq!(applied, 52);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -508,6 +508,33 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect retired business center");
     assert_eq!(retired_biz_center, 0);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0052_application_ownership.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun application ownership migration");
+    let ownership_fks: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_constraint WHERE conname IN (
+            'infra_cloud_resource_application_tenant_fk',
+            'infra_physical_resource_application_tenant_fk',
+            'infra_ticket_application_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect application ownership foreign keys");
+    assert_eq!(ownership_fks, 3);
+    let unclaimed_by_name: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_cloud_resource r
+         WHERE r.deleted = 0 AND r.application_id IS NULL
+           AND EXISTS (SELECT 1 FROM infra_business_application a
+                       WHERE a.tenant_id = r.tenant_id AND a.deleted = 0
+                         AND a.name = r.application_name)",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect claim backfill");
+    assert_eq!(unclaimed_by_name, 0, "按名称可认领的存量必须全部绑定");
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

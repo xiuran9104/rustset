@@ -14,7 +14,7 @@ export namespace ScanResourceTicketApi {
     cloud_platform_name?: string; machine_room_id?: number; machine_room_name?: string;
     cloud_region?: string; cloud_category?: string; zone_name?: string;
     zone_cabinet?: string; rack_units?: number; customer_name?: string;
-    customer_user_id?: number; project_name?: string;
+    customer_user_id?: number; application_id?: number; project_name?: string;
     application_name?: string; application_endpoint_id?: number;
     application_domain?: string; contract_name?: string; ecs_type?: string;
     ecs_os?: string; resource_count?: number; cpu_cores?: number; memory_gb?: number;

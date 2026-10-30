@@ -3,7 +3,7 @@ import { requestClient } from '#/api/request';
 import { fromInfraResponse, infraCreate, infraDelete, infraGet, infraList, infraUpdate, toInfraPayload } from './compat';
 
 export namespace ScanBusinessApplicationApi {
-  export interface BusinessApplication { id?: number; name: string; description?: string; created_at: string; updated_at?: string; }
+  export interface BusinessApplication { id?: number; name: string; description?: string; owner_user_id?: number; created_at: string; updated_at?: string; }
   export interface ApplicationEndpoint { id?: number; business_application_id: number; protocol: string; dest_ip: string; nat_ip?: string; dest_port: string; domain?: string; created_at: string; updated_at?: string; }
 }
 export function getBusinessApplicationList() { return infraList<ScanBusinessApplicationApi.BusinessApplication>('business-application'); }

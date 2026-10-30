@@ -626,11 +626,11 @@ async fn insert_delivered_ledger_row(
             "INSERT INTO infra_physical_resource
              (id, ecs_name, ecs_status, cloud_region, cloud_category, customer_name,
               customer_user_id, management_ip, cpu_cores, memory_gb, deployment_type,
-              machine_room_id, contract_name, application_name, project_name,
+              machine_room_id, contract_name, application_id, application_name, project_name,
               expire_at, application_status, delivery_status, remarks, creator, updater, tenant_id)
              VALUES (nextval('infra_physical_resource_seq'), $1, $2, $3, $4, $5,
-                     $6, $7, $8, $9, 'standalone', $10, $11, $12, $13, $14,
-                     '已批准', '已交付', $15, $16, $16, $17)",
+                     $6, $7, $8, $9, 'standalone', $10, $11, $12, $13, $14, $15,
+                     '已批准', '已交付', $16, $17, $17, $18)",
         )
         .bind(str_field("ecsName"))
         .bind(ecs_status)
@@ -643,6 +643,7 @@ async fn insert_delivered_ledger_row(
         .bind(i32_field("memoryGb"))
         .bind(opt_i64_field("machineRoomId"))
         .bind(opt_str_field("contractName"))
+        .bind(opt_i64_field("applicationId"))
         .bind(opt_str_field("applicationName"))
         .bind(opt_str_field("projectName"))
         .bind(opt_str_field("expireAt"))
@@ -661,12 +662,12 @@ async fn insert_delivered_ledger_row(
               customer_name, customer_user_id, instance_id, ecs_type, ecs_os,
               cpu_cores, memory_gb, system_disk, system_disk_size_gb, ip_address,
               cloud_platform_id, platform_name, zone_name,
-              contract_name, application_name, project_name, expire_at,
+              contract_name, application_id, application_name, project_name, expire_at,
               application_status, delivery_status, remarks, creator, updater, tenant_id)
              VALUES (nextval('infra_cloud_resource_seq'), $1, $2, $3, $4, $5,
                      $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                     $16, $17, $18, $19, $20, $21, $22,
-                     '已批准', '已交付', $23, $24, $24, $25)",
+                     $16, $17, $18, $19, $20, $21, $22, $23,
+                     '已批准', '已交付', $24, $25, $25, $26)",
         )
         .bind(str_field("ecsName"))
         .bind(ecs_status)
@@ -694,6 +695,7 @@ async fn insert_delivered_ledger_row(
         .bind(opt_str_field("cloudPlatformName"))
         .bind(opt_str_field("zoneName"))
         .bind(opt_str_field("contractName"))
+        .bind(opt_i64_field("applicationId"))
         .bind(opt_str_field("applicationName"))
         .bind(opt_str_field("projectName"))
         .bind(opt_str_field("expireAt"))

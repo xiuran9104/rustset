@@ -83,6 +83,7 @@ update_request!(UpdateSecurityProductRequest, CreateSecurityProductRequest);
 pub struct CreateBusinessApplicationRequest {
     pub name: String,
     pub description: Option<String>,
+    pub owner_user_id: Option<i64>,
     pub created_by: Option<String>,
 }
 update_request!(
@@ -485,6 +486,7 @@ pub struct CreateResourceTicketRequest {
     pub rack_units: Option<i32>,
     pub customer_name: Option<String>,
     pub customer_user_id: Option<i64>,
+    pub application_id: Option<i64>,
     pub project_name: Option<String>,
     pub application_name: Option<String>,
     pub application_endpoint_id: Option<i64>,
