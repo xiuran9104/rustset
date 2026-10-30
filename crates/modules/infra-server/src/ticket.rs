@@ -42,6 +42,15 @@ pub(crate) fn start_expiry_scanner(pool: sqlx::PgPool) {
     expiry::start(pool);
 }
 
+/// 供资源写入路径调用：绑定了已归档业务应用时复活（含名下网络策略）。
+pub(crate) async fn resurrect_bound_application(
+    pool: &sqlx::PgPool,
+    tenant_id: i64,
+    application_id: i64,
+) {
+    provisioning::resurrect_application_if_archived(pool, tenant_id, application_id).await;
+}
+
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
         .api_route("/infra/resource-ticket/page", get(page))
@@ -320,10 +329,9 @@ fn approved_next_status(ticket: &Value) -> &'static str {
     if ticket_type != "create" {
         return "delivered";
     }
-    if ticket.get("resourceType").and_then(Value::as_str) == Some("physical") {
-        "pending_delivery"
-    } else {
-        "pending_provision"
+    match ticket.get("resourceType").and_then(Value::as_str) {
+        Some("physical") | Some("network") => "pending_delivery",
+        _ => "pending_provision",
     }
 }
 
@@ -596,6 +604,46 @@ async fn insert_delivered_ledger_row(
             value
         }
     };
+    if resource_type == "network" {
+        // 网络策略工单不生成资源台账行；策略在"网络策略"台账登记或由运维执行。
+        return Ok(());
+    }
+    // 归属兜底：工单未绑应用但带了应用名时，按同租户名称认领或自动建户。
+    let application_id = match opt_i64_field("applicationId") {
+        Some(id) => Some(id),
+        None => {
+            let name = str_field("applicationName");
+            if name.is_empty() {
+                None
+            } else {
+                let app_id = sqlx::query_scalar::<_, i64>(
+                    "SELECT id FROM infra_business_application
+                     WHERE tenant_id=$1 AND name=$2 AND deleted=0
+                     ORDER BY id LIMIT 1",
+                )
+                .bind(tenant.id())
+                .bind(&name)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(|_| AppError::internal("failed to look up application"))?;
+                match app_id {
+                    Some(existing) => Some(existing),
+                    None => Some(sqlx::query_scalar::<_, i64>(
+                        "INSERT INTO infra_business_application
+                         (id, name, description, creator, updater, tenant_id)
+                         VALUES (nextval('infra_business_application_seq'), $1,
+                                 '由资源工单自动建户', 'system', 'system', $2)
+                         RETURNING id",
+                    )
+                    .bind(&name)
+                    .bind(tenant.id())
+                    .fetch_one(&mut **tx)
+                    .await
+                    .map_err(|_| AppError::internal("failed to create application"))?),
+                }
+            }
+        }
+    };
     let ecs_status = if resource_type == "physical" {
         "available"
     } else {
@@ -643,7 +691,7 @@ async fn insert_delivered_ledger_row(
         .bind(i32_field("memoryGb"))
         .bind(opt_i64_field("machineRoomId"))
         .bind(opt_str_field("contractName"))
-        .bind(opt_i64_field("applicationId"))
+        .bind(application_id)
         .bind(opt_str_field("applicationName"))
         .bind(opt_str_field("projectName"))
         .bind(opt_str_field("expireAt"))
@@ -695,7 +743,7 @@ async fn insert_delivered_ledger_row(
         .bind(opt_str_field("cloudPlatformName"))
         .bind(opt_str_field("zoneName"))
         .bind(opt_str_field("contractName"))
-        .bind(opt_i64_field("applicationId"))
+        .bind(application_id)
         .bind(opt_str_field("applicationName"))
         .bind(opt_str_field("projectName"))
         .bind(opt_str_field("expireAt"))

@@ -9,6 +9,8 @@ import { requestClient } from '#/api/request';
 
 export interface NetworkPolicy {
   id?: number;
+  application_id?: number;
+  status?: number;
   firewall_name: string;
   destination_organization: string;
   destination_project: string;

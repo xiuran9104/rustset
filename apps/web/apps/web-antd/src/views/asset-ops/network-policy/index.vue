@@ -12,9 +12,10 @@ import {
   updateNetworkPolicy,
 } from '#/api/scan/network-policy';
 import type { NetworkPolicy } from '#/api/scan/network-policy';
+import { getBusinessApplicationList } from '#/api/scan/business-application';
 import { useCrudList } from '../composables/useCrudList';
 import { message } from 'ant-design-vue';
-import { ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 
 const {
   loading, modalVisible, editingId, searchText, form,
@@ -27,6 +28,7 @@ const {
     del: deleteNetworkPolicy,
   },
   defaultForm: () => ({
+    application_id: undefined as number | undefined,
     firewall_name: '', destination_organization: '', destination_project: '',
     source_organization: '', source_project: '', source_security_zone: '',
     source_ip: '', destination_security_zone: '', destination_ip: '',
@@ -38,6 +40,7 @@ const {
 });
 
 const columns = [
+  { title: '归属应用', key: 'application_id', width: 130 },
   { title: '防火墙', dataIndex: 'firewall_name', key: 'firewall_name', width: 110, fixed: 'left' },
   { title: '源IP', dataIndex: 'source_ip', key: 'source_ip', width: 130 },
   { title: '源单位', dataIndex: 'source_organization', key: 'source_organization', width: 140, ellipsis: true },
@@ -52,7 +55,8 @@ const columns = [
   { title: '开通人', dataIndex: 'implementer', key: 'implementer', width: 85 },
   { title: '开通日期', dataIndex: 'implementation_date', key: 'implementation_date', width: 105 },
   { title: '交付日期', dataIndex: 'delivery_date', key: 'delivery_date', width: 105 },
-  { title: '操作', key: 'actions', width: 130, fixed: 'right' },
+  { title: '状态', key: 'status', width: 80 },
+  { title: '操作', key: 'actions', width: 170, fixed: 'right' },
 ];
 
 const actionMap: Record<string, { color: string; label: string }> = {
@@ -60,6 +64,19 @@ const actionMap: Record<string, { color: string; label: string }> = {
   deny: { color: 'red', label: '拒绝' },
 };
 
+const applications = ref<any[]>([]);
+const activeTab = ref('active');
+const statusFiltered = computed(() => filtered.value.filter((item: any) => (activeTab.value === 'active' ? (item.status ?? 0) === 0 : item.status === 1)));
+async function loadApplications() { applications.value = (await getBusinessApplicationList()) as any; }
+function applicationName(id?: number) { return applications.value.find((item) => item.id === id)?.name || '-'; }
+async function toggleArchive(record: any) {
+  const next = (record.status ?? 0) === 0 ? 1 : 0;
+  await updateNetworkPolicy(record.id!, { ...record, status: next } as any);
+  message.success(next === 1 ? '已归档（记录保留）' : '已恢复在用');
+  await fetchData();
+}
+onMounted(() => { void loadApplications(); });
+onActivated(() => { void fetchData(); void loadApplications(); });
 const riskChecking = ref(false);
 async function handleRiskRecheck() {
   riskChecking.value = true;
@@ -105,7 +122,7 @@ async function handleImportCsv(file: File) {
         <a-input-search v-model:value="searchText" placeholder="搜索防火墙/IP/单位/申请人" style="width:280px" allow-clear />
       </a-space>
       <a-table
-        :columns="columns" :data-source="filtered" :loading="loading" row-key="id" size="middle"
+        :columns="columns" :data-source="statusFiltered" :loading="loading" row-key="id" size="middle"
         :pagination="{ pageSize: 20, showTotal: (t:number)=>`共 ${t} 条` }" :scroll="{ x: 1500 }"
       >
         <template #bodyCell="{ column, record }">
@@ -128,9 +145,14 @@ async function handleImportCsv(file: File) {
             <div style="font-size:12px;color:var(--ant-color-text-secondary)">{{ record.destination_security_zone }}</div>
             {{ record.destination_ip }}
           </template>
-          <template v-if="column.key === 'actions'">
+          <template v-if="column.key === 'application_id'">{{ applicationName(record.application_id) }}</template>
+          <template v-else-if="column.key === 'status'">
+            <a-tag :color="(record.status ?? 0) === 0 ? 'green' : 'default'">{{ (record.status ?? 0) === 0 ? '在用' : '已归档' }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'actions'">
             <a-space>
               <a-button v-access:code="['infra:network-policy:update']" type="link" size="small" @click="openEdit(record)">编辑</a-button>
+              <a-button v-access:code="['infra:network-policy:update']" type="link" size="small" @click="toggleArchive(record)">{{ (record.status ?? 0) === 0 ? '归档' : '恢复' }}</a-button>
               <a-popconfirm title="确认删除该策略记录?" ok-text="删除" ok-type="danger" cancel-text="取消" @confirm="handleDelete(record.id!)">
                 <a-button v-access:code="['infra:network-policy:delete']" type="link" size="small" danger>删除</a-button>
               </a-popconfirm>
@@ -143,7 +165,16 @@ async function handleImportCsv(file: File) {
         <a-form v-if="form" layout="vertical">
           <a-divider orientation="left" orientation-margin="0">端点与防火墙</a-divider>
           <a-row :gutter="16">
-            <a-col :span="8"><a-form-item label="防火墙" required><a-input v-model:value="form.firewall_name" placeholder="例如：核心防火墙-A" /></a-form-item></a-col>
+            <a-col :span="8"><a-form-item label="归属应用" required>
+            <a-select
+              v-model:value="form.application_id"
+              :options="applications.map(a => ({ value: a.id, label: a.name }))"
+              placeholder="请选择业务应用"
+              show-search
+              option-filter-prop="label"
+            />
+          </a-form-item>
+          <a-form-item label="防火墙" required><a-input v-model:value="form.firewall_name" placeholder="例如：核心防火墙-A" /></a-form-item></a-col>
             <a-col :span="8"><a-form-item label="源安全域" required><a-input v-model:value="form.source_security_zone" placeholder="例如：互联网域" /></a-form-item></a-col>
             <a-col :span="8"><a-form-item label="目的安全域名" required><a-input v-model:value="form.destination_security_zone" placeholder="例如：服务器域" /></a-form-item></a-col>
             <a-col :span="8"><a-form-item label="源IP" required><a-input v-model:value="form.source_ip" placeholder="支持网段，如 10.0.0.0/24" /></a-form-item></a-col>

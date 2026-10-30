@@ -155,6 +155,8 @@ fn default_active() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateNetworkPolicyRequest {
+    pub application_id: Option<i64>,
+    pub status: Option<i16>,
     pub firewall_name: String,
     pub destination_organization: String,
     pub destination_project: String,

@@ -12,7 +12,7 @@ import { requestClient } from '#/api/request';
 import { getCloudResourceList } from '#/api/scan/cloud-resource';
 import { getPhysicalResourceList } from '#/api/scan/physical-resource';
 import { getSecurityProductList } from '#/api/scan/security-product';
-import { getBusinessApplicationList } from '#/api/scan/business-application';
+import { createBusinessApplication, getBusinessApplicationList } from '#/api/scan/business-application';
 import { getUserPage } from '#/api/system/user';
 import { getCloudProviderConfigList } from '#/api/scan/cloud-provider-config';
 import { useLocalTableSearch } from '../composables/useLocalTableSearch';
@@ -33,6 +33,17 @@ const defaultForm=()=>({idempotency_key:crypto.randomUUID(),ticket_type:'create'
 const createForm=ref(defaultForm());
 /** 申请人从系统用户中选定；不选则由后端默认取创建人。 */
 function changeApplicant(userId:number){const u=users.value.find(item=>item.id===userId);createForm.value.applicant_user_id=userId;createForm.value.applicant_name=u?.nickname||u?.username||'';}
+const newAppName = ref('');
+async function createAppInline() {
+  const name = newAppName.value.trim();
+  if (!name) { message.warning('请输入新业务应用名称'); return; }
+  const id = await createBusinessApplication({ name } as any);
+  applications.value = (await getBusinessApplicationList()) as any;
+  changeApplication(Number(id));
+  newAppName.value = '';
+  message.success(`业务应用「${name}」已创建并选中`);
+}
+
 /** 应用归属账户：与资源台账一致，选定业务应用同时落 ID 与显示名。 */
 function changeApplication(appId:number){const app=applications.value.find(item=>item.id===appId);createForm.value.application_id=appId;createForm.value.application_name=app?.name||'';}
 
@@ -192,7 +203,16 @@ async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}co
             <a-col :span="12"><a-form-item label="资源类型" required><a-select v-model:value="createForm.resource_type" @change="handleResourceTypeChange"><a-select-option value="cloud">云资源</a-select-option><a-select-option value="physical">物理资源</a-select-option><a-select-option value="network">网络策略</a-select-option></a-select></a-form-item></a-col>
             <a-col v-if="createForm.resource_type==='cloud'" :span="12"><a-form-item label="所属云平台" required><a-select v-model:value="createForm.cloud_platform_id" allow-clear :options="platforms.map(item=>({value:item.id,label:item.platform_name}))" @change="handlePlatformChange" /></a-form-item></a-col>
             <a-col v-if="createForm.resource_type==='cloud'" :span="12"><a-form-item label="物理机房"><a-select v-model:value="createForm.machine_room_id" allow-clear placeholder="选择云平台下的物理机房" :options="rooms.filter(item=>!createForm.cloud_platform_id||item.platform_id===createForm.cloud_platform_id).map(item=>({value:item.id,label:item.room_name}))" /></a-form-item></a-col>
-            <a-col :span="8"><a-form-item label="申请人（不选默认当前登录人）"><a-select v-model:value="createForm.applicant_user_id" :options="users.map(u=>({value:u.id,label:u.nickname||u.username}))" placeholder="请选择申请人" show-search option-filter-prop="label" allow-clear @update:value="changeApplicant" /></a-form-item></a-col><a-col :span="8"><a-form-item label="客户（用户）" required><a-select v-model:value="createForm.customer_user_id" :options="users.map(u=>({value:u.id,label:u.nickname||u.username}))" placeholder="请选择客户用户" show-search option-filter-prop="label" @update:value="changeCustomer" /></a-form-item></a-col><a-col :span="8"><a-form-item label="所属业务项目"><a-input v-model:value="createForm.project_name" placeholder="如 惠企通平台 / 不动产系统" /></a-form-item></a-col><a-col :span="8"><a-form-item label="应用系统"><a-select v-model:value="createForm.application_id" :options="applications.map(a=>({value:a.id,label:a.name}))" placeholder="请选择业务应用" show-search option-filter-prop="label" allow-clear @update:value="changeApplication" /></a-form-item></a-col><a-col :span="8"><a-form-item label="合同编号（云框架合同）"><a-input v-model:value="createForm.contract_name" placeholder="如 HT-2026-政务云框架" /></a-form-item></a-col>
+            <a-col :span="8"><a-form-item label="申请人（不选默认当前登录人）"><a-select v-model:value="createForm.applicant_user_id" :options="users.map(u=>({value:u.id,label:u.nickname||u.username}))" placeholder="请选择申请人" show-search option-filter-prop="label" allow-clear @update:value="changeApplicant" /></a-form-item></a-col><a-col :span="8"><a-form-item label="客户（用户）" required><a-select v-model:value="createForm.customer_user_id" :options="users.map(u=>({value:u.id,label:u.nickname||u.username}))" placeholder="请选择客户用户" show-search option-filter-prop="label" @update:value="changeCustomer" /></a-form-item></a-col><a-col :span="8"><a-form-item label="所属业务项目"><a-input v-model:value="createForm.project_name" placeholder="如 惠企通平台 / 不动产系统" /></a-form-item></a-col><a-col :span="8"><a-form-item label="应用系统"><a-select v-model:value="createForm.application_id" :options="applications.map(a=>({value:a.id,label:a.name}))" placeholder="选择或新建业务应用" show-search option-filter-prop="label" allow-clear @update:value="changeApplication">
+            <template #dropdownRender="{ menuNode: menu }">
+              <component :is="menu" />
+              <a-divider style="margin:4px 0" />
+              <div style="padding:4px 8px;display:flex;gap:8px">
+                <a-input v-model:value="newAppName" placeholder="新业务应用名称" size="small" @press-enter="createAppInline" />
+                <a-button type="primary" size="small" @click="createAppInline">新建</a-button>
+              </div>
+            </template>
+          </a-select></a-form-item></a-col><a-col :span="8"><a-form-item label="合同编号（云框架合同）"><a-input v-model:value="createForm.contract_name" placeholder="如 HT-2026-政务云框架" /></a-form-item></a-col>
             <a-col :span="8"><a-form-item label="资源数量"><a-input-number v-model:value="createForm.resource_count" :min="1" style="width:100%" /></a-form-item></a-col><a-col :span="8"><a-form-item label="CPU 核数"><a-input-number v-model:value="createForm.cpu_cores" :min="1" style="width:100%" /></a-form-item></a-col><a-col :span="8"><a-form-item label="内存 GB"><a-input-number v-model:value="createForm.memory_gb" :min="1" style="width:100%" /></a-form-item></a-col>
             <a-col :span="8"><a-form-item label="实例规格"><a-input v-model:value="createForm.ecs_type" /></a-form-item></a-col><a-col :span="8"><a-form-item label="操作系统"><a-select v-model:value="createForm.ecs_os"><a-select-option value="Linux">Linux</a-select-option><a-select-option value="Windows">Windows</a-select-option></a-select></a-form-item></a-col><a-col :span="8"><a-form-item label="云区域（随平台自动带出）"><a-input v-model:value="createForm.cloud_region" disabled placeholder="选择云平台后自动带出其资源区" /></a-form-item></a-col>
             <a-col :span="8"><a-form-item label="系统盘类型"><a-input v-model:value="createForm.system_disk" /></a-form-item></a-col><a-col :span="8"><a-form-item label="系统盘 GB"><a-input-number v-model:value="createForm.system_disk_size_gb" :min="20" style="width:100%" /></a-form-item></a-col><a-col :span="8"><a-form-item label="数据盘"><a-input v-model:value="createForm.data_disk" placeholder="例如：500GB SSD" /></a-form-item></a-col>

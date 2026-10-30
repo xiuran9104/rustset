@@ -118,6 +118,16 @@ pub fn routes() -> ApiRouter<InfraState> {
         )
 }
 
+
+/// 云/物理资源写入后：若绑定了已归档业务应用则复活（含名下网络策略）。
+async fn resurrect_bound_application(
+    pool: &sqlx::PgPool,
+    tenant_id: i64,
+    application_id: i64,
+) {
+    super::ticket::resurrect_bound_application(pool, tenant_id, application_id).await;
+}
+
 async fn network_policy_page(
     State(state): State<InfraState>,
     user: CurrentUser,
@@ -149,7 +159,12 @@ async fn network_policy_create(
     Json(p): Json<CreateNetworkPolicyRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
-    policy_risk::create(&state.pool, &tenant, crate::request_value(p)?).await
+    let mut payload = crate::request_value(p)?;
+    if let Some(object) = payload.as_object_mut() {
+        // 可选字段（status/application_id 等）为 null 时交给列默认值，避免显式 NULL 违约
+        object.retain(|_, value| !value.is_null());
+    }
+    policy_risk::create(&state.pool, &tenant, payload).await
 }
 async fn network_policy_update(
     State(state): State<InfraState>,
@@ -157,7 +172,11 @@ async fn network_policy_update(
     Json(p): Json<UpdateNetworkPolicyRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
-    policy_risk::update(&state.pool, &tenant, crate::request_value(p)?).await
+    let mut payload = crate::request_value(p)?;
+    if let Some(object) = payload.as_object_mut() {
+        object.retain(|_, value| !value.is_null());
+    }
+    policy_risk::update(&state.pool, &tenant, payload).await
 }
 async fn network_policy_delete(
     State(state): State<InfraState>,
@@ -674,6 +693,7 @@ async fn cloud_resource_create(
     user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    let bound_application = p.get("applicationId").and_then(Value::as_i64);
     if let Some(object) = p.as_object_mut() {
         normalize_security_product(object);
         let resource_id = uuid::Uuid::new_v4().to_string();
@@ -684,29 +704,42 @@ async fn cloud_resource_create(
             .entry("instanceId".to_string())
             .or_insert(Value::String(resource_id));
     }
-    tenant_table_create(
+    let created = tenant_table_create(
         &state.pool,
         TenantContext::from_user(&user)?.id(),
         CLOUD_RESOURCE,
         p,
     )
-    .await
+    .await?;
+    if let (Ok(tenant), Some(application_id)) =
+        (TenantContext::from_user(&user), bound_application)
+    {
+        resurrect_bound_application(&state.pool, tenant.id(), application_id).await;
+    }
+    Ok(created)
 }
 async fn cloud_resource_update(
     State(state): State<InfraState>,
     user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let bound_application = p.get("applicationId").and_then(Value::as_i64);
     if let Some(object) = p.as_object_mut() {
         normalize_security_product(object);
     }
-    tenant_table_update(
+    let updated = tenant_table_update(
         &state.pool,
         TenantContext::from_user(&user)?.id(),
         CLOUD_RESOURCE,
         p,
     )
-    .await
+    .await?;
+    if let (Ok(tenant), Some(application_id)) =
+        (TenantContext::from_user(&user), bound_application)
+    {
+        resurrect_bound_application(&state.pool, tenant.id(), application_id).await;
+    }
+    Ok(updated)
 }
 async fn cloud_resource_delete(
     State(state): State<InfraState>,
@@ -777,32 +810,46 @@ async fn physical_resource_create(
     user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    let bound_application = p.get("applicationId").and_then(Value::as_i64);
     if let Some(object) = p.as_object_mut() {
         normalize_security_product(object);
     }
-    tenant_table_create(
+    let created = tenant_table_create(
         &state.pool,
         TenantContext::from_user(&user)?.id(),
         PHYSICAL_RESOURCE,
         p,
     )
-    .await
+    .await?;
+    if let (Ok(tenant), Some(application_id)) =
+        (TenantContext::from_user(&user), bound_application)
+    {
+        resurrect_bound_application(&state.pool, tenant.id(), application_id).await;
+    }
+    Ok(created)
 }
 async fn physical_resource_update(
     State(state): State<InfraState>,
     user: CurrentUser,
     Json(mut p): Json<Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let bound_application = p.get("applicationId").and_then(Value::as_i64);
     if let Some(object) = p.as_object_mut() {
         normalize_security_product(object);
     }
-    tenant_table_update(
+    let updated = tenant_table_update(
         &state.pool,
         TenantContext::from_user(&user)?.id(),
         PHYSICAL_RESOURCE,
         p,
     )
-    .await
+    .await?;
+    if let (Ok(tenant), Some(application_id)) =
+        (TenantContext::from_user(&user), bound_application)
+    {
+        resurrect_bound_application(&state.pool, tenant.id(), application_id).await;
+    }
+    Ok(updated)
 }
 async fn physical_resource_delete(
     State(state): State<InfraState>,

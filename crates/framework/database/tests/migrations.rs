@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 52);
+    assert_eq!(applied, 53);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -535,6 +535,30 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect claim backfill");
     assert_eq!(unclaimed_by_name, 0, "按名称可认领的存量必须全部绑定");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0053_application_lifecycle.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun application lifecycle migration");
+    let app_status_column: String = sqlx::query_scalar(
+        "SELECT data_type FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_business_application'
+           AND column_name='status'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect application status column");
+    assert_eq!(app_status_column, "smallint");
+    let policy_application_fk: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_constraint
+         WHERE conrelid='infra_network_policy'::regclass
+           AND conname='infra_network_policy_application_tenant_fk')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect policy application foreign key");
+    assert!(policy_application_fk);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

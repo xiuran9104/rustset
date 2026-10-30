@@ -75,12 +75,127 @@ pub(super) async fn apply_resource_side_effect(
                 target,
                 new_status, "resource ledger updated by ticket approval"
             );
+            if ticket_type == "reclaim" {
+                archive_application_if_drained(&s.pool, tenant.id(), target, physical).await;
+            }
         }
         _ => warn!(
             target,
             "ticket target resource not found; ledger not updated"
         ),
     }
+}
+
+/// 回收后联动归档：应用名下在用云资源、物理资源、端点全部为零时，
+/// 应用置为已归档，其网络策略一并归档（记录保留，设备侧删除是独立动作）。
+async fn archive_application_if_drained(
+    pool: &sqlx::PgPool,
+    tenant_id: i64,
+    target: i64,
+    physical: bool,
+) {
+    use tracing::info;
+
+    let ledger = if physical {
+        "infra_physical_resource"
+    } else {
+        "infra_cloud_resource"
+    };
+    let application_id: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT application_id FROM {ledger} WHERE id=$1 AND tenant_id=$2 AND deleted=0",
+    )))
+    .bind(target)
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await
+    .ok()
+    .flatten();
+    let Some(application_id) = application_id else {
+        return;
+    };
+    let active_cloud: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_cloud_resource
+         WHERE tenant_id=$1 AND application_id=$2 AND deleted=0
+           AND coalesce(ecs_status,'') <> 'retired'",
+    )
+    .bind(tenant_id)
+    .bind(application_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(1);
+    let active_physical: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_physical_resource
+         WHERE tenant_id=$1 AND application_id=$2 AND deleted=0
+           AND coalesce(ecs_status,'') <> 'retired'",
+    )
+    .bind(tenant_id)
+    .bind(application_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(1);
+    let endpoints: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_application_endpoint
+         WHERE tenant_id=$1 AND business_application_id=$2 AND deleted=0",
+    )
+    .bind(tenant_id)
+    .bind(application_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(1);
+    if active_cloud > 0 || active_physical > 0 || endpoints > 0 {
+        return;
+    }
+    let _ = sqlx::query(
+        "UPDATE infra_business_application SET status=1, update_time=now()
+         WHERE id=$1 AND tenant_id=$2 AND deleted=0 AND status=0",
+    )
+    .bind(application_id)
+    .bind(tenant_id)
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        "UPDATE infra_network_policy SET status=1, update_time=now()
+         WHERE tenant_id=$1 AND application_id=$2 AND deleted=0 AND status=0",
+    )
+    .bind(tenant_id)
+    .bind(application_id)
+    .execute(pool)
+    .await;
+    info!(
+        application_id,
+        "application archived after last resource reclaim; policies archived (records kept)"
+    );
+}
+
+/// 资源绑定已归档应用时复活：应用与名下策略回到在用。
+pub(super) async fn resurrect_application_if_archived(
+    pool: &sqlx::PgPool,
+    tenant_id: i64,
+    application_id: i64,
+) {
+    use tracing::info;
+    let revived = sqlx::query(
+        "UPDATE infra_business_application SET status=0, update_time=now()
+         WHERE id=$1 AND tenant_id=$2 AND deleted=0 AND status=1",
+    )
+    .bind(application_id)
+    .bind(tenant_id)
+    .execute(pool)
+    .await
+    .map(|result| result.rows_affected() > 0)
+    .unwrap_or(false);
+    if !revived {
+        return;
+    }
+    let _ = sqlx::query(
+        "UPDATE infra_network_policy SET status=0, update_time=now()
+         WHERE tenant_id=$1 AND application_id=$2 AND deleted=0 AND status=1",
+    )
+    .bind(tenant_id)
+    .bind(application_id)
+    .execute(pool)
+    .await;
+    info!(application_id, "archived application resurrected by new binding");
 }
 
 pub(super) async fn run(
