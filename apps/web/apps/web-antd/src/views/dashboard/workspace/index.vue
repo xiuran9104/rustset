@@ -55,7 +55,7 @@ const projectItems: WorkbenchProjectItem[] = [
     group: '业务中心',
     icon: 'lucide:layout-grid',
     title: '业务应用',
-    url: '/biz-center/business-application',
+    url: '/asset-center/business-application',
   },
   {
     color: '#fa8c16',

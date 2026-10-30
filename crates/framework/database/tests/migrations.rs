@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 50);
+    assert_eq!(applied, 51);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -487,6 +487,27 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect retired cloud center");
     assert_eq!(retired_cloud_center, 0);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0051_business_application_to_asset_center.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun business application migration");
+    let biz_app_parented: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu
+         WHERE id = 30251 AND parent_id = 30342 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect business application parent");
+    assert_eq!(biz_app_parented, 1);
+    let retired_biz_center: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu WHERE id = 30343 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect retired business center");
+    assert_eq!(retired_biz_center, 0);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(
@@ -661,12 +682,12 @@ async fn applies_all_migrations_to_empty_postgres() {
     let new_roots: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
          WHERE deleted = 0 AND parent_id = 0
-           AND path IN ('/asset-center','/infra-center','/biz-center','/ops-center')",
+           AND path IN ('/asset-center','/infra-center','/ops-center')",
     )
     .fetch_one(&pool)
     .await
     .expect("read new module roots");
-    assert_eq!(new_roots, 4);
+    assert_eq!(new_roots, 3);
     let orphaned_pages: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu page
          WHERE page.deleted = 0 AND page.type = 2

@@ -26,8 +26,8 @@ const legacyAssetRedirects: RouteRecordRaw[] = [
   { path: '/zone', redirect: '/infra-center/zone', name: 'LegacyZone' },
   { path: '/asset/security', redirect: '/infra-center/security-product', name: 'LegacyAssetSecurity' },
   { path: '/security', redirect: '/infra-center/security-product', name: 'LegacySecurity' },
-  { path: '/asset/business-app', redirect: '/biz-center/business-application', name: 'LegacyAssetBusinessApp' },
-  { path: '/business', redirect: '/biz-center/business-application', name: 'LegacyBusiness' },
+  { path: '/asset/business-app', redirect: '/asset-center/business-application', name: 'LegacyAssetBusinessApp' },
+  { path: '/business', redirect: '/asset-center/business-application', name: 'LegacyBusiness' },
   { path: '/asset/business-resource', redirect: '/asset-center/cloud-resource', name: 'LegacyAssetBusinessResource' },
   // 0020 拆分前存在过的旧地址，兼容历史标签页/收藏。
   { path: '/biz-center/business-resource', redirect: '/asset-center/cloud-resource', name: 'LegacyBizBusinessResource' },
