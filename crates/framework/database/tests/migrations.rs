@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 54);
+    assert_eq!(applied, 55);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -572,6 +572,19 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect network ticket menu");
     assert_eq!(network_ticket_menu, 1);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0055_network_ticket_menu_order.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun menu order migration");
+    let order_check: String = sqlx::query_scalar(
+        "SELECT string_agg(name, ',' ORDER BY sort) FROM system_menu WHERE parent_id=30344 AND deleted=0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read ops-center menu order");
+    assert_eq!(order_check, "资源工单,网络策略工单,审批规则");
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(
