@@ -334,7 +334,6 @@ async function handleDeliver(ticket: NetworkTicket) {
                   option-filter-prop="label"
                   @update:value="(v: any) => changeApplication(Number(v))"
                 />
-                  </Select>
               </a-form-item>
             </a-col>
             <a-col :span="8">
