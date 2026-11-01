@@ -207,8 +207,7 @@ async function handleSubmit() {
       application_name: form.value.application_name,
       customer_user_id: form.value.customer_user_id,
       customer_name: form.value.customer_name,
-      applicant_user_id: form.value.applicant_user_id,
-      applicant_name: form.value.applicant_name,
+      // 申请人由后端从登录态自动取，不由表单指定
       fw_firewall_name: form.value.fw_firewall_name,
       fw_source_zone: form.value.fw_source_zone,
       fw_source_address: form.value.fw_source_address,
@@ -374,23 +373,8 @@ async function handleDeliver(ticket: NetworkTicket) {
               </a-form-item>
             </a-col>
             <a-col :span="8">
-              <a-form-item label="申请人">
-                <Select
-                  v-model:value="form.applicant_user_id"
-                  :options="
-                    users.map((u) => ({ value: u.id, label: u.nickname || u.username }))
-                  "
-                  placeholder="不选默认当前登录人"
-                  show-search
-                  option-filter-prop="label"
-                  allow-clear
-                  @update:value="
-                    (uid: any) => {
-                      const u = users.find((item: any) => item.id === uid);
-                      form.applicant_name = u?.nickname || u?.username || '';
-                    }
-                  "
-                />
+              <a-form-item label="申请人（当前登录人）">
+                <Input :value="userStore.userInfo?.nickname || userStore.userInfo?.username" disabled />
               </a-form-item>
             </a-col>
             <a-col :span="8">
