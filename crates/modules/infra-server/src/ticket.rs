@@ -112,6 +112,32 @@ async fn create(
         }
         obj.entry("ticketStatus".to_string())
             .or_insert(Value::String("pending_approval".to_string()));
+        if obj.get("resourceType").and_then(Value::as_str) == Some("network") {
+            // 网络策略申请：端口命中高危规则时置为 high 风险，供网络管理员审批参考
+            let port_text = ["fwDestPort", "fwSourcePort"]
+                .iter()
+                .filter_map(|key| obj.get(*key).and_then(Value::as_str))
+                .find(|value| !value.is_empty())
+                .unwrap_or_default()
+                .to_string();
+            if let Some(port) = port_text.split(['-', ',']).next().and_then(|p| p.trim().parse::<i32>().ok()) {
+                let matched: Option<String> = sqlx::query_scalar(
+                    "SELECT name FROM infra_high_risk_port_rule
+                     WHERE enabled AND deleted=0 AND port_start<=$1 AND port_end>=$1
+                     ORDER BY id LIMIT 1",
+                )
+                .bind(port)
+                .fetch_optional(&s.pool)
+                .await
+                .ok()
+                .flatten();
+                if let Some(rule_name) = matched {
+                    obj.insert("riskLevel".to_string(), Value::String("high".to_string()));
+                    tracing::info!(rule_name, port,
+                        "network ticket flagged high risk by port rule");
+                }
+            }
+        }
         let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
         obj.entry("createTime".to_string())
             .or_insert(Value::String(now.clone()));
@@ -604,10 +630,6 @@ async fn insert_delivered_ledger_row(
             value
         }
     };
-    if resource_type == "network" {
-        // 网络策略工单不生成资源台账行；策略在"网络策略"台账登记或由运维执行。
-        return Ok(());
-    }
     // 归属兜底：工单未绑应用但带了应用名时，按同租户名称认领或自动建户。
     let application_id = match opt_i64_field("applicationId") {
         Some(id) => Some(id),
@@ -703,6 +725,59 @@ async fn insert_delivered_ledger_row(
         .map_err(|_| {
             AppError::internal("failed to create physical ledger row for delivered ticket")
         })?;
+    } else if resource_type == "network" {
+        // 网络策略工单交付：自动登记策略台账（记录保留，设备下发由网络管理员执行）
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        let dest_port = str_field("fwDestPort");
+        let service_port = if dest_port.is_empty() {
+            str_field("fwSourcePort")
+        } else {
+            dest_port
+        };
+        let policy_id = sqlx::query_scalar::<_, i64>(
+            "INSERT INTO infra_network_policy
+             (id, application_id, status, firewall_name,
+              destination_organization, destination_project,
+              source_organization, source_project,
+              source_security_zone, source_ip, destination_security_zone, destination_ip,
+              service_port, traffic_direction, action, applicant, application_date,
+              creator, updater, tenant_id)
+             VALUES (nextval('infra_network_policy_seq'), $1, 0, $2,
+                     '', '', '', '',
+                     $3, $4, $5, $6,
+                     $7, $8, 'allow', $9, $10::text::date,
+                     $11, $11, $12)
+             RETURNING id",
+        )
+        .bind(application_id)
+        .bind(str_field("fwFirewallName"))
+        .bind(str_field("fwSourceZone"))
+        .bind(str_field("fwSourceAddress"))
+        .bind(str_field("fwDestZone"))
+        .bind(str_field("fwDestAddress"))
+        .bind(service_port)
+        .bind({
+            let direction = str_field("fwDirection");
+            if direction.is_empty() {
+                "正向".to_string()
+            } else {
+                direction
+            }
+        })
+        .bind(str_field("applicantName"))
+        .bind(today.as_str())
+        .bind(operator)
+        .bind(tenant.id())
+        .fetch_one(&mut **tx)
+        .await;
+        match policy_id {
+            Ok(policy_id) => tracing::info!(ticket_id, policy_id,
+                "network policy recorded in ledger by ticket delivery"),
+            Err(error) => {
+                tracing::warn!(ticket_id, %error,
+                    "failed to record network policy on delivery; manual registration required")
+            }
+        }
     } else {
         sqlx::query(
             "INSERT INTO infra_cloud_resource

@@ -506,6 +506,16 @@ pub struct CreateResourceTicketRequest {
     pub has_security_product: Option<bool>,
     pub security_products: Option<String>,
     pub ip_address: Option<String>,
+    pub fw_firewall_name: Option<String>,
+    pub fw_source_zone: Option<String>,
+    pub fw_source_address: Option<String>,
+    pub fw_source_port: Option<String>,
+    pub fw_dest_zone: Option<String>,
+    pub fw_dest_address: Option<String>,
+    pub fw_dest_port: Option<String>,
+    pub fw_protocol: Option<String>,
+    pub fw_direction: Option<String>,
+    pub fw_valid_until: Option<String>,
     pub remarks: Option<String>,
 }
 

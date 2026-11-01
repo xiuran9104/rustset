@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 53);
+    assert_eq!(applied, 54);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -559,6 +559,19 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect policy application foreign key");
     assert!(policy_application_fk);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0054_network_ticket_menu.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun network ticket menu migration");
+    let network_ticket_menu: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu WHERE id = 30360 AND parent_id = 30344 AND deleted = 0 AND component = 'asset-ops/network-ticket/index'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect network ticket menu");
+    assert_eq!(network_ticket_menu, 1);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(
@@ -1048,8 +1061,8 @@ async fn applies_all_migrations_to_empty_postgres() {
     .fetch_one(&pool)
     .await
     .expect("read Kairos asset operations pages");
-    // 16 pages after 0021 + the 资产核查 page from 0022.
-    assert_eq!(asset_ops_pages, 17);
+    // 16 pages after 0021 + 资产核查 (0022) + 网络策略工单 (0054).
+    assert_eq!(asset_ops_pages, 18);
 
     let asset_ops_permissions: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
