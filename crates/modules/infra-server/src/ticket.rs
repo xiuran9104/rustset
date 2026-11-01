@@ -159,6 +159,19 @@ async fn create(
             .or_insert(Value::String(user.username.clone()));
         obj.entry("applicantName".to_string())
             .or_insert(Value::String(user.username.clone()));
+        // 客户=申请人：政务云场景提单人就是资源归属人，无需替谁申请
+        let customer_id: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM system_users WHERE username=$1 AND deleted=0 LIMIT 1",
+        )
+        .bind(&user.username)
+        .fetch_optional(&s.pool)
+        .await
+        .ok()
+        .flatten();
+        obj.entry("customerUserId".to_string())
+            .or_insert(json!(customer_id));
+        obj.entry("customerName".to_string())
+            .or_insert(Value::String(user.username.clone()));
     }
     let (Json(created), inserted) = repository::create(&s.pool, &tenant, payload).await?;
     let Ok(id) = created.data.parse::<i64>() else {

@@ -49,9 +49,6 @@ async function createAppInline() {
 /** 应用归属账户：与资源台账一致，选定业务应用同时落 ID 与显示名。 */
 function changeApplication(appId:number){const app=applications.value.find(item=>item.id===appId);createForm.value.application_id=appId;createForm.value.application_name=app?.name||'';}
 
-/** 客户与云资源台账一致：从系统用户中选定，名称随选择带出。 */
-function changeCustomer(userId:number){const u=users.value.find(item=>item.id===userId);createForm.value.customer_user_id=userId;createForm.value.customer_name=u?.nickname||u?.username||'';}
-
 // ---- 附件上传（合同 / 交付材料），复用 infra_file + RustFS 通道 ----
 interface AttachmentItem { uid: number|string; name: string; id: number; status?: string }
 const uploading=ref(false);
@@ -205,7 +202,7 @@ async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}co
             <a-col :span="12"><a-form-item label="资源类型" required><a-select v-model:value="createForm.resource_type" @change="handleResourceTypeChange"><a-select-option value="cloud">云资源</a-select-option><a-select-option value="physical">物理资源</a-select-option></a-select></a-form-item></a-col>
             <a-col v-if="createForm.resource_type==='cloud'" :span="12"><a-form-item label="所属云平台" required><a-select v-model:value="createForm.cloud_platform_id" allow-clear :options="platforms.map(item=>({value:item.id,label:item.platform_name}))" @change="handlePlatformChange" /></a-form-item></a-col>
             <a-col v-if="createForm.resource_type==='cloud'" :span="12"><a-form-item label="物理机房"><a-select v-model:value="createForm.machine_room_id" allow-clear placeholder="选择云平台下的物理机房" :options="rooms.filter(item=>!createForm.cloud_platform_id||item.platform_id===createForm.cloud_platform_id).map(item=>({value:item.id,label:item.room_name}))" /></a-form-item></a-col>
-            <a-col :span="8"><a-form-item label="申请人（当前登录人）"><a-input :value="currentUserLabel" disabled /></a-form-item></a-col><a-col :span="8"><a-form-item label="客户（用户）" required><a-select v-model:value="createForm.customer_user_id" :options="users.map(u=>({value:u.id,label:u.nickname||u.username}))" placeholder="请选择客户用户" show-search option-filter-prop="label" @update:value="changeCustomer" /></a-form-item></a-col><a-col :span="8"><a-form-item label="所属业务项目"><a-input v-model:value="createForm.project_name" placeholder="如 惠企通平台 / 不动产系统" /></a-form-item></a-col><a-col :span="8"><a-form-item label="应用系统"><a-select v-model:value="createForm.application_id" :options="applications.map(a=>({value:a.id,label:a.name}))" placeholder="选择或新建业务应用" show-search option-filter-prop="label" allow-clear @update:value="changeApplication">
+            <a-col :span="8"><a-form-item label="申请人（当前登录人）"><a-input :value="currentUserLabel" disabled /></a-form-item></a-col><a-col :span="8"><a-form-item label="客户（申请人）"><a-input :value="currentUserLabel" disabled /></a-form-item></a-col><a-col :span="8"><a-form-item label="所属业务项目"><a-input v-model:value="createForm.project_name" placeholder="如 惠企通平台 / 不动产系统" /></a-form-item></a-col><a-col :span="8"><a-form-item label="应用系统"><a-select v-model:value="createForm.application_id" :options="applications.map(a=>({value:a.id,label:a.name}))" placeholder="选择或新建业务应用" show-search option-filter-prop="label" allow-clear @update:value="changeApplication">
             <template #dropdownRender="{ menuNode: menu }">
               <component :is="menu" />
               <a-divider style="margin:4px 0" />

@@ -64,8 +64,7 @@ const form = ref({
   ecs_name: '',
   application_id: undefined as number | undefined,
   application_name: '',
-  customer_user_id: undefined as number | undefined,
-  customer_name: '',
+
   applicant_user_id: undefined as number | undefined,
   applicant_name: '',
   fw_firewall_name: '',
@@ -150,8 +149,6 @@ function openCreate() {
     ecs_name: '',
     application_id: undefined,
     application_name: '',
-    customer_user_id: undefined,
-    customer_name: '',
     applicant_user_id: undefined,
     applicant_name: '',
     fw_firewall_name: '',
@@ -205,8 +202,7 @@ async function handleSubmit() {
       ticket_type: 'create',
       application_id: form.value.application_id,
       application_name: form.value.application_name,
-      customer_user_id: form.value.customer_user_id,
-      customer_name: form.value.customer_name,
+      // 客户=申请人，由后端从登录态自动取
       // 申请人由后端从登录态自动取，不由表单指定
       fw_firewall_name: form.value.fw_firewall_name,
       fw_source_zone: form.value.fw_source_zone,
@@ -377,26 +373,7 @@ async function handleDeliver(ticket: NetworkTicket) {
                 <Input :value="userStore.userInfo?.nickname || userStore.userInfo?.username" disabled />
               </a-form-item>
             </a-col>
-            <a-col :span="8">
-              <a-form-item label="客户（用户）">
-                <Select
-                  v-model:value="form.customer_user_id"
-                  :options="
-                    users.map((u) => ({ value: u.id, label: u.nickname || u.username }))
-                  "
-                  placeholder="请选择客户用户"
-                  show-search
-                  option-filter-prop="label"
-                  allow-clear
-                  @update:value="
-                    (uid: any) => {
-                      const u = users.find((item: any) => item.id === uid);
-                      form.customer_name = u?.nickname || u?.username || '';
-                    }
-                  "
-                />
-              </a-form-item>
-            </a-col>
+
             <a-col :span="8">
               <a-form-item label="防火墙">
                 <Input v-model:value="form.fw_firewall_name" placeholder="如 FW-核心" />
