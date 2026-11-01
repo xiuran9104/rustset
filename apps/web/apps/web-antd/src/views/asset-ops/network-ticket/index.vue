@@ -5,7 +5,6 @@ import { Page } from '@vben/common-ui';
 
 import {
   Button,
-  Divider,
   Input,
   message,
   Popconfirm,
@@ -22,10 +21,7 @@ import {
   deliverTicket,
   getResourceTicketList,
 } from '#/api/scan/resource-ticket';
-import {
-  createBusinessApplication,
-  getBusinessApplicationList,
-} from '#/api/scan/business-application';
+import { getBusinessApplicationList } from '#/api/scan/business-application';
 import { getUserPage } from '#/api/system/user';
 import { useUserStore } from '@vben/stores';
 
@@ -57,7 +53,7 @@ const modalVisible = ref(false);
 const submitting = ref(false);
 const applications = ref<any[]>([]);
 const users = ref<any[]>([]);
-const newAppName = ref('');
+
 const activeTab = ref('pending');
 
 const form = ref({
@@ -172,18 +168,7 @@ function changeApplication(appId: number) {
   form.value.application_name = app?.name || '';
 }
 
-async function createAppInline() {
-  const name = newAppName.value.trim();
-  if (!name) {
-    message.warning('请输入新业务应用名称');
-    return;
-  }
-  const id = await createBusinessApplication({ name } as any);
-  applications.value = (await getBusinessApplicationList()) as any;
-  changeApplication(Number(id));
-  newAppName.value = '';
-  message.success(`业务应用「${name}」已创建并选中`);
-}
+
 
 async function handleSubmit() {
   if (!form.value.ecs_name.trim()) {
@@ -343,29 +328,13 @@ async function handleDeliver(ticket: NetworkTicket) {
               <a-form-item label="归属应用" required>
                 <Select
                   v-model:value="form.application_id"
-                  :options="
-                    applications.map((a) => ({ value: a.id, label: a.name }))
-                  "
-                  placeholder="选择或新建业务应用"
+                  :options="applications.map((a) => ({ value: a.id, label: a.name }))"
+                  placeholder="请选择已登记的业务应用"
                   show-search
                   option-filter-prop="label"
                   @update:value="(v: any) => changeApplication(Number(v))"
-                >
-                  <template #dropdownRender="{ menuNode: menu }">
-                    <component :is="menu" />
-                    <Divider style="margin: 4px 0" />
-                    <div style="padding: 4px 8px; display: flex; gap: 8px">
-                      <Input
-                        v-model:value="newAppName"
-                        placeholder="新业务应用名称"
-                        size="small"
-                      />
-                      <Button type="primary" size="small" @click="createAppInline">
-                        新建
-                      </Button>
-                    </div>
-                  </template>
-                </Select>
+                />
+                  </Select>
               </a-form-item>
             </a-col>
             <a-col :span="8">
