@@ -27,9 +27,12 @@ import {
   getBusinessApplicationList,
 } from '#/api/scan/business-application';
 import { getUserPage } from '#/api/system/user';
+import { useUserStore } from '@vben/stores';
 
 interface NetworkTicket {
   id?: number;
+  created_by?: string;
+  applicant_user_id?: number;
   ecs_name?: string;
   ticket_status?: string;
   risk_level?: string;
@@ -85,15 +88,23 @@ const statusMap: Record<string, { color: string; label: string }> = {
   rejected: { color: 'red', label: '已拒绝' },
 };
 
+const userStore = useUserStore();
 const tabs = [
-  { key: 'pending', label: '待处理', statuses: ['pending_approval', 'pending_delivery'] },
-  { key: 'done', label: '已完成', statuses: ['delivered', 'rejected'] },
+  { key: 'mine', label: '我的申请', statuses: [] },
+  { key: 'approval', label: '待审批', statuses: ['pending_approval'] },
+  { key: 'deploy', label: '待下发', statuses: ['pending_delivery'] },
+  { key: 'completed', label: '已完成', statuses: ['delivered', 'rejected'] },
   { key: 'all', label: '全部', statuses: [] },
 ];
 
 const filteredTickets = computed(() => {
   const tab = tabs.find((item) => item.key === activeTab.value);
-  if (!tab?.statuses.length) return data.value;
+  if (!tab) return data.value;
+  if (tab.key === 'mine') {
+    const uid = userStore.userInfo?.id;
+    return data.value.filter((t: any) => t.applicant_user_id === uid || t.created_by === userStore.userInfo?.username);
+  }
+  if (!tab.statuses.length) return data.value;
   return data.value.filter((ticket) => tab.statuses.includes(ticket.ticket_status || ''));
 });
 
@@ -107,6 +118,7 @@ const columns: any[] = [
   { title: '风险', dataIndex: 'risk_level', key: 'risk_level', width: 80 },
   { title: '状态', dataIndex: 'ticket_status', key: 'ticket_status', width: 90 },
   { title: '申请人', dataIndex: 'applicant_name', key: 'applicant_name', width: 90 },
+  { title: '申请日期', dataIndex: 'created_at', key: 'created_at', width: 105 },
   { title: '操作', key: 'actions', width: 220, fixed: 'right' },
 ];
 
