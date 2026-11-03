@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 56);
+    assert_eq!(applied, 57);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -584,7 +584,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .fetch_one(&pool)
     .await
     .expect("read ops-center menu order");
-    assert_eq!(order_check, "资源工单,网络策略工单,审批规则");
+    assert_eq!(order_check, "资源工单,网络策略工单,审批规则,自动化配置");
     sqlx::raw_sql(include_str!(
         "../../../../sql/postgresql/0056_automation_config.sql"
     ))
@@ -605,6 +605,12 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect audit table");
     assert!(automation_audit_table);
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0057_automation_config_menu.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun automation config menu migration");
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(
@@ -1095,7 +1101,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read Kairos asset operations pages");
     // 16 pages after 0021 + 资产核查 (0022) + 网络策略工单 (0054).
-    assert_eq!(asset_ops_pages, 18);
+    assert_eq!(asset_ops_pages, 19);
 
     let asset_ops_permissions: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
