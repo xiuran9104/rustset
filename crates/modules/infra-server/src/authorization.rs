@@ -282,6 +282,16 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ("GET", "/infra/asset/page", Some("infra:asset:query")),
     (
         "GET",
+        "/infra/automation-audit/page",
+        Some("infra:automation-config:query"),
+    ),
+    (
+        "GET",
+        "/infra/automation-config/list",
+        Some("infra:automation-config:query"),
+    ),
+    (
+        "GET",
         "/infra/business-application/get",
         Some("infra:business-application:query"),
     ),
@@ -917,7 +927,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 211);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 213);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

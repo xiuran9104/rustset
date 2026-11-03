@@ -349,6 +349,40 @@ async fn approve(
         .bind(id).bind(new_status).bind(&user.username).bind(&now).bind(payload.comment.as_deref())
         .bind(tenant.id()).execute(&s.pool).await.map_err(|_| AppError::internal("failed"))?;
     if approved && new_status == "delivered" {
+        // 防火墙策略自动化：检查开关决定是自动下发还是人工
+        if ticket.get("resourceType").and_then(Value::as_str) == Some("network") {
+            let decision = crate::automation::decide(
+                &s.pool, tenant.id(), "firewall_provision",
+            ).await;
+            match decision {
+                crate::automation::AutomationDecision::Auto(config) => {
+                    let timer = crate::automation::AutoTimer::start();
+                    if let Some(req) = crate::automation::firewall::extract_policy_request(&ticket) {
+                        let result = crate::automation::firewall::execute_policy(&s.pool, &config, &req).await;
+                        let elapsed = timer.elapsed_ms();
+                        if result.success {
+                            crate::automation::on_success(&s.pool, tenant.id(), "firewall_provision").await;
+                        } else {
+                            crate::automation::on_failure(&s.pool, tenant.id(), "firewall_provision", &result.detail).await;
+                        }
+                        crate::automation::audit(
+                            &s.pool, tenant.id(), "firewall_provision", Some(id),
+                            "auto_provision",
+                            if result.success { "executed" } else { "failed" },
+                            &result.detail, Some(elapsed),
+                        ).await;
+                    }
+                }
+                _ => {
+                    // 开关关闭或熔断 → 审计留痕，工单留在待下发由人工执行
+                    crate::automation::audit(
+                        &s.pool, tenant.id(), "firewall_provision", Some(id),
+                        "auto_provision", "skipped_manual",
+                        "自动化开关关闭或熔断，由网络管理员人工下发", None,
+                    ).await;
+                }
+            }
+        }
         provisioning::apply_resource_side_effect(&s, &tenant, &ticket).await;
     }
     Ok(Json(ApiResponse::new(

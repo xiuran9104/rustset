@@ -14,6 +14,8 @@ use axum::{
 use chrono::{Datelike, Timelike, Utc};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_database::PgPool;
+use rustset_framework_security::CurrentUser;
+use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use rustset_infra_api::InfraCapability;
 use serde::{Deserialize, Serialize};
@@ -21,6 +23,7 @@ use serde_json::{Value, json};
 use tracing::warn;
 
 mod asset_cmdb_sync;
+pub(crate) mod automation;
 mod authorization;
 mod excel;
 mod monitor;
@@ -159,6 +162,9 @@ pub fn routes(state: InfraState) -> ApiRouter {
             get(excel::api_error_log_export),
         )
         .api_route("/infra/redis/get-monitor-info", get(redis_monitor_info))
+        .api_route("/infra/automation-config/list", get(automation_config_list))
+        .api_route("/infra/automation-config/update", put(automation_config_update))
+        .api_route("/infra/automation-audit/page", get(automation_audit_page))
         .api_route("/infra/monitor/postgresql", get(monitor::postgresql))
         .api_route("/infra/monitor/rust", get(monitor::rust_service))
         .api_route("/infra/monitor/traces", get(monitor::traces))
@@ -1975,4 +1981,90 @@ mod api_contract_tests {
             assert!(json.contains(schema), "missing OpenAPI schema {schema}");
         }
     }
+}
+
+// ---- 自动化配置 ----
+async fn automation_config_list(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let rows = sqlx::query_scalar::<_, Value>(
+        "SELECT to_jsonb(c) FROM (
+            SELECT id, automation_type, enabled, credential_ref, scope_config,
+                   circuit_breaker_threshold, circuit_breaker_count,
+                   circuit_breaker_tripped, last_executed_at, last_result
+            FROM infra_automation_config WHERE tenant_id=$1 AND deleted=0
+            ORDER BY automation_type
+         ) c",
+    )
+    .bind(tenant.id())
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to list automation config"))?;
+    Ok(Json(ApiResponse::new(rows.into_iter().map(crate::table_value).collect::<Vec<_>>())))
+}
+
+async fn automation_config_update(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Json(payload): Json<Value>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let config_id = crate::i64_field(&payload, "id", 0);
+    if config_id == 0 {
+        return Err(AppError::bad_request("id is required"));
+    }
+    let enabled = crate::i16_field(&payload, "enabled", 0);
+    let credential_ref = payload.get("credentialRef").and_then(Value::as_i64);
+    let scope_config = payload.get("scopeConfig").and_then(Value::as_str);
+    sqlx::query(
+        "UPDATE infra_automation_config
+         SET enabled=$2, credential_ref=$3, scope_config=$4, update_time=now()
+         WHERE id=$1 AND tenant_id=$5 AND deleted=0",
+    )
+    .bind(config_id)
+    .bind(enabled)
+    .bind(credential_ref)
+    .bind(scope_config)
+    .bind(tenant.id())
+    .execute(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to update automation config"))?;
+    Ok(Json(ApiResponse::new(())))
+}
+
+async fn automation_audit_page(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Query(params): Query<QueryParams>,
+) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let size = params.page_size.unwrap_or(10).clamp(1, 200);
+    let offset = (params.page_no.unwrap_or(1).max(1) - 1).saturating_mul(size);
+    let total = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM infra_automation_audit WHERE tenant_id=$1 AND deleted=0",
+    )
+    .bind(tenant.id())
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to count audit"))?;
+    let rows = sqlx::query_scalar::<_, Value>(
+        "SELECT to_jsonb(a) FROM (
+            SELECT id, automation_type, ticket_id, action, result, detail,
+                   duration_ms, executor, create_time
+            FROM infra_automation_audit WHERE tenant_id=$1 AND deleted=0
+            ORDER BY id DESC LIMIT $2 OFFSET $3
+         ) a",
+    )
+    .bind(tenant.id())
+    .bind(size as i64)
+    .bind(offset as i64)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to list audit"))?;
+    Ok(Json(ApiResponse::new(crate::Page {
+        list: rows.into_iter().map(crate::table_value).collect::<Vec<_>>(),
+        total,
+    })))
 }

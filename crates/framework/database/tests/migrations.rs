@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 55);
+    assert_eq!(applied, 56);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -585,6 +585,26 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read ops-center menu order");
     assert_eq!(order_check, "资源工单,网络策略工单,审批规则");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0056_automation_config.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun automation config migration");
+    let automation_types: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_automation_config WHERE deleted=0 AND tenant_id=1",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect automation config");
+    assert_eq!(automation_types, 2);
+    let automation_audit_table: bool = sqlx::query_scalar(
+        "SELECT to_regclass('public.infra_automation_audit') IS NOT NULL",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect audit table");
+    assert!(automation_audit_table);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(
