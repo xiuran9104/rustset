@@ -3,6 +3,7 @@
 //! 但都必须经过这里的前置检查和后置审计。
 
 pub(crate) mod firewall;
+pub(crate) mod vendors;
 
 use serde_json::Value;
 use sqlx::PgPool;

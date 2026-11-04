@@ -2681,10 +2681,12 @@ name = "rustset-infra-server"
 version = "0.1.0"
 dependencies = [
  "aide",
+ "async-trait",
  "aws-sdk-s3",
  "axum",
  "chrono",
  "redis",
+ "reqwest",
  "rust_xlsxwriter",
  "rustset-cmdb-api",
  "rustset-framework-common",

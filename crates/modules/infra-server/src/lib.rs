@@ -165,6 +165,9 @@ pub fn routes(state: InfraState) -> ApiRouter {
         .api_route("/infra/automation-config/list", get(automation_config_list))
         .api_route("/infra/automation-config/update", put(automation_config_update))
         .api_route("/infra/automation-audit/page", get(automation_audit_page))
+        .api_route("/infra/automation-credential/get", get(automation_credential_get))
+        .api_route("/infra/automation-credential/save", put(automation_credential_save))
+        .api_route("/infra/automation-config/test-connection", post(automation_test_connection))
         .api_route("/infra/monitor/postgresql", get(monitor::postgresql))
         .api_route("/infra/monitor/rust", get(monitor::rust_service))
         .api_route("/infra/monitor/traces", get(monitor::traces))
@@ -2067,4 +2070,85 @@ async fn automation_audit_page(
         list: rows.into_iter().map(crate::table_value).collect::<Vec<_>>(),
         total,
     })))
+}
+
+// ---- 防火墙凭据 ----
+async fn automation_credential_get(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let automation_type = params.get("automationType").map(String::as_str).unwrap_or("firewall_provision");
+    let row = sqlx::query_scalar::<_, Value>(
+        "SELECT to_jsonb(c) FROM (
+            SELECT id, automation_type, api_username, create_time
+            FROM infra_automation_credential
+            WHERE tenant_id=$1 AND automation_type=$2 AND deleted=0
+            ORDER BY id DESC LIMIT 1
+         ) c",
+    )
+    .bind(tenant.id())
+    .bind(automation_type)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to read credential"))?;
+    Ok(Json(ApiResponse::new(row.map(crate::table_value).unwrap_or(Value::Null))))
+}
+
+async fn automation_credential_save(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Json(payload): Json<Value>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let automation_type = crate::str_field(&payload, "automationType");
+    if automation_type.is_empty() {
+        return Err(AppError::bad_request("automationType is required"));
+    }
+    let api_username = crate::str_field(&payload, "apiUsername");
+    let api_password = crate::str_field(&payload, "apiPassword");
+    if api_username.is_empty() || api_password.is_empty() {
+        return Err(AppError::bad_request("apiUsername and apiPassword are required"));
+    }
+    // 幂等 upsert：同类型同租户只保留一条
+    sqlx::query(
+        "INSERT INTO infra_automation_credential (id, automation_type, api_username, api_password, creator, updater, tenant_id)
+         VALUES (nextval('infra_automation_credential_seq'), $1, $2, $3, $4, $4, $5)
+         ON CONFLICT (tenant_id, automation_type) WHERE deleted=0
+         DO UPDATE SET api_username=EXCLUDED.api_username, api_password=EXCLUDED.api_password, update_time=now()",
+    )
+    .bind(&automation_type)
+    .bind(&api_username)
+    .bind(&api_password)
+    .bind(&user.username)
+    .bind(tenant.id())
+    .execute(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to save credential"))?;
+    Ok(Json(ApiResponse::new(())))
+}
+
+async fn automation_test_connection(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    // 读取 scope_config
+    let scope: Option<String> = sqlx::query_scalar(
+        "SELECT scope_config FROM infra_automation_config
+         WHERE tenant_id=$1 AND automation_type='firewall_provision' AND deleted=0",
+    )
+    .bind(tenant.id())
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to read scope config"))?;
+    let Some(scope_config) = scope else {
+        return Ok(Json(ApiResponse::new(json!({"success": false, "message": "scope_config 未配置"}))));
+    };
+    let result = crate::automation::firewall::test_connection(&state.pool, tenant.id(), &scope_config).await;
+    Ok(Json(ApiResponse::new(json!({
+        "success": result.success,
+        "message": result.detail,
+    }))))
 }

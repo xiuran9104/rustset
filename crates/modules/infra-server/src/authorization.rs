@@ -292,6 +292,11 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     (
         "GET",
+        "/infra/automation-credential/get",
+        Some("infra:automation-config:query"),
+    ),
+    (
+        "GET",
         "/infra/business-application/get",
         Some("infra:business-application:query"),
     ),
@@ -620,6 +625,11 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     (
         "POST",
+        "/infra/automation-config/test-connection",
+        Some("infra:automation-config:update"),
+    ),
+    (
+        "POST",
         "/infra/business-application/create",
         Some("infra:business-application:create"),
     ),
@@ -766,6 +776,16 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         "PUT",
         "/infra/asset/{id}/port/{port}",
         Some("infra:asset:update"),
+    ),
+    (
+        "PUT",
+        "/infra/automation-config/update",
+        Some("infra:automation-config:update"),
+    ),
+    (
+        "PUT",
+        "/infra/automation-credential/save",
+        Some("infra:automation-config:update"),
     ),
     (
         "PUT",
@@ -927,7 +947,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 213);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 217);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

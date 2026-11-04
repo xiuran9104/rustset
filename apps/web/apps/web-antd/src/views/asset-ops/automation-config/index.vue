@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   message,
+  Modal,
   Switch,
   Table,
   Tag,
@@ -43,6 +44,11 @@ const configs = ref<AutomationConfig[]>([]);
 const audits = ref<AuditRow[]>([]);
 const loading = ref(false);
 const auditLoading = ref(false);
+const credVisible = ref(false);
+const credSaving = ref(false);
+const credForm = ref({ automationType: '', apiUsername: '', apiPassword: '' });
+const testing = ref(false);
+const testResult = ref('');
 const auditPage = ref(1);
 const auditTotal = ref(0);
 
@@ -128,6 +134,58 @@ async function toggle(record: any, checked: boolean) {
   }
 }
 
+async function openCredential(record: any) {
+  credForm.value = { automationType: record.automation_type, apiUsername: '', apiPassword: '' };
+  try {
+    const cred = await requestClient.get('/infra/automation-credential/get', {
+      params: { automationType: record.automation_type },
+    });
+    if (cred) {
+      credForm.value.apiUsername = (cred as any).api_username || '';
+    }
+  } catch { /* 首次配置为空 */ }
+  credVisible.value = true;
+}
+
+async function saveCredential() {
+  if (!credForm.value.apiUsername || !credForm.value.apiPassword) {
+    message.warning('请填写 API 用户名和密码');
+    return;
+  }
+  credSaving.value = true;
+  try {
+    await requestClient.put('/infra/automation-credential/save', {
+      automationType: credForm.value.automationType,
+      apiUsername: credForm.value.apiUsername,
+      apiPassword: credForm.value.apiPassword,
+    });
+    message.success('凭据已保存');
+    credVisible.value = false;
+  } catch {
+    message.error('保存失败');
+  } finally {
+    credSaving.value = false;
+  }
+}
+
+async function testConnection() {
+  testing.value = true;
+  testResult.value = '';
+  try {
+    const result = await requestClient.post('/infra/automation-config/test-connection');
+    testResult.value = (result as any)?.message || '未知';
+    if ((result as any)?.success) {
+      message.success('连接测试通过');
+    } else {
+      message.warning('连接测试失败');
+    }
+  } catch {
+    testResult.value = '请求失败';
+  } finally {
+    testing.value = false;
+  }
+}
+
 async function resetBreaker(record: any) {
   try {
     await requestClient.put('/infra/automation-config/update', {
@@ -195,17 +253,57 @@ onMounted(() => {
               {{ record.last_result || '-' }}
             </template>
             <template v-else-if="column.key === 'actions'">
-              <Button
-                v-if="record.circuit_breaker_count > 0"
-                size="small"
-                @click="resetBreaker(record)"
-              >
-                重置熔断
-              </Button>
+              <a-space :size="8">
+                <Button size="small" @click="openCredential(record)">凭据</Button>
+                <Button
+                  v-if="record.automation_type === 'firewall_provision'"
+                  size="small"
+                  :loading="testing"
+                  @click="testConnection"
+                >
+                  测试
+                </Button>
+                <Button
+                  v-if="record.circuit_breaker_count > 0"
+                  size="small"
+                  @click="resetBreaker(record)"
+                >
+                  重置熔断
+                </Button>
+              </a-space>
             </template>
           </template>
         </Table>
       </Card>
+
+      <Modal
+        v-model:open="credVisible"
+        :title="`${typeLabels[credForm.automationType] || credForm.automationType} — API 凭据`"
+        :confirm-loading="credSaving"
+        @ok="saveCredential"
+      >
+        <a-form layout="vertical">
+          <a-form-item label="API 用户名" required>
+            <a-input
+              v-model:value="credForm.apiUsername"
+              placeholder="防火墙最小权限服务账号（仅限策略组操作）"
+            />
+          </a-form-item>
+          <a-form-item label="API 密码" required>
+            <a-input-password
+              v-model:value="credForm.apiPassword"
+              placeholder="密码独立存储，不与云平台凭据共用"
+            />
+          </a-form-item>
+          <a-alert
+            v-if="testResult"
+            :type="testResult.includes('通过') ? 'success' : 'warning'"
+            :message="testResult"
+            show-icon
+            style="margin-top: 12px"
+          />
+        </a-form>
+      </Modal>
 
       <Card title="自动化执行审计日志">
         <template #extra>

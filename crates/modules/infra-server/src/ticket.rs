@@ -358,7 +358,7 @@ async fn approve(
                 crate::automation::AutomationDecision::Auto(config) => {
                     let timer = crate::automation::AutoTimer::start();
                     if let Some(req) = crate::automation::firewall::extract_policy_request(&ticket) {
-                        let result = crate::automation::firewall::execute_policy(&s.pool, &config, &req).await;
+                        let result = crate::automation::firewall::execute_policy(&s.pool, tenant.id(), config.scope_config.as_deref().unwrap_or(""), &req).await;
                         let elapsed = timer.elapsed_ms();
                         if result.success {
                             crate::automation::on_success(&s.pool, tenant.id(), "firewall_provision").await;

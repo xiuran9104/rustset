@@ -15,7 +15,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 57);
+    assert_eq!(applied, 58);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -611,6 +611,19 @@ async fn applies_all_migrations_to_empty_postgres() {
     .execute(&pool)
     .await
     .expect("rerun automation config menu migration");
+    sqlx::raw_sql(include_str!(
+        "../../../../sql/postgresql/0058_firewall_credential.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("rerun firewall credential migration");
+    let credential_table: bool = sqlx::query_scalar(
+        "SELECT to_regclass('public.infra_automation_credential') IS NOT NULL",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect credential table");
+    assert!(credential_table);
 
     // 0024 renames the API documentation page from swagger to api-docs.
     let swagger_paths: i64 = sqlx::query_scalar(

@@ -6,6 +6,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+async-trait.workspace = true
+reqwest.workspace = true
 aws-sdk-s3.workspace = true
 rustset-framework-tenant.workspace = true
 axum.workspace = true
