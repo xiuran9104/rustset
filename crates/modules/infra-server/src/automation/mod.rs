@@ -5,17 +5,20 @@
 pub(crate) mod firewall;
 pub(crate) mod vendors;
 
-use serde_json::Value;
 use sqlx::PgPool;
 use std::time::Instant;
 
 #[derive(Debug, Clone)]
 pub struct AutomationConfig {
+    #[allow(dead_code)] // 审计和配置页面读取
     pub automation_type: String,
     pub enabled: bool,
+    #[allow(dead_code)] // 凭据引用由 firewall 模块直接查表
     pub credential_ref: Option<i64>,
     pub scope_config: Option<String>,
+    #[allow(dead_code)] // 熔断状态由 SQL 直接更新
     pub circuit_breaker_threshold: i32,
+    #[allow(dead_code)] // 同上
     pub circuit_breaker_count: i32,
     pub circuit_breaker_tripped: bool,
 }
@@ -88,6 +91,7 @@ pub async fn decide(
 }
 
 /// 写审计记录：每次决策（执行/跳过/失败/熔断）都留痕。
+#[allow(clippy::too_many_arguments)] // 审计字段数量由业务决定
 pub async fn audit(
     pool: &PgPool,
     tenant_id: i64,

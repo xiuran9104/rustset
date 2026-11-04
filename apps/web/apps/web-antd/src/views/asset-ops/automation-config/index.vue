@@ -8,6 +8,7 @@ import {
   Card,
   message,
   Modal,
+  Select,
   Switch,
   Table,
   Tag,
@@ -49,6 +50,9 @@ const credSaving = ref(false);
 const credForm = ref({ automationType: '', apiUsername: '', apiPassword: '' });
 const testing = ref(false);
 const testResult = ref('');
+const scopeVisible = ref(false);
+const scopeSaving = ref(false);
+const scopeForm = ref({ configId: 0, vendor: 'dry_run', endpoint: '', policyGroup: '' });
 const auditPage = ref(1);
 const auditTotal = ref(0);
 
@@ -168,6 +172,46 @@ async function saveCredential() {
   }
 }
 
+function openScope(record: any) {
+  let parsed = { vendor: 'dry_run', endpoint: '', policyGroup: '' };
+  try {
+    if (record.scope_config) parsed = JSON.parse(record.scope_config);
+  } catch { /* 默认值 */ }
+  scopeForm.value = { configId: record.id, ...parsed };
+  scopeVisible.value = true;
+}
+
+async function saveScope() {
+  if (!scopeForm.value.endpoint) {
+    message.warning('请填写 API 端点');
+    return;
+  }
+  if (!scopeForm.value.policyGroup) {
+    message.warning('请填写策略组名称');
+    return;
+  }
+  scopeSaving.value = true;
+  try {
+    const config = configs.value.find((c: any) => c.id === scopeForm.value.configId);
+    await requestClient.put('/infra/automation-config/update', {
+      id: scopeForm.value.configId,
+      enabled: config?.enabled ?? 0,
+      scopeConfig: JSON.stringify({
+        vendor: scopeForm.value.vendor,
+        endpoint: scopeForm.value.endpoint,
+        policyGroup: scopeForm.value.policyGroup,
+      }),
+    });
+    message.success('连接配置已保存');
+    scopeVisible.value = false;
+    await fetchConfigs();
+  } catch {
+    message.error('保存失败');
+  } finally {
+    scopeSaving.value = false;
+  }
+}
+
 async function testConnection() {
   testing.value = true;
   testResult.value = '';
@@ -254,6 +298,7 @@ onMounted(() => {
             </template>
             <template v-else-if="column.key === 'actions'">
               <a-space :size="8">
+                <Button size="small" @click="openScope(record)">配置</Button>
                 <Button size="small" @click="openCredential(record)">凭据</Button>
                 <Button
                   v-if="record.automation_type === 'firewall_provision'"
@@ -300,6 +345,43 @@ onMounted(() => {
             :type="testResult.includes('通过') ? 'success' : 'warning'"
             :message="testResult"
             show-icon
+            style="margin-top: 12px"
+          />
+        </a-form>
+      </Modal>
+
+      <Modal
+        v-model:open="scopeVisible"
+        :title="`${typeLabels[configs.find((c: any) => c.id === scopeForm.configId)?.automation_type || ''] || ''} — 连接配置`"
+        :confirm-loading="scopeSaving"
+        @ok="saveScope"
+      >
+        <a-form layout="vertical">
+          <a-form-item label="适配器类型">
+            <Select v-model:value="scopeForm.vendor" placeholder="选择防火墙适配器">
+              <a-select-option value="dry_run">dry_run（测试模式，不实际调设备）</a-select-option>
+              <a-select-option value="hillstone">Hillstone（山石网科）</a-select-option>
+              <a-select-option value="fortinet">Fortinet（飞塔）</a-select-option>
+              <a-select-option value="huawei_usg">Huawei USG（华为）</a-select-option>
+              <a-select-option value="generic_rest">Generic REST（通用）</a-select-option>
+            </Select>
+          </a-form-item>
+          <a-form-item label="API 端点" required>
+            <a-input
+              v-model:value="scopeForm.endpoint"
+              placeholder="https://10.0.255.1:443/api"
+            />
+          </a-form-item>
+          <a-form-item label="策略组名称" required>
+            <a-input
+              v-model:value="scopeForm.policyGroup"
+              placeholder="AUTO-GOV（自动化策略专属组）"
+            />
+          </a-form-item>
+          <a-alert
+            type="info"
+            show-icon
+            message="适配器只能操作指定策略组内的策略，不会触碰基线规则；dry_run 模式仅记录日志不实际下发。"
             style="margin-top: 12px"
           />
         </a-form>

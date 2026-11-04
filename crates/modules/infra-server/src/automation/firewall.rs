@@ -82,6 +82,7 @@ pub async fn execute_policy(
     adapter.push_policy(request).await
 }
 
+#[allow(dead_code)] // 回收/到期联动时调用
 /// 撤除策略（回收/到期联动）。
 pub async fn revoke_policy(
     pool: &sqlx::PgPool,

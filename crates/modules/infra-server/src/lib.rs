@@ -2061,8 +2061,8 @@ async fn automation_audit_page(
          ) a",
     )
     .bind(tenant.id())
-    .bind(size as i64)
-    .bind(offset as i64)
+    .bind(size)
+    .bind(offset)
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to list audit"))?;

@@ -348,9 +348,8 @@ async fn approve(
     sqlx::query("UPDATE infra_resource_ticket SET ticket_status=$2, approver=$3, approve_time=$4, approve_comment=$5, update_time=now() WHERE id=$1 AND tenant_id=$6 AND deleted=0")
         .bind(id).bind(new_status).bind(&user.username).bind(&now).bind(payload.comment.as_deref())
         .bind(tenant.id()).execute(&s.pool).await.map_err(|_| AppError::internal("failed"))?;
-    if approved && new_status == "delivered" {
-        // 防火墙策略自动化：检查开关决定是自动下发还是人工
-        if ticket.get("resourceType").and_then(Value::as_str) == Some("network") {
+    // 防火墙策略自动化：网络工单审批后即触发（无论去向状态）
+    if approved && ticket.get("resourceType").and_then(Value::as_str) == Some("network") {
             let decision = crate::automation::decide(
                 &s.pool, tenant.id(), "firewall_provision",
             ).await;
@@ -383,6 +382,7 @@ async fn approve(
                 }
             }
         }
+    if approved && new_status == "delivered" {
         provisioning::apply_resource_side_effect(&s, &tenant, &ticket).await;
     }
     Ok(Json(ApiResponse::new(

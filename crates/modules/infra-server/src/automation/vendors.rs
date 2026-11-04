@@ -43,6 +43,7 @@ pub struct PolicyPushRequest {
 #[derive(Debug)]
 pub struct VendorResult {
     pub success: bool,
+    #[allow(dead_code)] // 审计日志和策略追踪使用
     pub policy_id: Option<String>,
     pub detail: String,
 }
@@ -56,9 +57,11 @@ pub trait FirewallVendor: Send + Sync {
     /// 推送放行策略到专属策略组。
     async fn push_policy(&self, req: &PolicyPushRequest) -> VendorResult;
 
+    #[allow(dead_code)] // 由回收/到期联动调用
     /// 从策略组撤除指定策略。
     async fn remove_policy(&self, policy_name: &str) -> VendorResult;
 
+    #[allow(dead_code)] // 对账功能调用
     /// 列出策略组下的策略（对账用）。
     async fn list_policies(&self) -> Result<Vec<Value>, String>;
 }
