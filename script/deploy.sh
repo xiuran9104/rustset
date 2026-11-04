@@ -4,10 +4,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-OUTPUT_DIR="${1:-dist-deploy}"
+OUTPUT_DIR="$(cd "$(dirname "$0")/.." && pwd)/${1:-dist-deploy}"
+
 VERSION="$(date +%Y%m%d%H%M%S)"
 
 echo "=== RustSet 部署打包 ==="
+mkdir -p "${OUTPUT_DIR}"
 
 # 1) 后端 Release 构建
 echo "--- 构建后端 (release) ---"
