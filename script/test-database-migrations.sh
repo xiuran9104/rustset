@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# 信创适配：--db <flavor> 指定数据库方言（默认 postgres）
+# 支持值：postgres（默认）| kingbase | opengauss | dm
+# 国产数据库容器需要厂商许可镜像，当前仅 postgres 有 CI 容器。
+DB_FLAVOR_ARG="postgres"
+for arg in "$@"; do
+  case "$prev_arg" in
+    --db) DB_FLAVOR_ARG="$arg" ;;
+  esac
+  prev_arg="$arg"
+done
+export DB_FLAVOR="${DB_FLAVOR_ARG}"
+
 # Supply an empty disposable database when Docker is unavailable. The script
 # never drops or recreates a caller-provided database.
 if [[ -n "${TEST_DATABASE_URL:-}" ]]; then

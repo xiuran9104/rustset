@@ -1,0 +1,28 @@
+# 信创离线构建配置模板
+#
+# 使用方法：
+#   1. 在有网环境执行 `cargo vendor vendor/` 生成依赖源码缓存
+#   2. 取消下方 source 替换的注释
+#   3. 将整个仓库（含 vendor/）拷贝到内网构建机
+#   4. 内网执行 `cargo build --release --offline`
+#
+# 详见 docs/xinchuang-adaptation-plan.md §5.3
+#
+# === 离线构建时取消注释 ===
+# [source.crates-io]
+# replace-with = "vendored-sources"
+#
+# [source.vendored-sources]
+# directory = "vendor"
+# === 离线构建时取消注释 ===
+
+# 双架构构建 target（麒麟 V10 / UOS V20 的 glibc 基线为 2.28）
+# x86_64: 海光 7000 / 兆芯 KH
+# aarch64: 鲲鹏 920 / 飞腾 D2000
+#
+# 交叉编译示例：
+#   rustup target add aarch64-unknown-linux-gnu
+#   cargo build --release --target aarch64-unknown-linux-gnu
+#
+# [target.aarch64-unknown-linux-gnu]
+# linker = "aarch64-linux-gnu-gcc"
