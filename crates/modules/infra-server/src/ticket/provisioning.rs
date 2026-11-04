@@ -59,6 +59,15 @@ pub(super) async fn apply_resource_side_effect(
         "reclaim" => "retired",
         _ => return,
     };
+    // CMDB 三期：停机/启用/回收审批通过后，审计记录云端联动决策
+    // 实际云 API 调用由 cloud_provision 自动化开关控制（当前 DryRun 模式）
+    if matches!(ticket_type, "stop" | "reclaim") {
+        let cloud_action = if ticket_type == "reclaim" { "destroy" } else { "stop" };
+        tracing::info!(
+            ticket_type, cloud_action, target,
+            "cloud lifecycle action decided; ledger update proceeds (cloud API optional via automation gate)"
+        );
+    }
     let result = sqlx::query(sqlx::AssertSqlSafe(format!(
         "UPDATE {ledger_table}
          SET ecs_status=$2, update_time=now()

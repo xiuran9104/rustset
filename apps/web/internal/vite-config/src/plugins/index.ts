@@ -169,9 +169,21 @@ async function loadApplicationPlugins(
       condition: pwa,
       plugins: () =>
         VitePWA({
-          injectRegister: false,
+          injectRegister: 'auto',
           workbox: {
-            globPatterns: [],
+            globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
+            navigateFallback: '/index.html',
+            navigateFallbackDenylist: [/^\/api\//],
+            runtimeCaching: [
+              {
+                urlPattern: /^https:\/\/.*\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+                handler: 'CacheFirst',
+                options: {
+                  cacheName: 'images',
+                  expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
+                },
+              },
+            ],
           },
           ...pwaOptions,
           manifest: {
