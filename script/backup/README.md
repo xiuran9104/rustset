@@ -5,6 +5,10 @@
 | `postgres-backup.sh` | pg_dump 自定义格式备份 + SHA256 + 轮转（默认保留 14 份） |
 | `postgres-restore.sh` | 校验完整性 → 确认覆盖 → `pg_restore --clean --if-exists --jobs=N` → 抽查 |
 | `rustfs-manifest.sh` | 对象存储清单 CSV（key/size/etag），恢复时 `--verify` 逐对象校验 |
+| `native-db-backup.sh` | 金仓 `sys_dump` / openGauss `gs_dump` / 达梦 `dexp` 备份（同语义：SHA256 自校验 + 轮转 + 恢复提示） |
+
+`native-db-backup.sh` 需要装有厂商客户端的跳板机（本仓库不含国产库
+客户端），恢复演练按 §6.6.1 在目标库空环境执行。
 
 ## 同一恢复集原则（§4.7.1）
 
