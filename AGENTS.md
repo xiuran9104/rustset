@@ -8,7 +8,8 @@ This file is the handoff guide for AI coding agents working in this repository. 
 - Frontend: Vue 3 / Vben Admin (Ant Design Vue) monorepo at `apps/web`, managed with bun.
 - Database migrations: `sql/postgresql`, executed automatically by the Rust gateway on startup. `0001_initial.sql` is the consolidated schema and baseline data.
 - Bootstrap reference: `sql/bootstrap/current.sql` is a reference-only `pg_dump` snapshot and is never loaded by the application. The migration chain is sufficient to initialize a new server without `current.sql`.
-- Local infrastructure: PostgreSQL, Redis, NATS, and RustFS via `script/docker/docker-compose.yml`.
+- Local infrastructure: PostgreSQL, Redis, NATS (JetStream enabled for the task-delivery bus), and RustFS via `script/docker/docker-compose.yml`.
+- Task delivery: JetStream wake events (`NATS_URL`) accelerate the task workers; the database remains the source of truth — workers fall back to 1s DB polling when the bus is absent, and the MQ semantic contract lives in `crates/framework/mq/tests/jetstream_contract.rs` (`TEST_NATS_URL`).
 
 Do not mount `sql/postgresql` into PostgreSQL init scripts. The gateway owns database initialization through SQLx, and PostgreSQL should start as an empty database.
 

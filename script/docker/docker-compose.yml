@@ -20,9 +20,14 @@ services:
   nats:
     image: nats:2
     container_name: rustset-nats
+    # JetStream 是任务投递命脉（§4.3 语义合同）：--js 启用持久化流，
+    # -sd 指定数据目录（卷持久化，重启恢复）。监控端口 8222 可查流/消费者堆积。
+    command: ["--js", "-sd", "/data", "-m", "8222"]
     ports:
       - "4222:4222"
       - "8222:8222"
+    volumes:
+      - nats-data:/data
 
   rustfs:
     # MinIO is unmaintained; RustFS is the S3-compatible replacement.
@@ -54,3 +59,4 @@ services:
 volumes:
   rustset-postgres:
   rustset-rustfs:
+  nats-data:

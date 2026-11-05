@@ -74,7 +74,7 @@ RustSet 当前采用 Rust 后端（sqlx + PostgreSQL）、Vue 3 前端、Redis�
 | 迁移中的 PG 方言 | `jsonb`×62、`ON CONFLICT`×1、`ilike`×6、`interval`×7、`ARRAY[`×6、`EXCLUDE` 约束×1、gin 索引×1、`FOR UPDATE`×6 | 总量小，`script/sql-translate` 已实现规则翻译与评审报告（§4.1.6.3） |
 | 运行时 SQL 中的 PG 方言 | **可移植化完成（§4.1.3）**：`ilike`×0、`::jsonb`/`::uuid` 参数 cast×0、`interval` SQL×0（chrono 计算）、`to_char`/`EXTRACT`×0、`ANY(参数数组)`×0（`IN (…)` + `BindIn`，空列表语义逐点处理）；保留的合法方言分支：列级数组谓词×2（`$1=ANY(tool_ids)` 等，已注释标记）、`ON CONFLICT`×11、`FOR UPDATE`×21、`now()`×265；其余 `ANY(`/`interval` 匹配均在注释与测试代码内 | 运行时 SQL 已收敛到三库通用子集 + 三类显式标记的方言分支；`FOR UPDATE` 事务流由数据库合同测试逐库证明（§4.1.7，合同套件已建立） |
 | ID 生成 | `gen_random_uuid` 为 0，UUID 全部应用侧 `uuid::Uuid::new_v4()` 生成 | 达梦无 uuid 类型时翻译为 `CHAR(36)` 无额外成本 |
-| 消息队列 | NATS 仅存在于 compose，**业务代码零引用**；`framework/mq` 只有 `DomainEvent` 空壳 | 从交付物中移除 NATS；后续 MQ 直接按目录选型 |
+| 消息队列 | **NATS JetStream 已实装为任务投递总线**（`framework/mq`：stream/durable/ACK/重投/死信/去重/堆积监控；任务创建发布唤醒、worker 订阅唤醒，DB 轮询兜底） | 替换国产 MQ 按语义合同套件验收（`tests/jetstream_contract.rs`，6 项全绿） |
 | 对象存储 | RustFS（国产开源，S3 协议） | 已合规，保留 |
 | TLS | reqwest + rustls（aws-lc-rs）；x86_64 与 aarch64 均有官方支持 | 无龙芯则无需更换 TLS provider |
 | 前端 | Vue 3 / Vben / Ant Design Vue，vite 产物纯静态，无插件依赖（无 ActiveX 等）；Excel 导入导出经 calamine/zip | 架构通用，双架构一份产物；WPS 兼容需专项验证 |
@@ -263,7 +263,7 @@ TLS_PROFILE=standard|gm
 | --- | --- | --- |
 | PostgreSQL | 开发基线保留；生产按目标库替换 | 无代码动作，部署文档分库 |
 | Redis | 开源可用；目录强制时换 TongRDS（协议兼容） | 代码零改动（`REDIS_URL` 换址）；按下文语义合同回归 |
-| NATS | 未使用 | 从 compose/交付物移除；`framework/mq` 后续若实装事件总线，直接选 RocketMQ 5（或目录强制的 TongLINK/Q），预留 publisher/subscriber trait |
+| NATS JetStream | **任务投递命脉（只能换不能删）** | `framework/mq` 已实现 JetStream 总线（§4.3 语义合同 + 合同测试）；替换国产 MQ（RocketMQ 5 / TongLINK/Q）时原样通过语义合同套件即可；**底线：数据库是任务状态唯一真相源，总线仅承担投递与唤醒，不可用时轮询兜底，可靠性不受损** |
 | Nginx | 反代 | 换 **Tengine**（与 §4.4 TLCP 合并实施）或 TongHttpServer；现有 location 规则平移，按下文语义合同验收 |
 | RustFS | 国产开源 | 保留；确认其镜像/二进制双架构可用性，不可用则源码自构建入离线包 |
 

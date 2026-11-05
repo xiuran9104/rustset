@@ -60,7 +60,8 @@ SDF 密码卡（PCIe，单机）vs 加密机（网络，集群共享）。**建�
 | §4.1.8 迁移基础设施 | 四方言目录 + 一致性测试 + CI 矩阵 | CI（门禁变量待开） | ✅ |
 | §4.2.1 双架构 | `.cargo/config.toml` + cross | aarch64 release 构建实测（ELF AArch64） | ✅（真机安装待环境） |
 | §4.2.3 安装改造 | `package-offline.sh` + `install.sh` | 预检/打包实测 | ✅（OS 认证待环境） |
-| §4.3 中间件 | compose/Redis 零改动 + 语义合同待测 | 待 TongRDS | ⏳ 选型 |
+| §4.3 消息队列 | `framework/mq` JetStream 总线 + 语义合同套件（6/6） | 合同测试实测（compose NATS --js） | ✅（国产 MQ 替换按同套件验收） |
+| §4.3 缓存 | compose/Redis 零改动 | 语义合同待测 | ⏳ TongRDS 选型 |
 | §4.4.2/4.4.3 #3 密钥管理 | v3 格式 + 钥匙环 + re-seal + CLI | 21 gm 测试 + 端到端 | ✅ |
 | §4.4.3 #2 硬件密码 | `Sm4Provider`/`RandomProvider` trait + CRYPTO_PROVIDER 门禁 | 单测 | ✅（硬件待采购） |
 | §4.4.3 #1/#7 TLCP | — | — | ❌ 待铜锁网关/证书 |

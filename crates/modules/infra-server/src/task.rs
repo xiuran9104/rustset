@@ -323,6 +323,9 @@ pub(crate) async fn enqueue(
     .fetch_one(pool)
     .await
     .map_err(|error| crate::record_query_error("enqueue scan task", error))?;
+    // 投递唤醒（best-effort，§4.3）：总线只是加速通道，任务真相在数据库
+    // ——发布失败不影响任务被 1s 兜底轮询拾取。
+    crate::task::worker::notify_task_enqueued(&existing_or_created, task_kind);
     Ok(existing_or_created)
 }
 

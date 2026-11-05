@@ -31,3 +31,4 @@ sqlx.workspace = true
 tokio.workspace = true
 uuid.workspace = true
 zip.workspace = true
+rustset-framework-mq.workspace = true

@@ -30,6 +30,36 @@ struct ScanPayload {
     ports: Vec<i32>,
 }
 
+/// 任务投递总线（§4.3 语义合同）：JetStream 承担投递与唤醒，
+/// 数据库是任务状态唯一真相源——总线不可用时轮询兜底，可靠性不受损。
+static TASK_BUS: std::sync::OnceLock<Option<rustset_framework_mq::JetStreamBus>> =
+    std::sync::OnceLock::new();
+
+/// 任务创建后的投递通知（best-effort）：发布失败仅告警，不作为任务
+/// 受理凭据（"消息已发送"永远不冒充任务可靠性）。
+pub(crate) fn notify_task_enqueued(task_id: &str, task_kind: &str) {
+    let Some(bus) = TASK_BUS.get().and_then(Option::as_ref) else {
+        return;
+    };
+    let bus = bus.clone();
+    let task_id = task_id.to_owned();
+    let task_kind = task_kind.to_owned();
+    tokio::spawn(async move {
+        let payload = serde_json::json!({ "taskId": task_id, "kind": task_kind });
+        match bus
+            .publish(&task_kind, &task_id, payload.to_string().as_bytes())
+            .await
+        {
+            Ok(true) => {}
+            Ok(false) => tracing::debug!(task_id, "task wake deduplicated"),
+            Err(error) => {
+                // DB 轮询兜底在 1s 内拾取；这里只留观测痕迹。
+                tracing::warn!(task_id, %error, "task wake publish failed; DB polling covers delivery");
+            }
+        }
+    });
+}
+
 pub(super) fn start(pool: DbPool) {
     let concurrency = std::env::var("SCAN_WORKER_CONCURRENCY")
         .ok()
@@ -41,8 +71,42 @@ pub(super) fn start(pool: DbPool) {
         let slots = Arc::new(Semaphore::new(concurrency));
         let mut poll_tick = time::interval(Duration::from_secs(1));
         let mut polls = 0_u8;
+
+        // 投递总线：NATS_URL 未配置 → None（纯轮询）；配置了但连接失败 →
+        // 显式告警后轮询兜底（数据库仍是任务真相源，可靠性不受损）。
+        let wake = match rustset_framework_mq::connect_from_env().await {
+            Ok(Some(bus)) => {
+                if let Err(error) = bus.spawn_dead_letter_forwarder().await {
+                    tracing::error!(%error, "failed to start dead-letter forwarder");
+                }
+                let wake = Arc::new(tokio::sync::Notify::new());
+                let wake_subscription = spawn_wake_subscription(bus.clone(), wake.clone());
+                if TASK_BUS.set(Some(bus)).is_err() {
+                    tracing::warn!("task bus already initialized");
+                }
+                Some((wake, wake_subscription))
+            }
+            Ok(None) => None,
+            Err(error) => {
+                tracing::error!(%error, "NATS_URL configured but the task bus is unreachable; falling back to DB polling (tasks stay reliable, delivery latency degrades to 1s)");
+                None
+            }
+        };
+
+        let wake_notify = wake.as_ref().map(|(notify, _)| notify.clone());
+        // 订阅任务的 JoinHandle：select! 循环里保持存活。
+        let _subscription = wake.map(|(_, handle)| handle);
+
         loop {
-            poll_tick.tick().await;
+            tokio::select! {
+                _ = poll_tick.tick() => {},
+                _ = async {
+                    match &wake_notify {
+                        Some(notify) => notify.notified().await,
+                        None => std::future::pending::<()>().await,
+                    }
+                } => {},
+            }
             if polls == 0
                 && let Err(error) = recover_expired(&pool).await {
                     tracing::error!(?error, "failed to recover expired scan leases");
@@ -71,6 +135,40 @@ pub(super) fn start(pool: DbPool) {
         }
     });
 }
+
+/// 唤醒订阅：durable "task-waker"（多 worker 消费组——每个唤醒事件
+/// 只唤醒一个成员，其余靠 1s 兜底轮询）。消息本身只是信号，载荷不
+/// 承载任务状态。
+fn spawn_wake_subscription(
+    bus: rustset_framework_mq::JetStreamBus,
+    wake: Arc<tokio::sync::Notify>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let filter = format!("{}.*", bus.config().subject_prefix);
+        let Ok(consumer) = bus.durable_consumer("task-waker", &filter).await else {
+            tracing::error!("task wake subscription failed to bind; DB polling remains the delivery path");
+            return;
+        };
+        loop {
+            match rustset_framework_mq::JetStreamBus::fetch_batch(&consumer, 16, Duration::from_secs(5)).await {
+                Ok(batch) => {
+                    for message in batch {
+                        if let Err(error) = message.ack().await {
+                            tracing::warn!(%error, "task wake ack failed; redelivery is harmless");
+                        }
+                        wake.notify_one();
+                    }
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "task wake fetch failed; retrying");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+    })
+}
+
+
 
 async fn claim(pool: &DbPool, worker_id: &str) -> Result<Option<Job>, sqlx::Error> {
     sqlx::query_as::<_, Job>(
