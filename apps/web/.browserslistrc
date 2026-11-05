@@ -1,4 +1,7 @@
-> 1%
-last 2 versions
+# 信创浏览器基线（docs/xinchuang-adaptation-plan.md §4.5.1，冻结后变更需重新认证）：
+# - 国产浏览器（奇安信/360/麒麟自带/UOS 浏览器）为 Chromium 内核，基线 88；
+# - Firefox ESR；构建产物由 vite target es2015 兜底（低于本清单也可见）。
+Chrome >= 88
+Firefox ESR
 not dead
-not ie 11
+not op_mini all
