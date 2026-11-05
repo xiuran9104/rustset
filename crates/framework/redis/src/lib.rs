@@ -9,6 +9,8 @@ use redis::{AsyncCommands, Client};
 use serde::{Serialize, de::DeserializeOwned};
 
 pub use rate_limit::{RateLimitConfig, RateLimitState, rate_limit};
+// 合同测试与替换实现需要直接使用 redis 命令面。
+pub use redis;
 
 pub const DEFAULT_CACHE_PREFIX: &str = "rustset";
 
@@ -64,6 +66,13 @@ impl RedisClient {
 
     pub fn key(&self, namespace: &str, id: impl AsRef<str>) -> String {
         format!("{}:{}:{}", self.key_prefix, namespace, id.as_ref())
+    }
+
+    /// 获取多路复用连接（运维探针与合同测试使用原始命令面）。
+    pub async fn clone_connection(
+        &self,
+    ) -> Result<redis::aio::MultiplexedConnection, redis::RedisError> {
+        self.client.get_multiplexed_async_connection().await
     }
 
     pub async fn ping(&self) -> anyhow::Result<()> {
