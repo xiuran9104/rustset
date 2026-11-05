@@ -63,3 +63,93 @@ jobs:
           bun-version: 1.4.2
       - run: bash script/generate-infra-api-types.sh
       - run: git diff --exit-code -- apps/web/apps/web-antd/src/api/generated
+
+  # 方言翻译工具固化进 CI（§4.1.8）：证明规则引擎可编译可运行，
+  # 评审报告可复现。--strict 在评审项清零后启用（达梦入库门禁）。
+  sql-translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -p sql-translate -- --target dm --output target/sql-translate/dm --skip-baseline
+      - run: cargo run -p sql-translate -- --target kingbase --output target/sql-translate/kingbase --skip-baseline
+      - run: cargo test -p sql-translate
+
+  # 双架构构建验证（§4.2.1）。arm64 公共仓库免费 runner；私有仓库
+  # 未开通时由仓库变量 XINCHUANG_ARM64_CI=true 门禁。
+  aarch64:
+    if: vars.XINCHUANG_ARM64_CI == 'true'
+    runs-on: ubuntu-24.04-arm
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: rustset_test
+          POSTGRES_PASSWORD: rustset_test
+          POSTGRES_DB: rustset_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rustset_test -d rustset_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://rustset_test:rustset_test@127.0.0.1:5432/rustset_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p rustset-gateway
+      - run: cargo test --workspace
+      - run: bash script/test-database-migrations.sh
+
+  # 国产数据库矩阵（§4.1.8 / 风险 R7）：openGauss 为开源镜像直接验证；
+  # 金仓 / 达梦容器含商业许可条款，镜像地址由仓库变量提供后才运行
+  # （vars.KINGBASE_IMAGE / vars.DM_IMAGE，均为内网许可镜像）。
+  # 整个 job 再受 XINCHUANG_DB_MATRIX=true 门禁，M0 许可确认后开启。
+  database-matrix:
+    if: vars.XINCHUANG_DB_MATRIX == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [opengauss, kingbase, dm]
+    env:
+      FLAVOR: ${{ matrix.flavor }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Start database container
+        run: |
+          case "$FLAVOR" in
+            opengauss)
+              # R3：openGauss 默认 sha256 认证，sqlx/libpq 不支持——
+              # 切 password_encryption_type=1 并重设口令生成 MD5 哈希。
+              docker run -d --name db -e GS_PASSWORD='Rustset_2026' -p 54321:5432 opengauss/opengauss:5.0.1
+              for _ in $(seq 1 60); do docker exec db gsql -U gaussdb -d postgres -c 'SELECT 1' >/dev/null 2>&1 && break; sleep 2; done
+              docker exec db gs_guc set -D /var/lib/opengauss/data -c "password_encryption_type=1" >/dev/null
+              docker exec db gsql -U gaussdb -d postgres -c "ALTER USER gaussdb PASSWORD 'Rustset_2026';"
+              echo "TEST_DATABASE_URL=opengauss://gaussdb:Rustset_2026@127.0.0.1:54321/postgres" >> "$GITHUB_ENV"
+              ;;
+            kingbase)
+              docker run -d --name db -p 54321:5432 "${{ vars.KINGBASE_IMAGE }}"
+              echo "TEST_DATABASE_URL=kingbase8://system:${{ vars.KINGBASE_PASSWORD }}@127.0.0.1:54321/test" >> "$GITHUB_ENV"
+              ;;
+            dm)
+              docker run -d --name db -p 5236:5236 "${{ vars.DM_IMAGE }}"
+              echo "TEST_DATABASE_URL=dm://SYSDBA:${{ vars.DM_PASSWORD }}@127.0.0.1:5236" >> "$GITHUB_ENV"
+              echo "注意：达梦需 ODBC 适配器（M3），此 job 当前预期失败，用于观测进度"
+              ;;
+          esac
+      - name: Wait for database initialization
+        run: |
+          # 国产库容器首次初始化较慢（建库/参数生效），给足启动窗口。
+          for _ in $(seq 1 12); do
+            if docker logs db 2>&1 | tail -5 | grep -qiE 'ready|started|complete|listening'; then break; fi
+            sleep 10
+          done
+          sleep 30
+      - run: bash script/test-database-migrations.sh --db "$FLAVOR"
