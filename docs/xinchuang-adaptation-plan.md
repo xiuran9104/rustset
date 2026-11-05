@@ -2,12 +2,13 @@
 
 | 文档项 | 内容 |
 | --- | --- |
-| 文档版本 | V2.0（在 V1.0 技术方案基础上补全目标架构、测试验收、上线切换与交付体系） |
+| 文档版本 | V2.1（V2.0 基础上按附录要求刷新 §2 现状实测数据，标注 M1 已落地项；V2.0 在 V1.0 技术方案基础上补全目标架构、测试验收、上线切换与交付体系） |
 | 编制日期 | 2026-11-05 |
 | 适用项目 | RustSet |
 | 方案性质 | 总体改造方案、实施与验收基线（评审通过后作为分阶段实施依据） |
 | 编制基线 | 2026-11，`main` 分支，迁移链至 `0058_firewall_credential.sql` |
 | 目标读者 | 项目管理者、架构师、后端／前端／测试／安全／运维人员 |
+| 修订记录 | V2.1（2026-11-05）：M1 门面/SQL 可移植化/密文 v3/合同测试/`sql-translate` 落地后刷新 §2.1 实测数字与 §2.2 差距状态，新增 §5.1.1 实施进度 |
 
 ## 1. 项目概述
 
@@ -63,31 +64,31 @@ RustSet 当前采用 Rust 后端（sqlx + PostgreSQL）、Vue 3 前端、Redis�
 
 ### 2.1 现状盘点（代码事实）
 
-以下数字来自当前 `main` 的实测，是工作量的直接依据：
+以下数字来自当前 `main` 的实测（V2.1 刷新：M1 门面、SQL 可移植化、密文 v3 落地后），是后续工作量的直接依据：
 
 | 项 | 现状 | 信创影响 |
 | --- | --- | --- |
-| 国密算法 | `crates/framework/gm`：SM3、SM4-CBC 落盘密封（`enc:sm4:v2:`）、PBKDF2-HMAC-SM3 口令、HMAC-SM3 令牌；`0018` 迁移已完成存量 re-seal | 密评的基础已具备，缺口在传输层、密文格式与密钥管理（§4.4） |
-| 数据库访问 | sqlx 仅开 `postgres` feature；**0 个编译期宏**，全部运行时查询（约 750 处、62 个文件）；`PgPool` 在业务代码直接出现 213 处；`framework/database` 直接 re-export `sqlx::{PgPool, Postgres, Transaction}` | 没有编译期宏是重大利好（不依赖活库连接编译）；但 `PgPool` 类型耦合必须先做门面重构 |
+| 国密算法 | `crates/framework/gm`：SM3、SM4-CBC（`enc:sm4:v2:`）、**认证密文 `enc:sm4:v3:<key-version>:`（SM4-CBC + HMAC-SM3 标签，篡改可检测）**、主密钥文件钥匙环（`SECRET_MASTER_KEY_FILE`，0600，版本化派生）、统一密封服务 `SealingSecrets`、`gen-master-key`/`reseal-secrets` 子命令、注册表驱动的批量 re-seal（v1 恒转、v2 配主密钥后转）、PBKDF2-HMAC-SM3 口令、HMAC-SM3 令牌 | 密文格式与密钥管理缺口（§4.4.2/§4.4.3 #3）已关闭；剩余缺口在传输层 TLCP 与 KMS/密码机硬件接入 |
+| 数据库访问 | sqlx 仅开 `postgres` feature；**0 个编译期宏**，全部运行时查询（632 处、57 个文件）；**业务代码 `PgPool`/`Postgres` 直接引用 0 处**（M1 门面重构完成：`DbPool`/`DbTransaction`/`DbQueryBuilder`/`DbError`/`BindIn`，`framework/database` 不再 re-export sqlx 类型；错误分类经 `DbError` 统一映射 SQLSTATE） | 门面重构（§4.1.1）已完成；达梦适配器实装时业务代码不再需要机械改动 |
 | 迁移链 | 58 个迁移共 34.9 万行，其中 `0001_initial.sql`（pg_dump 合并基线）独占约 34.6 万行；其余 57 个仅约 3,400 行 | `0001` 翻译必须走"参考库导出→翻译→回灌"流水线，不能手工 |
-| 迁移中的 PG 方言 | `jsonb`×62、`ON CONFLICT`×1、`ilike`×6、`interval`×7、`ARRAY[`×6、`EXCLUDE` 约束×1、gin 索引×1、`FOR UPDATE`×6 | 总量小，可逐条规则化翻译 |
-| 运行时 SQL 中的 PG 方言 | `ANY(`×78、`now()`×285、`ilike`×33、`::jsonb`×31、`::uuid`×24、`interval`×27、`FOR UPDATE`×21、`ON CONFLICT`×12、json 操作符×4、`to_char`/`EXTRACT`×5+5 | SQL 可移植化改造的主要对象（§4.1.3） |
+| 迁移中的 PG 方言 | `jsonb`×62、`ON CONFLICT`×1、`ilike`×6、`interval`×7、`ARRAY[`×6、`EXCLUDE` 约束×1、gin 索引×1、`FOR UPDATE`×6 | 总量小，`script/sql-translate` 已实现规则翻译与评审报告（§4.1.6.3） |
+| 运行时 SQL 中的 PG 方言 | **可移植化完成（§4.1.3）**：`ilike`×0、`::jsonb`/`::uuid` 参数 cast×0、`interval` SQL×0（chrono 计算）、`to_char`/`EXTRACT`×0、`ANY(参数数组)`×0（`IN (…)` + `BindIn`，空列表语义逐点处理）；保留的合法方言分支：列级数组谓词×2（`$1=ANY(tool_ids)` 等，已注释标记）、`ON CONFLICT`×11、`FOR UPDATE`×21、`now()`×265；其余 `ANY(`/`interval` 匹配均在注释与测试代码内 | 运行时 SQL 已收敛到三库通用子集 + 三类显式标记的方言分支；`FOR UPDATE` 事务流由数据库合同测试逐库证明（§4.1.7，合同套件已建立） |
 | ID 生成 | `gen_random_uuid` 为 0，UUID 全部应用侧 `uuid::Uuid::new_v4()` 生成 | 达梦无 uuid 类型时翻译为 `CHAR(36)` 无额外成本 |
 | 消息队列 | NATS 仅存在于 compose，**业务代码零引用**；`framework/mq` 只有 `DomainEvent` 空壳 | 从交付物中移除 NATS；后续 MQ 直接按目录选型 |
 | 对象存储 | RustFS（国产开源，S3 协议） | 已合规，保留 |
 | TLS | reqwest + rustls（aws-lc-rs）；x86_64 与 aarch64 均有官方支持 | 无龙芯则无需更换 TLS provider |
 | 前端 | Vue 3 / Vben / Ant Design Vue，vite 产物纯静态，无插件依赖（无 ActiveX 等）；Excel 导入导出经 calamine/zip | 架构通用，双架构一份产物；WPS 兼容需专项验证 |
-| 审计 | 网关已有 audit 中间件 | 等保/密评需补留存期核对（§4.4） |
+| 审计 | 网关 audit 中间件 + **留存期管理已落地**（`AUDIT_RETENTION_DAYS` 默认 190 天 ≥ 等保 6 个月，写入循环内分批清理，`pruned` 指标可观测） | 等保留存期核对项（§4.4.3 #6）已整改；审计完整性 SM3 标识待补 |
 
 ### 2.2 关键差距
 
 #### 2.2.1 数据库类型与方言耦合较深
 
-框架公开 re-export `PgPool`、`Postgres` 与事务类型，业务代码 213 处直接引用，迁移目录固定为 `sql/postgresql`。运行时 SQL 和迁移中使用 JSONB、数组绑定、upsert、行锁等 PostgreSQL 特性。`FOR UPDATE`（21 处）对应的事务流是数据库替换中风险最高的部分，锁等待、死锁与隔离行为必须在四种数据库上分别证明。
+**M1 已完成（2026-11-05）**：门面重构与运行时 SQL 可移植化落地——业务代码 0 处 `PgPool` 直接引用，错误分类经 `DbError` 统一，运行时 SQL 收敛到三库通用子集（剩余为显式标记的列级数组谓词、`ON CONFLICT`、`FOR UPDATE` 分支）。迁移目录仍固定为 `sql/postgresql`，`sql/{kingbase,opengauss,dm}` 由 `script/sql-translate` 产出（规则引擎 + 评审报告已就绪，产出入库待达梦真库验证 + 人工评审）。`FOR UPDATE`（21 处）对应的事务流仍是数据库替换中风险最高的部分，合同测试套件（§4.1.7）已在 PostgreSQL 通过，锁等待、死锁与隔离行为必须在四种数据库上分别证明。
 
 #### 2.2.2 密钥管理与密文格式需要先行升级
 
-SM4-CBC 落盘密封已实现，但当前密钥由环境变量派生、无独立保管与轮换机制；密文格式未携带密钥版本，也未附带完整性认证标签。该问题独立于信创改造存在，应在多数据库适配全面铺开前完成新格式、密钥管理和历史数据迁移设计，避免"换库"与"换密文"两个问题纠缠在一起。
+**已完成（2026-11-05，§4.4.2）**：`enc:sm4:v3:` 认证密文格式（密钥版本 + HMAC-SM3 完整性标签，篡改可检测、失败关闭）、主密钥文件钥匙环（0600，与 `JWT_SECRET` 分离，版本化轮换就绪）、统一密封服务接入业务层、注册表驱动的批量 re-seal（v1 恒转、v2 在主密钥配置后转，分批幂等可重跑）。剩余：KMS/密码机硬件接入（§4.4.3 #2，M0 决策）、密钥管理制度文档（密评材料）。
 
 #### 2.2.3 中间件与网关需要语义合同
 
@@ -360,6 +361,19 @@ TLS_PROFILE=standard|gm
 | M6 联调与测评支撑 | §4.1.8 全矩阵 CI、四库 × 双架构交叉回归、浏览器/WPS 验收、备份恢复与回退演练、密评现场支撑 | 测试报告齐套、验收问题闭环、密评整改闭环 | 2–3 周 | M1–M5 |
 
 串行关键路径约 **4–5 个月**（M0→M1→M3→M6），并行充分时可压缩到 3.5–4 个月。
+
+#### 5.1.1 实施进度（2026-11-05 实测）
+
+| 阶段 | 状态 | 说明 |
+| --- | --- | --- |
+| M1 门面 + 可移植化 + 金仓 | **代码侧完成** | 门面/错误分类/SQL 可移植化/密文 v3 + 主密钥/re-seal 已合入 `main`；数据库合同测试（§4.1.7）建立并在 PostgreSQL 全绿；金仓真机回归待 M0 介质到位 |
+| M2 openGauss | 未开始 | 依赖 M1（代码侧已就绪）与 openGauss 容器/介质 |
+| M3 达梦 | 部分前置完成 | `script/sql-translate` 规则引擎 + 评审报告已实现（57 个手写迁移产出 337 个评审项）；`IF NOT EXISTS` 幂等化、`ON CONFLICT→MERGE`、0001 流水线、ODBC 适配器待达梦 ODBC spike 后实施 |
+| M4 双架构与离线交付 | 未开始 | 与 M1 并行，可随时启动 |
+| M5 TLCP 与密钥管理 | 部分完成 | 密钥管理软件侧（主密钥文件、v3 轮换、批量 re-seal）已完成；TLCP 网关与 KMS/SDF 硬件依赖 M0 决策与采购 |
+| M6 联调与测评支撑 | 未开始 | 依赖 M1–M5 |
+
+M0 决策项（§5.4）与国产库介质/许可仍是整体关键路径；代码侧工作在等待外部资源期间按 M4 → sql-translate 完善 → 备份恢复脚本顺序推进。
 
 ### 5.2 模块级 WBS
 
