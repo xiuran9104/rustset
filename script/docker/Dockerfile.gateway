@@ -1,0 +1,47 @@
+# RustSet Gateway 容器镜像（docs/xinchuang-adaptation-plan.md §4.6.2）。
+#
+# 多阶段构建：编译在镜像内完成，构建与运行使用同族底座——只要运行时
+# 底座的 glibc ≥ 构建底座（本文件两者同为 bookworm / glibc 2.36），
+# 产物即可运行，宿主机 glibc 版本无关。离线 tarball 形态仍按 §4.2.1
+# 用 glibc ≤ 2.28 构建环境单独产出（那是给麒麟/UOS 裸机的）。
+#
+# 前端产物与 CPU 架构无关（§4.2.2），由宿主构建机提供一份：
+#   cd apps/web && bun install && bun run build:antd
+#
+# 本地验证：
+#   docker build -f script/docker/Dockerfile.gateway -t rustset-gateway:local .
+#   docker run --rm rustset-gateway:local   # 期望输出 "Error: DATABASE_URL is
+#                                           # required"——二进制在容器 glibc 下真实运行
+#
+# 双架构（aarch64 建议 aarch64 原生构建机或 CI 侧 QEMU，见 script/build-images.sh）。
+ARG RUST_IMAGE=rust:1-bookworm
+ARG BASE=debian:bookworm-slim
+
+FROM ${RUST_IMAGE} AS builder
+WORKDIR /src
+# 工作区成员（crates/services/script/sql-translate）与编译期内嵌的迁移链
+# （sqlx::migrate!）都必须进入构建上下文。
+COPY Cargo.toml Cargo.lock .cargo/ ./
+COPY crates ./crates
+COPY services ./services
+COPY script/sql-translate ./script/sql-translate
+COPY sql ./sql
+RUN cargo build --release -p rustset-gateway
+
+FROM ${BASE}
+ARG DIST=apps/web/apps/web-antd/dist
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata curl \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt/rustset
+COPY --from=builder /src/target/release/rustset-gateway /opt/rustset/rustset-gateway
+COPY ${DIST} /opt/rustset/frontend/
+RUN chmod 0755 /opt/rustset/rustset-gateway \
+    && useradd --system --uid 10001 --no-create-home --shell /sbin/nologin rustset
+USER 10001
+ENV GATEWAY_HOST=0.0.0.0 \
+    GATEWAY_PORT=8080 \
+    RUST_LOG=info
+EXPOSE 8080
+# 迁移链由网关启动时按 flavor 自动执行（编译期内嵌），镜像不含 sql/。
+ENTRYPOINT ["/opt/rustset/rustset-gateway"]
