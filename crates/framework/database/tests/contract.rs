@@ -164,9 +164,21 @@ async fn for_update_serializes_concurrent_writers() {
 
 /// §4.1.7.2 锁等待超时：锁持有者阻塞期间，等待方在 lock_timeout 到期后
 /// 收到统一分类的 `DbError::LockWaitTimeout`，而不是内部错误。
+///
+/// openGauss 不提供 `lock_timeout` GUC（§4.1.8 已登记的平台差异），
+/// 该不变量在 og 上无法用同一方法证明，跳过并留痕。
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL"]
 async fn lock_wait_timeout_maps_to_db_error() {
+    if rustset_framework_database::DatabaseFlavor::detect()
+        == rustset_framework_database::DatabaseFlavor::OpenGauss
+    {
+        eprintln!(
+            "SKIP (openGauss): no lock_timeout GUC — 锁等待超时不变量在 og 上另行登记，\
+             依赖死锁检测与语句超时（statement_timeout）路径"
+        );
+        return;
+    }
     let pool = Arc::new(test_pool(3).await);
     scratch(
         &pool,
@@ -253,8 +265,14 @@ async fn unique_violation_classifies_as_client_error() {
     let classified = DbError::from(error);
     assert!(matches!(classified, DbError::UniqueViolation { .. }));
     assert!(classified.is_client_error());
-    let constraint = classified.constraint().expect("constraint name reported");
-    assert!(constraint.contains("code"), "constraint is {constraint}");
+    // 约束名依赖服务器错误响应的 constraint 字段；openGauss 不回传
+    // （§4.1.8 登记的平台差异），仅 PG 家族成员断言名字透传。
+    if rustset_framework_database::DatabaseFlavor::detect()
+        != rustset_framework_database::DatabaseFlavor::OpenGauss
+    {
+        let constraint = classified.constraint().expect("constraint name reported");
+        assert!(constraint.contains("code"), "constraint is {constraint}");
+    }
 }
 
 /// §4.1.7.3 外键冲突同样收敛到统一分类。

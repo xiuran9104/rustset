@@ -58,6 +58,10 @@ pub enum Category {
     IfNotExists,
     /// `FOR UPDATE` 事务流——合同测试覆盖项，达梦侧行为需专项验证。
     ForUpdate,
+    /// `NULLS NOT DISTINCT` 已改写为 COALESCE 表达式唯一索引。
+    NullsNotDistinct,
+    /// PG10+ identity 标记语句已省略（nextval 默认值保留）。
+    IdentityMarker,
     /// 未识别的 pg_dump 指令或 PG 专有函数（`to_char` 等）。
     Other,
 }
@@ -73,6 +77,8 @@ impl Category {
             Self::PartialIndex => "partial-index",
             Self::IfNotExists => "if-not-exists",
             Self::ForUpdate => "for-update",
+            Self::NullsNotDistinct => "nulls-not-distinct",
+            Self::IdentityMarker => "identity-marker",
             Self::Other => "other",
         }
     }
@@ -88,8 +94,8 @@ pub struct Translation {
 /// 翻译一段迁移 SQL。
 pub fn translate(target: Target, source: &str) -> Translation {
     match target {
-        // 金仓 / openGauss：PG 兼容模式，逐字复制；仅扫描评审项供报告参考。
-        Target::Kingbase | Target::OpenGauss => {
+        // 金仓：PG 兼容模式，逐字复制；仅扫描评审项供报告参考。
+        Target::Kingbase => {
             let mut findings = Vec::new();
             scan_review_items(source, &mut findings);
             Translation {
@@ -97,8 +103,490 @@ pub fn translate(target: Target, source: &str) -> Translation {
                 findings,
             }
         }
+        // openGauss：PG 兼容为主，但对内核（源自 PG 9.2）缺失的构造做
+        // 实测驱动的改写（2026-11-06 于 openGauss 7.0.0-RC2 探测）。
+        Target::OpenGauss => translate_opengauss(source),
         Target::Dameng => translate_dameng(source),
     }
+}
+
+/// openGauss 改写（每条规则都在兼容矩阵上实测过，见 §4.1.2 注）：
+/// * `ON CONFLICT … DO UPDATE SET` → `ON DUPLICATE KEY UPDATE`（EXCLUDED 支持）
+/// * `INSERT INTO t (cols…) … ON CONFLICT DO NOTHING` → 首列自赋值的
+///   `ON DUPLICATE KEY UPDATE`（openGauss 无 DO NOTHING）
+/// * `NULLS NOT DISTINCT` 唯一索引/约束 → `COALESCE(col::text, 标记)` 表达式
+///   唯一索引（openGauss 把 NULL 视为互异）
+fn translate_opengauss(source: &str) -> Translation {
+    let mut findings = Vec::new();
+    scan_review_items(source, &mut findings);
+    let mut sql = source.to_owned();
+
+    // (1) ON CONFLICT [target] DO UPDATE SET —— 目标列由主键/唯一键冲突
+    // 语义接管，EXCLUDED 在 openGauss 可用。
+    let (rewritten, count) = rewrite_on_conflict_update(&sql);
+    if count > 0 {
+        sql = rewritten;
+        findings.push(Finding {
+            line: 0,
+            category: Category::OnConflict,
+            detail: format!("{count} ON CONFLICT…DO UPDATE rewritten to ON DUPLICATE KEY UPDATE"),
+        });
+    }
+
+    // (2) ON CONFLICT DO NOTHING —— 需要自赋值列，取 INSERT 列表首列。
+    let (rewritten, count) = rewrite_on_conflict_do_nothing(&sql);
+    if count > 0 {
+        sql = rewritten;
+        findings.push(Finding {
+            line: 0,
+            category: Category::OnConflict,
+            detail: format!("{count} ON CONFLICT DO NOTHING rewritten (first-column self-assignment)"),
+        });
+    }
+
+    // (3) NULLS NOT DISTINCT 唯一索引（可带部分索引 WHERE）。
+    let (rewritten, count) = rewrite_nulls_not_distinct_index(&sql);
+    if count > 0 {
+        sql = rewritten;
+        findings.push(Finding {
+            line: 0,
+            category: Category::NullsNotDistinct,
+            detail: format!("{count} NULLS NOT DISTINCT index rewritten to COALESCE expression index"),
+        });
+    }
+
+    // (4) 表约束形态的 UNIQUE NULLS NOT DISTINCT。
+    let (rewritten, count) = rewrite_nulls_not_distinct_constraint(&sql);
+    if count > 0 {
+        sql = rewritten;
+        findings.push(Finding {
+            line: 0,
+            category: Category::NullsNotDistinct,
+            detail: format!("{count} UNIQUE NULLS NOT DISTINCT constraint rewritten to expression index"),
+        });
+    }
+
+    // (5) PG10+ identity 标记语句：openGauss 无 `ADD GENERATED` 语法，
+    // 且 pg_dump 不会为 identity 列单独发 CREATE SEQUENCE——序列是隐式的。
+    // 改写为显式 `CREATE SEQUENCE … OWNED BY` + `SET DEFAULT nextval`，
+    // 后续 setval 语句与插入行为保持一致。
+    let identity = regex::Regex::new(
+        r#"(?is)ALTER\s+TABLE\s+(?P<table>[\w.]+)\s+ALTER\s+COLUMN\s+(?P<column>\w+)\s+ADD\s+GENERATED\s+(?:BY\s+DEFAULT|ALWAYS)\s+AS\s+IDENTITY\s*\(\s*SEQUENCE\s+NAME\s+(?P<sequence>[\w.]+)[^;]*;"#,
+    )
+    .unwrap();
+    let identity_count = identity.captures_iter(&sql).count();
+    if identity_count > 0 {
+        sql = identity
+            .replace_all(&sql, |caps: &regex::Captures| {
+                let sequence = caps.name("sequence").map_or("", |m| m.as_str());
+                // search_path 在迁移执行时为空（pg_dump 前导 set_config），序列名必须全限定。
+                format!(
+                    "CREATE SEQUENCE {sequence} OWNED BY {table}.{column};\nALTER TABLE {table} ALTER COLUMN {column} SET DEFAULT nextval('{sequence}');",
+                    table = &caps["table"],
+                    column = &caps["column"],
+                    sequence = sequence,
+                )
+            })
+            .into_owned();
+        findings.push(Finding {
+            line: 0,
+            category: Category::IdentityMarker,
+            detail: format!("{identity_count} identity columns rewritten to explicit CREATE SEQUENCE + SET DEFAULT nextval"),
+        });
+    }
+
+    // (5b) `ADD COLUMN IF NOT EXISTS`：openGauss（9.2 系内核）不支持
+    // （CREATE/DROP … IF NOT EXISTS 均支持，实测仅 ADD COLUMN 缺失）。
+    // 改写为逐列 DO 块 + duplicate_column 异常捕获，保持幂等语义。
+    let (rewritten, add_column_count) = rewrite_add_column_if_not_exists(&sql);
+    if add_column_count > 0 {
+        sql = rewritten;
+        findings.push(Finding {
+            line: 0,
+            category: Category::IfNotExists,
+            detail: format!(
+                "{add_column_count} ADD COLUMN IF NOT EXISTS clauses wrapped in duplicate_column-guard DO blocks"
+            ),
+        });
+    }
+
+    // (5b2) plpgsql 动态 SQL 里的 `EXECUTE format('ALTER TABLE … ADD COLUMN
+    // IF NOT EXISTS …')`：同样用嵌套异常块包裹，保持幂等。
+    let dynamic_add = regex::Regex::new(
+        r#"(?is)EXECUTE\s+format\(\s*'ALTER\s+TABLE\s+(?P<table>[^']*)\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+(?P<definition>[^']*)'\s*(?P<args>[^;]*?)\)\s*;"#,
+    )
+    .unwrap();
+    let dynamic_count = dynamic_add.captures_iter(&sql).count();
+    if dynamic_count > 0 {
+        sql = dynamic_add
+            .replace_all(&sql, |caps: &regex::Captures| {
+                format!(
+                    "BEGIN EXECUTE format('ALTER TABLE {table} ADD COLUMN {definition}'{args}); EXCEPTION WHEN duplicate_column THEN NULL; END;",
+                    table = &caps["table"],
+                    definition = &caps["definition"],
+                    args = &caps["args"],
+                )
+            })
+            .into_owned();
+        findings.push(Finding {
+            line: 0,
+            category: Category::IfNotExists,
+            detail: format!("{dynamic_count} dynamic ADD COLUMN IF NOT EXISTS wrapped in duplicate_column guard"),
+        });
+    }
+
+    // (5c) gin `jsonb_path_ops` 操作符类：openGauss 未提供（默认
+    // jsonb_ops 生效）；仅降级索引内部实现，语义不变。
+    let jpo = regex::Regex::new(r"(?i)\s+jsonb_path_ops").unwrap();
+    let jpo_count = jpo.find_iter(&sql).count();
+    if jpo_count > 0 {
+        sql = jpo.replace_all(&sql, "").into_owned();
+        findings.push(Finding {
+            line: 0,
+            category: Category::GinIndex,
+            detail: format!("{jpo_count} jsonb_path_ops opclass stripped (og default jsonb_ops)"),
+        });
+    }
+
+    // (5d) 同一 ALTER TABLE 语句内对同列连续两次 ALTER COLUMN：
+    // openGauss 误报 "cannot alter type twice"，拆成两条语句。
+    let split_alter = regex::Regex::new(
+        r#"(?is)ALTER\s+TABLE\s+(?P<table>[\w.]+)\s+ALTER\s+COLUMN\s+(?P<col>\w+)\s+SET\s+DEFAULT\s+(?P<default>[^,;]+),\s*ALTER\s+COLUMN\s+(?P<col2>\w+)\s+SET\s+NOT\s+NULL"#,
+    )
+    .unwrap();
+    let split_count = split_alter.captures_iter(&sql).count();
+    if split_count > 0 {
+        sql = split_alter
+            .replace_all(&sql, |caps: &regex::Captures| {
+                // 两次子句必须作用于同一列；不同列时保持原样（交由评审）。
+                if caps["col"] != caps["col2"] {
+                    return caps[0].to_owned();
+                }
+                format!(
+                    "ALTER TABLE {t} ALTER COLUMN {c} SET DEFAULT {d};\nALTER TABLE {t} ALTER COLUMN {c} SET NOT NULL",
+                    t = &caps["table"],
+                    c = &caps["col"],
+                    d = caps["default"].trim(),
+                )
+            })
+            .into_owned();
+        let split_done = split_alter
+            .captures_iter(&sql)
+            .filter(|caps| caps["col"] == caps["col2"])
+            .count();
+        if split_done > 0 {
+            findings.push(Finding {
+                line: 0,
+                category: Category::Other,
+                detail: format!("{split_done} multi-clause ALTER COLUMN split into separate statements"),
+            });
+        }
+    }
+
+    // (5e) `to_regclass('s.t') IS NOT NULL`：openGauss 无此函数（PG 9.2 系
+    // 内核），改写为 pg_class/pg_namespace 等价判定。
+    let to_regclass = regex::Regex::new(
+        r#"(?is)to_regclass\(\s*'(?P<qualified>[\w.]+)'\s*\)\s+IS\s+NOT\s+NULL"#,
+    )
+    .unwrap();
+    let regclass_count = to_regclass.captures_iter(&sql).count();
+    if regclass_count > 0 {
+        sql = to_regclass
+            .replace_all(&sql, |caps: &regex::Captures| {
+                let qualified = &caps["qualified"];
+                let (schema, table) = match qualified.split_once('.') {
+                    Some((schema, table)) => (schema.to_owned(), table.to_owned()),
+                    None => ("public".to_owned(), qualified.to_owned()),
+                };
+                format!(
+                    "EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
+                     WHERE n.nspname = '{schema}' AND c.relname = '{table}')"
+                )
+            })
+            .into_owned();
+        findings.push(Finding {
+            line: 0,
+            category: Category::Other,
+            detail: format!("{regclass_count} to_regclass checks rewritten to pg_class EXISTS"),
+        });
+    }
+
+    // (5f) `U&'\XXXX…'` Unicode 转义字符串（PG 13+）：openGauss 不支持，
+    // 改写为 chr(N) 连接（仅处理纯 \XXXX 转义的字面量）。
+    let unicode_str = regex::Regex::new(r#"U&'(?P<body>(?:\\[0-9A-Fa-f]{4})+)'"#).unwrap();
+    let unicode_count = unicode_str.captures_iter(&sql).count();
+    if unicode_count > 0 {
+        sql = unicode_str
+            .replace_all(&sql, |caps: &regex::Captures| {
+                let body = caps["body"].to_uppercase();
+                let parts: Vec<String> = body
+                    .split('\\')
+                    .filter(|part| !part.is_empty())
+                    .filter_map(|part| u32::from_str_radix(part, 16).ok())
+                    .map(|code| format!("chr({code})"))
+                    .collect();
+                parts.join("||")
+            })
+            .into_owned();
+        findings.push(Finding {
+            line: 0,
+            category: Category::Other,
+            detail: format!("{unicode_count} U& unicode strings rewritten to chr() concatenation"),
+        });
+    }
+
+    // (5g) `jsonb -> text键`：openGauss 把 `->` 解析为 jsonb->int（数组
+    // 取下标），text 重载缺失（实测）。改写为 jsonb_extract_path(expr, key)。
+    // 捕获第二个 `>` 以区分双箭头 `->>`（保持不变）。
+    let arrow_text = regex::Regex::new(
+        r"(?is)(?P<left>[\w.]+(?:\([^)]*\))?)\s*->(?P<second>>?)(?P<key>[a-zA-Z_][\w]*)",
+    )
+    .unwrap();
+    let arrow_count = {
+        let mut count = 0;
+        for caps in arrow_text.captures_iter(&sql) {
+            let left = caps.name("left").map_or("", |m| m.as_str());
+            let double_arrow = caps.name("second").map_or("", |m| m.as_str()) == ">";
+            // 只改写明确的 jsonb 列（attributes）的单箭头列名键形态，
+            // 避免误伤算术减法与双箭头。
+            if left.contains("attributes") && !double_arrow {
+                count += 1;
+            }
+        }
+        count
+    };
+    if arrow_count > 0 {
+        sql = arrow_text
+            .replace_all(&sql, |caps: &regex::Captures| {
+                let left = caps.name("left").map_or("", |m| m.as_str());
+                let double_arrow = caps.name("second").map_or("", |m| m.as_str()) == ">";
+                if !left.contains("attributes") || double_arrow {
+                    return caps[0].to_owned();
+                }
+                format!("jsonb_extract_path({}, {})", left, &caps["key"])
+            })
+            .into_owned();
+        findings.push(Finding {
+            line: 0,
+            category: Category::Other,
+            detail: format!("{arrow_count} jsonb -> text-key rewritten to jsonb_extract_path"),
+        });
+    }
+
+    // (5h) CREATE TABLE 内联 `GENERATED … AS IDENTITY`：openGauss 不支持
+    // （仅支持 PG10 前置语法），改写为 serial 系类型——序列自动命名为
+    // <表>_<列>_seq，与 pg_dump 的 setval 引用一致。
+    let inline_identity = regex::Regex::new(
+        r#"(?is)(?P<col>[a-zA-Z_][\w]*)\s+(?P<type>bigserial|bigint|int|integer|smallint)\s+GENERATED\s+(?:BY\s+DEFAULT|ALWAYS)\s+AS\s+IDENTITY"#,
+    )
+    .unwrap();
+    let identity_inline_count = inline_identity.captures_iter(&sql).count();
+    if identity_inline_count > 0 {
+        sql = inline_identity
+            .replace_all(&sql, |caps: &regex::Captures| {
+                let serial = match &caps["type"] {
+                    "bigint" => "bigserial",
+                    "int" | "integer" => "serial",
+                    "bigserial" => "bigserial",
+                    _ => "smallserial",
+                };
+                format!("{} {}", &caps["col"], serial)
+            })
+            .into_owned();
+        findings.push(Finding {
+            line: 0,
+            category: Category::IdentityMarker,
+            detail: format!("{identity_inline_count} inline identity columns rewritten to serial types"),
+        });
+    }
+
+    // (6) openGauss 不支持的 GUC SET（pg_dump 前导；会话级安全参数，
+    // 对应用侧迁移无意义）。statement_timeout/standard_conforming_strings/
+    // row_security 为 og 认识的参数，保留。
+    let unknown_set = regex::Regex::new(
+        r"(?ims)^SET\s+(?:default_table_access_method|lock_timeout|idle_in_transaction_session_timeout|idle_session_timeout|transaction_timeout|row_security)\s*=\s*[^;]*;\s*$",
+    )
+    .unwrap();
+    let set_count = unknown_set.find_iter(&sql).count();
+    if set_count > 0 {
+        sql = unknown_set
+            .replace_all(&sql, "-- og: PG-specific SET omitted")
+            .into_owned();
+        findings.push(Finding {
+            line: 0,
+            category: Category::Other,
+            detail: format!("{set_count} PG-specific SET statements omitted"),
+        });
+    }
+
+    Translation { sql, findings }
+}
+
+/// `ALTER TABLE t ADD COLUMN IF NOT EXISTS …, …;` → 每列一个 DO 块
+/// （`EXCEPTION WHEN duplicate_column`），混合子句（SET DEFAULT 等）
+/// 保持为普通 ALTER TABLE。子句按顶层逗号拆分（尊重括号）。
+fn rewrite_add_column_if_not_exists(sql: &str) -> (String, usize) {
+    let statement = regex::Regex::new(
+        r#"(?is)ALTER\s+TABLE\s+(?P<table>[\w.]+)\s+(?P<clauses>(?:ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS)[^;]*?);"#,
+    )
+    .unwrap();
+    let mut count = 0;
+    let result = statement
+        .replace_all(sql, |caps: &regex::Captures| {
+            let table = &caps["table"];
+            let clauses = split_top_level_commas(&caps["clauses"]);
+            let mut rewritten_columns = 0;
+            let mut parts: Vec<String> = Vec::new();
+            for clause in clauses {
+                let clause = clause.trim();
+                let stripped = clause
+                    .strip_prefix("ADD COLUMN IF NOT EXISTS ")
+                    .or_else(|| clause.strip_prefix("add column if not exists "));
+                match stripped {
+                    Some(definition) => {
+                        rewritten_columns += 1;
+                        parts.push(format!(
+                            "DO $$ BEGIN ALTER TABLE {table} ADD COLUMN {definition}; EXCEPTION WHEN duplicate_column THEN NULL; END $$;"
+                        ));
+                    }
+                    None => parts.push(format!("ALTER TABLE {table} {clause}")),
+                }
+            }
+            count += rewritten_columns;
+            parts.join("\n")
+        })
+        .into_owned();
+    (result, count)
+}
+
+/// 按顶层逗号拆分（括号深度归零才切分）。
+fn split_top_level_commas(input: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0usize;
+    for character in input.chars() {
+        match character {
+            '(' => {
+                depth += 1;
+                current.push(character);
+            }
+            ')' => {
+                depth = depth.saturating_sub(1);
+                current.push(character);
+            }
+            ',' if depth == 0 => {
+                parts.push(current.clone());
+                current.clear();
+            }
+            _ => current.push(character),
+        }
+    }
+    if !current.trim().is_empty() {
+        parts.push(current);
+    }
+    parts
+}
+
+/// `COALESCE(col::text, marker)` 表达式列：把 NULL 归并为可比较的文本键。
+fn coalesce_columns(columns: &str) -> String {
+    columns
+        .split(',')
+        .map(|column| {
+            let column = column.trim();
+            format!("(COALESCE({column}::text, '\\x01OG_NULL'))")
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn rewrite_on_conflict_update(sql: &str) -> (String, usize) {
+    // 目标列（可带 WHERE 谓词的排他目标）整体丢弃，SET 部分保留。
+    let pattern = regex_on_conflict_update();
+    let mut count = 0;
+    let result = pattern
+        .replace_all(sql, |caps: &regex::Captures| {
+            count += 1;
+            format!("ON DUPLICATE KEY UPDATE {}", caps.name("set").map_or("", |m| m.as_str()))
+        })
+        .into_owned();
+    (result, count)
+}
+
+fn rewrite_on_conflict_do_nothing(sql: &str) -> (String, usize) {
+    // INSERT INTO <table> (<cols>) … ON CONFLICT DO NOTHING（跨行、非贪婪）。
+    let pattern = regex_on_conflict_nothing();
+    let mut count = 0;
+    let result = pattern
+        .replace_all(sql, |caps: &regex::Captures| {
+            count += 1;
+            let columns = &caps["cols"];
+            let first = columns.split(',').next().map(str::trim).unwrap_or("id");
+            format!(
+                "INSERT INTO {} ({}){} ON DUPLICATE KEY UPDATE {} = EXCLUDED.{}",
+                &caps["table"],
+                columns,
+                caps.name("middle").map_or("", |m| m.as_str()),
+                first,
+                first
+            )
+        })
+        .into_owned();
+    (result, count)
+}
+
+fn rewrite_nulls_not_distinct_index(sql: &str) -> (String, usize) {
+    let pattern = regex_nnd_index();
+    let mut count = 0;
+    let result = pattern
+        .replace_all(sql, |caps: &regex::Captures| {
+            count += 1;
+            let partial = caps.name("where").map_or("", |m| m.as_str());
+            format!(
+                "CREATE UNIQUE INDEX {if_not_exists}{name} ON {table} ({coalesced}) {partial}",
+                if_not_exists = caps.name("ine").map_or("", |m| m.as_str()),
+                name = &caps["name"],
+                table = &caps["table"],
+                coalesced = coalesce_columns(&caps["cols"]),
+                partial = partial,
+            )
+        })
+        .into_owned();
+    (result, count)
+}
+
+fn rewrite_nulls_not_distinct_constraint(sql: &str) -> (String, usize) {
+    let pattern = regex_nnd_constraint();
+    let mut count = 0;
+    let result = pattern
+        .replace_all(sql, |caps: &regex::Captures| {
+            count += 1;
+            format!(
+                // 约束改写为索引；IF NOT EXISTS 保证重跑幂等（og 支持）。
+                "CREATE UNIQUE INDEX IF NOT EXISTS {name} ON {table} ({coalesced})",
+                name = &caps["name"],
+                table = &caps["table"],
+                coalesced = coalesce_columns(&caps["cols"]),
+            )
+        })
+        .into_owned();
+    (result, count)
+}
+
+// 正则在模块底部集中定义（regex crate 由 Cargo.toml 引入）。
+fn regex_on_conflict_update() -> regex::Regex {
+    regex::Regex::new(r"(?is)ON\s+CONFLICT(?:\s*\([^)]*\))*?\s+DO\s+UPDATE\s+SET\s+(?P<set>[^;]*)").unwrap()
+}
+
+fn regex_on_conflict_nothing() -> regex::Regex {
+    regex::Regex::new(r#"(?is)INSERT\s+INTO\s+(?P<table>[\w.]+)\s*\((?P<cols>[^)]*)\)(?P<middle>.*?)ON\s+CONFLICT\s+DO\s+NOTHING"#).unwrap()
+}
+
+fn regex_nnd_index() -> regex::Regex {
+    regex::Regex::new(r#"(?is)CREATE\s+UNIQUE\s+INDEX\s+(?P<ine>IF\s+NOT\s+EXISTS\s+)?(?P<name>[\w.]+)\s+ON\s+(?P<table>[\w.]+)\s*\((?P<cols>[^)]*)\)\s*NULLS\s+NOT\s+DISTINCT\s*(?P<where>WHERE[^;]*)?"#).unwrap()
+}
+
+fn regex_nnd_constraint() -> regex::Regex {
+    regex::Regex::new(r#"(?is)ALTER\s+TABLE\s+(?P<table>[\w.]+)[^;]*?ADD\s+CONSTRAINT\s+(?P<name>[\w.]+)\s+UNIQUE\s+NULLS\s+NOT\s+DISTINCT\s*\((?P<cols>[^)]*)\)"#).unwrap()
 }
 
 fn translate_dameng(source: &str) -> Translation {
@@ -419,6 +907,51 @@ mod tests {
             .findings
             .iter()
             .any(|finding| finding.category == Category::ForUpdate));
+    }
+
+    #[test]
+    fn opengauss_rewrites_on_conflict_forms() {
+        // DO UPDATE：目标列丢弃，SET 保留（EXCLUDED 在 openGauss 可用）
+        let source = "INSERT INTO t(a,b) SELECT x,y FROM u\n ON CONFLICT (id) DO UPDATE SET a=EXCLUDED.a;\n";
+        let translation = translate(Target::OpenGauss, source);
+        assert!(translation.sql.contains("ON DUPLICATE KEY UPDATE a=EXCLUDED.a"));
+        assert!(!translation.sql.contains("ON CONFLICT"));
+
+        // DO NOTHING：首列自赋值（openGauss 无 DO NOTHING）
+        let source = "INSERT INTO public.infra_port_rule (name,proto)\n VALUES ('a','tcp')\nON CONFLICT DO NOTHING;\n";
+        let translation = translate(Target::OpenGauss, source);
+        assert!(translation
+            .sql
+            .contains("ON DUPLICATE KEY UPDATE name = EXCLUDED.name"));
+        assert!(!translation.sql.contains("ON CONFLICT"));
+    }
+
+    #[test]
+    fn opengauss_rewrites_nulls_not_distinct_index() {
+        let source = "CREATE UNIQUE INDEX IF NOT EXISTS idx_t ON public.t(tenant_id,ip) NULLS NOT DISTINCT;\n";
+        let translation = translate(Target::OpenGauss, source);
+        assert!(translation.sql.contains(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_t ON public.t ((COALESCE(tenant_id::text, '\\x01OG_NULL')), (COALESCE(ip::text, '\\x01OG_NULL')))"
+        ));
+        assert!(!translation.sql.contains("NULLS NOT DISTINCT"));
+
+        // 带部分索引 WHERE 的形态（0037）
+        let source = "CREATE UNIQUE INDEX IF NOT EXISTS idx_c\n    ON public.c(tenant_id, instance_id, cloud_provider_config_id)\n    NULLS NOT DISTINCT\n    WHERE tenant_id IS NOT NULL AND deleted=0;\n";
+        let translation = translate(Target::OpenGauss, source);
+        assert!(translation.sql.contains("COALESCE(cloud_provider_config_id::text"));
+        assert!(translation.sql.contains("WHERE tenant_id IS NOT NULL AND deleted=0"));
+    }
+
+    #[test]
+    fn opengauss_rewrites_nulls_not_distinct_constraint() {
+        let source = "ALTER TABLE public.cmdb_instance_unique_value ADD CONSTRAINT cmdb_instance_unique_value_key UNIQUE NULLS NOT DISTINCT (tenant_id, model_id, value);\n";
+        let translation = translate(Target::OpenGauss, source);
+        assert!(translation.sql.contains(
+            "CREATE UNIQUE INDEX IF NOT EXISTS cmdb_instance_unique_value_key ON public.cmdb_instance_unique_value ((COALESCE(tenant_id::text"
+        ));
+        assert!(translation.sql.contains("COALESCE(value::text"));
+        assert!(!translation.sql.contains("NULLS NOT DISTINCT"));
+        assert!(!translation.sql.contains("ADD CONSTRAINT"));
     }
 
     #[test]

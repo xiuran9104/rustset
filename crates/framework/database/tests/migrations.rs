@@ -1,5 +1,30 @@
-use rustset_framework_database::{DatabaseConfig, connect, migrate};
+use rustset_framework_database::{DatabaseConfig, DatabaseFlavor, DbPool, connect, migrate};
 use sqlx::Row;
+
+/// 当前方言（脚本导出 DB_FLAVOR；默认 postgres）。
+fn flavor() -> DatabaseFlavor {
+    DatabaseFlavor::detect()
+}
+
+/// 重跑指定迁移文件（方言各自的版本），验证幂等性。
+/// openGauss 链含 LOCK TABLE，必须在事务块内执行。
+async fn rerun_migration_file(pool: &DbPool, file: &str) {
+    let path = format!(
+        "{}/../../../sql/{}/{}",
+        env!("CARGO_MANIFEST_DIR"),
+        flavor().migration_dir(),
+        file
+    );
+    let sql = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read {path}: {error}"));
+    let mut tx = pool.begin().await.expect("rerun transaction");
+    // 文件来自仓库内的方言迁移目录（受控输入）。
+    sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
+        .execute(&mut *tx)
+        .await
+        .unwrap_or_else(|error| panic!("rerun {file}: {error}"));
+    tx.commit().await.expect("rerun commit");
+}
 
 #[tokio::test]
 #[ignore = "run with script/test-database-migrations.sh"]
@@ -32,34 +57,21 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect network-policy risk linkage");
     assert_eq!(risk_source_columns, 3);
-    let unique_constraint: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'cmdb_instance_unique_value'::regclass AND conname = 'cmdb_instance_unique_value_key' AND contype = 'u')"
-    ).fetch_one(&pool).await.expect("CMDB unique-value constraint");
+    let unique_constraint: bool = if flavor() == DatabaseFlavor::OpenGauss {
+        // og 链把 UNIQUE NULLS NOT DISTINCT 约束改写为表达式唯一索引。
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname = 'cmdb_instance_unique_value_key')"
+        ).fetch_one(&pool).await.expect("CMDB unique-value index")
+    } else {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'cmdb_instance_unique_value'::regclass AND conname = 'cmdb_instance_unique_value_key' AND contype = 'u')"
+        ).fetch_one(&pool).await.expect("CMDB unique-value constraint")
+    };
     assert!(unique_constraint);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0026_cmdb_tenant_isolation.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun tenant isolation migration");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0027_asset_policy_tenants.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun asset and policy tenant migration");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0028_network_policy_port_risk.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun network-policy risk migration");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0029_asset_tenant_unique_ip.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun tenant asset uniqueness migration");
+    rerun_migration_file(&pool, "0026_cmdb_tenant_isolation.sql").await;
+    rerun_migration_file(&pool, "0027_asset_policy_tenants.sql").await;
+    rerun_migration_file(&pool, "0028_network_policy_port_risk.sql").await;
+    rerun_migration_file(&pool, "0029_asset_tenant_unique_ip.sql").await;
     let asset_unique_index: String = sqlx::query_scalar(
         "SELECT indexdef FROM pg_indexes
          WHERE schemaname='public' AND indexname='idx_asset_tenant_ip_unique'",
@@ -68,12 +80,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read tenant asset unique index");
     assert!(asset_unique_index.contains("tenant_id, ip"));
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0030_recoverable_scan_tasks.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun recoverable scan-task migration");
+    rerun_migration_file(&pool, "0030_recoverable_scan_tasks.sql").await;
     let task_queue_columns: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM information_schema.columns
          WHERE table_schema='public' AND table_name='infra_task'
@@ -91,9 +98,15 @@ async fn applies_all_migrations_to_empty_postgres() {
             .bind(table).fetch_one(&pool).await.unwrap();
         assert_eq!(nullable, "YES", "historical ownership must not be guessed");
     }
-    let definition: String = sqlx::query_scalar("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='cmdb_instance_unique_value'::regclass AND conname='cmdb_instance_unique_value_key'")
+    let definition: String = if flavor() == DatabaseFlavor::OpenGauss {
+        sqlx::query_scalar("SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND indexname='cmdb_instance_unique_value_key'")
+    } else {
+        sqlx::query_scalar("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='cmdb_instance_unique_value'::regclass AND conname='cmdb_instance_unique_value_key'")
+    }
         .fetch_one(&pool).await.unwrap();
-    assert!(definition.contains("tenant_id, model_id, value"));
+    assert!(definition.contains("tenant_id"), "definition: {definition}");
+    assert!(definition.contains("model_id"), "definition: {definition}");
+    assert!(definition.contains("value"), "definition: {definition}");
 
     let computed_expression_column: bool = sqlx::query_scalar(
         "SELECT EXISTS (
@@ -118,29 +131,16 @@ async fn applies_all_migrations_to_empty_postgres() {
     .expect("inspect attribute color column");
     assert!(attribute_color_column);
     let trigger_table: bool =
-        sqlx::query_scalar("SELECT to_regclass('public.cmdb_attribute_trigger') IS NOT NULL")
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='cmdb_attribute_trigger')",
+        )
             .fetch_one(&pool)
             .await
             .expect("inspect CMDB attribute trigger table");
     assert!(trigger_table);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0031_cmdb_computed_attributes.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun computed attributes migration");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0032_cmdb_attribute_color.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun attribute color migration");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0033_cmdb_attribute_triggers.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun attribute trigger migration");
+    rerun_migration_file(&pool, "0031_cmdb_computed_attributes.sql").await;
+    rerun_migration_file(&pool, "0032_cmdb_attribute_color.sql").await;
+    rerun_migration_file(&pool, "0033_cmdb_attribute_triggers.sql").await;
     // 0034 is deliberately not replayed: 0041 drops machine_room.provider_id,
     // so 0034's foreign-key recreation can no longer run on the final schema.
     for table in ["infra_service_provider", "infra_machine_room"] {
@@ -169,12 +169,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         room_provider_column.is_none(),
         "0041 must move provider attribution to the cloud zone"
     );
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0035_cloud_security_tenants.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun cloud and security tenant migration");
+    rerun_migration_file(&pool, "0035_cloud_security_tenants.sql").await;
     for table in [
         "infra_cloud_zone",
         "infra_cloud_platform",
@@ -205,12 +200,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect cloud/security tenant foreign keys");
     assert_eq!(tenant_reference_count, 6);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0036_business_application_tenants.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun business application tenant migration");
+    rerun_migration_file(&pool, "0036_business_application_tenants.sql").await;
     let endpoint_tenant_fk: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM pg_constraint
          WHERE conrelid='infra_application_endpoint'::regclass
@@ -220,12 +210,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect endpoint/application tenant foreign key");
     assert!(endpoint_tenant_fk);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0037_resource_ledger_tenants.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun resource ledger tenant migration");
+    rerun_migration_file(&pool, "0037_resource_ledger_tenants.sql").await;
     let ledger_tenant_columns: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM information_schema.columns
          WHERE table_schema='public' AND column_name='tenant_id'
@@ -242,13 +227,15 @@ async fn applies_all_migrations_to_empty_postgres() {
     .fetch_one(&pool)
     .await
     .expect("inspect tenant cloud discovery uniqueness");
-    assert!(discovery_unique_index.contains("NULLS NOT DISTINCT"));
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0038_approval_rule_tenants.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun approval rule tenant migration");
+    if flavor() == DatabaseFlavor::OpenGauss {
+        assert!(
+            discovery_unique_index.contains("COALESCE"),
+            "og expression index: {discovery_unique_index}"
+        );
+    } else {
+        assert!(discovery_unique_index.contains("NULLS NOT DISTINCT"));
+    }
+    rerun_migration_file(&pool, "0038_approval_rule_tenants.sql").await;
     let approval_rule_tenant_nullable: String = sqlx::query_scalar(
         "SELECT is_nullable FROM information_schema.columns
          WHERE table_schema='public' AND table_name='infra_approval_rule'
@@ -258,12 +245,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect approval rule tenant column");
     assert_eq!(approval_rule_tenant_nullable, "YES");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0039_ticket_idempotency.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun ticket idempotency migration");
+    rerun_migration_file(&pool, "0039_ticket_idempotency.sql").await;
     let ticket_idempotency_index: String = sqlx::query_scalar(
         "SELECT indexdef FROM pg_indexes WHERE schemaname='public'
          AND indexname='idx_resource_ticket_tenant_idempotency'",
@@ -272,12 +254,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect ticket idempotency index");
     assert!(ticket_idempotency_index.contains("tenant_id, idempotency_key"));
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0040_network_zone_tenants.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun network zone tenant migration");
+    rerun_migration_file(&pool, "0040_network_zone_tenants.sql").await;
     let network_zone_tenant_nullable: String = sqlx::query_scalar(
         "SELECT is_nullable FROM information_schema.columns
          WHERE table_schema='public' AND table_name='infra_network_zone'
@@ -296,12 +273,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect network zone tenant references");
     assert_eq!(network_zone_tenant_references, 2);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0041_cloud_zone_provider_room_zone.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun cloud zone provider and room zone migration");
+    rerun_migration_file(&pool, "0041_cloud_zone_provider_room_zone.sql").await;
     let zone_provider_tenant_fk: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM pg_constraint
          WHERE conrelid='infra_cloud_zone'::regclass
@@ -320,12 +292,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect machine room zone foreign key");
     assert!(room_zone_tenant_fk);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0042_physical_resource_rack_platform.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun physical resource rack and platform migration");
+    rerun_migration_file(&pool, "0042_physical_resource_rack_platform.sql").await;
     let physical_resource_platform_fk: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM pg_constraint
          WHERE conrelid='infra_physical_resource'::regclass
@@ -344,12 +311,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect physical resource rack columns");
     assert_eq!(physical_resource_rack_columns, 4);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0043_physical_resource_supplier.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun physical resource supplier migration");
+    rerun_migration_file(&pool, "0043_physical_resource_supplier.sql").await;
     let physical_resource_supplier: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM information_schema.columns
          WHERE table_schema='public' AND table_name='infra_physical_resource'
@@ -359,12 +321,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect physical resource supplier column");
     assert!(physical_resource_supplier);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0044_cloud_resource_platform.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun cloud resource platform migration");
+    rerun_migration_file(&pool, "0044_cloud_resource_platform.sql").await;
     let cloud_resource_platform_fk: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM pg_constraint
          WHERE conrelid='infra_cloud_resource'::regclass
@@ -374,12 +331,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect cloud resource platform foreign key");
     assert!(cloud_resource_platform_fk);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0045_drop_cloud_category_required.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun cloud category nullable migration");
+    rerun_migration_file(&pool, "0045_drop_cloud_category_required.sql").await;
     for table in ["infra_cloud_resource", "infra_physical_resource"] {
         let category_nullable: String = sqlx::query_scalar(
             "SELECT is_nullable FROM information_schema.columns
@@ -395,12 +347,7 @@ async fn applies_all_migrations_to_empty_postgres() {
             "cloud_category must no longer be required"
         );
     }
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0046_user_bindings.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun user binding migration");
+    rerun_migration_file(&pool, "0046_user_bindings.sql").await;
     let user_binding_columns: i64 = sqlx::query_scalar(
         "SELECT (SELECT count(*) FROM information_schema.columns
                  WHERE table_schema='public' AND table_name='infra_cloud_resource'
@@ -416,12 +363,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect user binding columns");
     assert_eq!(user_binding_columns, 3);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0047_ticket_project_customer.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun ticket project and customer migration");
+    rerun_migration_file(&pool, "0047_ticket_project_customer.sql").await;
     let ticket_structured_columns: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM information_schema.columns
          WHERE table_schema='public' AND table_name='infra_resource_ticket'
@@ -431,25 +373,15 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect ticket structured columns");
     assert_eq!(ticket_structured_columns, 2);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0048_ticket_attachments.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun ticket attachment migration");
+    rerun_migration_file(&pool, "0048_ticket_attachments.sql").await;
     let ticket_attachment_table: bool = sqlx::query_scalar(
-        "SELECT to_regclass('public.infra_resource_ticket_attachment') IS NOT NULL",
+        "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='infra_resource_ticket_attachment')",
     )
     .fetch_one(&pool)
     .await
     .expect("inspect ticket attachment table");
     assert!(ticket_attachment_table);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0049_ticket_expiry.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun ticket expiry migration");
+    rerun_migration_file(&pool, "0049_ticket_expiry.sql").await;
     let expiry_reminder_template: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_notify_template
          WHERE code='ticket_expire_reminder' AND deleted=0",
@@ -458,12 +390,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect expiry reminder template");
     assert!(expiry_reminder_template >= 1);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0050_menu_supply_ledger_split.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun menu restructure migration");
+    rerun_migration_file(&pool, "0050_menu_supply_ledger_split.sql").await;
     let supply_chain_parented: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
          WHERE id IN (30246, 30247, 30248) AND parent_id = 30340 AND deleted = 0",
@@ -487,12 +414,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect retired cloud center");
     assert_eq!(retired_cloud_center, 0);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0051_business_application_to_asset_center.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun business application migration");
+    rerun_migration_file(&pool, "0051_business_application_to_asset_center.sql").await;
     let biz_app_parented: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
          WHERE id = 30251 AND parent_id = 30342 AND deleted = 0",
@@ -508,12 +430,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect retired business center");
     assert_eq!(retired_biz_center, 0);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0052_application_ownership.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun application ownership migration");
+    rerun_migration_file(&pool, "0052_application_ownership.sql").await;
     let ownership_fks: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM pg_constraint WHERE conname IN (
             'infra_cloud_resource_application_tenant_fk',
@@ -535,12 +452,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect claim backfill");
     assert_eq!(unclaimed_by_name, 0, "按名称可认领的存量必须全部绑定");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0053_application_lifecycle.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun application lifecycle migration");
+    rerun_migration_file(&pool, "0053_application_lifecycle.sql").await;
     let app_status_column: String = sqlx::query_scalar(
         "SELECT data_type FROM information_schema.columns
          WHERE table_schema='public' AND table_name='infra_business_application'
@@ -559,12 +471,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect policy application foreign key");
     assert!(policy_application_fk);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0054_network_ticket_menu.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun network ticket menu migration");
+    rerun_migration_file(&pool, "0054_network_ticket_menu.sql").await;
     let network_ticket_menu: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu WHERE id = 30360 AND parent_id = 30344 AND deleted = 0 AND component = 'asset-ops/network-ticket/index'",
     )
@@ -572,12 +479,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect network ticket menu");
     assert_eq!(network_ticket_menu, 1);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0055_network_ticket_menu_order.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun menu order migration");
+    rerun_migration_file(&pool, "0055_network_ticket_menu_order.sql").await;
     let order_check: String = sqlx::query_scalar(
         "SELECT string_agg(name, ',' ORDER BY sort) FROM system_menu WHERE parent_id=30344 AND deleted=0",
     )
@@ -585,12 +487,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read ops-center menu order");
     assert_eq!(order_check, "资源工单,网络策略工单,审批规则,自动化配置");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0056_automation_config.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun automation config migration");
+    rerun_migration_file(&pool, "0056_automation_config.sql").await;
     let automation_types: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_automation_config WHERE deleted=0 AND tenant_id=1",
     )
@@ -599,26 +496,16 @@ async fn applies_all_migrations_to_empty_postgres() {
     .expect("inspect automation config");
     assert_eq!(automation_types, 2);
     let automation_audit_table: bool = sqlx::query_scalar(
-        "SELECT to_regclass('public.infra_automation_audit') IS NOT NULL",
+        "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='infra_automation_audit')",
     )
     .fetch_one(&pool)
     .await
     .expect("inspect audit table");
     assert!(automation_audit_table);
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0057_automation_config_menu.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun automation config menu migration");
-    sqlx::raw_sql(include_str!(
-        "../../../../sql/postgresql/0058_firewall_credential.sql"
-    ))
-    .execute(&pool)
-    .await
-    .expect("rerun firewall credential migration");
+    rerun_migration_file(&pool, "0057_automation_config_menu.sql").await;
+    rerun_migration_file(&pool, "0058_firewall_credential.sql").await;
     let credential_table: bool = sqlx::query_scalar(
-        "SELECT to_regclass('public.infra_automation_credential') IS NOT NULL",
+        "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='infra_automation_credential')",
     )
     .fetch_one(&pool)
     .await
@@ -661,7 +548,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     // dedicated page that reuses scan/risk/asset permissions.
     for inspection_table in ["infra_inspection_baseline", "infra_inspection_result"] {
         let exists: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            "SELECT to_regclass('public.{inspection_table}') IS NOT NULL"
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='{inspection_table}')"
         )))
         .fetch_one(&pool)
         .await
@@ -714,7 +601,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     // 0021 splits the mixed ledger table into typed cloud/physical tables.
     for split_table in ["infra_cloud_resource", "infra_physical_resource"] {
         let exists: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            "SELECT to_regclass('public.{split_table}') IS NOT NULL"
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='{split_table}')"
         )))
         .fetch_one(&pool)
         .await
@@ -722,7 +609,9 @@ async fn applies_all_migrations_to_empty_postgres() {
         assert!(exists, "expected table {split_table}");
     }
     let old_ledger_exists: bool =
-        sqlx::query_scalar("SELECT to_regclass('public.infra_business_resource') IS NOT NULL")
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='infra_business_resource')",
+        )
             .fetch_one(&pool)
             .await
             .expect("inspect retired ledger table");
@@ -872,7 +761,9 @@ async fn applies_all_migrations_to_empty_postgres() {
         "cmdb_admin must hold every cmdb permission"
     );
     let net_zone_table: bool =
-        sqlx::query_scalar("SELECT to_regclass('public.cmdb_net_zone') IS NOT NULL")
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='cmdb_net_zone')",
+        )
             .fetch_one(&pool)
             .await
             .expect("inspect net zone table");
@@ -937,7 +828,9 @@ async fn applies_all_migrations_to_empty_postgres() {
     .expect("inspect ticket apply tracking");
     assert!(apply_status_exists);
     let approval_rules_table: bool =
-        sqlx::query_scalar("SELECT to_regclass('public.infra_approval_rule') IS NOT NULL")
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='infra_approval_rule')",
+        )
             .fetch_one(&pool)
             .await
             .expect("inspect approval rule table");
@@ -950,7 +843,9 @@ async fn applies_all_migrations_to_empty_postgres() {
         "public.cmdb_instance",
         "public.cmdb_relation",
     ] {
-        let exists: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE (n.nspname || '.' || c.relname) = CASE WHEN $1 LIKE '%.%' THEN $1 ELSE 'public.' || $1 END)",
+        )
             .bind(cmdb_table)
             .fetch_one(&pool)
             .await
@@ -970,7 +865,9 @@ async fn applies_all_migrations_to_empty_postgres() {
 
     // 0008 drops the whole Toonflow media business.
     for removed_schema in ["toonflow", "toon", "media"] {
-        let schema_exists: bool = sqlx::query_scalar("SELECT to_regnamespace($1) IS NOT NULL")
+        let schema_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1)",
+        )
             .bind(removed_schema)
             .fetch_one(&pool)
             .await
@@ -987,7 +884,9 @@ async fn applies_all_migrations_to_empty_postgres() {
     assert_eq!(toon_menus, 0, "0008 must remove the 短剧工厂 menu subtree");
 
     let network_policy_exists: bool =
-        sqlx::query_scalar("SELECT to_regclass('public.infra_network_policy') IS NOT NULL")
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relname='infra_network_policy')",
+        )
             .fetch_one(&pool)
             .await
             .expect("inspect network policy table");
@@ -1063,7 +962,9 @@ async fn applies_all_migrations_to_empty_postgres() {
         "yudao_demo03_course",
         "yudao_demo03_grade",
     ] {
-        let exists: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE (n.nspname || '.' || c.relname) = CASE WHEN $1 LIKE '%.%' THEN $1 ELSE 'public.' || $1 END)",
+        )
             .bind(table)
             .fetch_one(&pool)
             .await
@@ -1071,7 +972,9 @@ async fn applies_all_migrations_to_empty_postgres() {
         assert!(exists, "expected table {table}");
     }
     for removed in ["toonflow.vendor_configs", "toonflow.model_prompts"] {
-        let exists: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE (n.nspname || '.' || c.relname) = CASE WHEN $1 LIKE '%.%' THEN $1 ELSE 'public.' || $1 END)",
+        )
             .bind(removed)
             .fetch_one(&pool)
             .await
@@ -1216,7 +1119,9 @@ async fn applies_all_migrations_to_empty_postgres() {
     assert_eq!(visible_upstream_branding, 0);
 
     let legacy_schema_exists: bool =
-        sqlx::query_scalar("SELECT to_regnamespace('system') IS NOT NULL")
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'system')",
+        )
             .fetch_one(&pool)
             .await
             .expect("inspect legacy schema");
