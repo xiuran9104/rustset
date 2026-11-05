@@ -17,6 +17,8 @@ export DB_FLAVOR="${DB_FLAVOR_ARG}"
 # never drops or recreates a caller-provided database.
 if [[ -n "${TEST_DATABASE_URL:-}" ]]; then
   cargo test -p rustset-framework-database --test migrations -- --ignored --nocapture
+  # 数据库合同测试（§4.1.7/§6.1 第二层）：同一套不变量在四种数据库上验证。
+  cargo test -p rustset-framework-database --test contract -- --ignored --nocapture
   exit 0
 fi
 
@@ -38,3 +40,6 @@ for _ in $(seq 1 30); do
 done
 export TEST_DATABASE_URL="postgres://rustset_test:rustset_test@127.0.0.1:${port}/rustset_test"
 cargo test -p rustset-framework-database --test migrations -- --ignored --nocapture
+# 数据库合同测试（§4.1.7/§6.1 第二层）：事务原子性、FOR UPDATE 互斥、
+# 锁超时分类、唯一/外键冲突分类、隔离级别、行读取类型集。
+cargo test -p rustset-framework-database --test contract -- --ignored --nocapture

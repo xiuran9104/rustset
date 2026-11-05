@@ -2549,6 +2549,8 @@ name = "rustset-framework-database"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
+ "serde_json",
  "sha2 0.10.9",
  "sqlx",
  "tokio",
