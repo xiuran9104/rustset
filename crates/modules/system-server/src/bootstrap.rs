@@ -304,141 +304,143 @@ pub async fn ensure_identity_uuids(state: &SystemState) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn sealing_secret() -> String {
-    std::env::var("SECRET_ENCRYPTION_KEY")
-        .or_else(|_| std::env::var("JWT_SECRET"))
-        .unwrap_or_else(|_| "rustset-local-secret".to_owned())
+/// Tables and columns that may hold sealed secrets, with their identifying
+/// key columns. Keep in sync with `seal_sensitive_payload` in
+/// management/compat.rs and the infra-server `seal_secret` call sites; the
+/// gateway `reseal-secrets` subcommand reuses this registry.
+pub const SEALED_COLUMNS: &[(&str, &[&str], &[&str])] = &[
+    ("system_mail_account", &["id"], &["password"]),
+    ("system_sms_channel", &["id"], &["api_key", "api_secret"]),
+    ("system_oauth2_client", &["id"], &["secret"]),
+    ("system_social_client", &["id"], &["client_secret"]),
+    ("infra_data_source_config", &["id"], &["password"]),
+    (
+        "infra_cloud_provider_config",
+        &["id"],
+        &["access_key_id", "access_key_secret"],
+    ),
+    ("infra_automation_credential", &["id", "tenant_id"], &["api_password"]),
+];
+
+/// Row key of a sealed value: `id` plus the optional tenant part used by
+/// composite primary keys.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SealedRowKey {
+    pub id: i64,
+    pub tenant_id: Option<i64>,
 }
 
-/// One-shot startup pass: convert surviving legacy XOR `enc:v1:` sealed values
-/// to SM4-CBC. Runs on every start and does nothing once no `enc:v1:` rows
-/// remain. Values that cannot be decoded (e.g. sealed under a different key)
-/// are left untouched and counted.
-async fn reseal_legacy_secrets(state: &SystemState) -> anyhow::Result<()> {
-    use rustset_framework_gm as gm;
+/// Startup re-seal pass (信创方案 §4.4.2、§7.2):
+///
+/// * `enc:v1:` legacy XOR rows always convert — to v3 when a master key ring
+///   is configured, else to v2 (the historical behavior);
+/// * `enc:sm4:v2:` rows convert to v3 **only** while the ring is present, so
+///   a database migration and the cipher upgrade never change at once;
+/// * undecodable rows stay untouched and are counted once. The pass runs in
+///   bounded batches, is idempotent, and never wraps all history in one
+///   transaction.
+pub async fn reseal_legacy_secrets(state: &SystemState) -> anyhow::Result<()> {
+    let provider = rustset_framework_gm::secrets::SealingSecrets::from_env()
+        .map_err(|error| anyhow::anyhow!("failed to load sealing secrets: {error}"))?;
+    if provider.uses_master_key() {
+        info!(
+            key_version = provider.active_key_version().unwrap_or(0),
+            "sealing master key ring active; legacy sealed values upgrade to v3"
+        );
+    }
+    let (converted, skipped) = reseal_sealed_columns(&state.pool, &provider, 200).await?;
+    if converted > 0 || skipped > 0 {
+        info!(converted, skipped, "re-sealed legacy secrets");
+    }
+    Ok(())
+}
 
-    let secret = sealing_secret();
-    let reseal = |sealed: &str| -> Option<String> {
-        let plain = gm::legacy_v1_open(sealed, &secret)?;
-        gm::sm4_seal(&plain, &secret).ok()
-    };
+/// Batch conversion shared with the gateway `reseal-secrets` subcommand.
+/// Returns `(converted, skipped)`; failures leave the row untouched so reruns
+/// only process the remaining backlog (信创方案 §4.4.2.3).
+pub async fn reseal_sealed_columns(
+    pool: &rustset_framework_database::DbPool,
+    provider: &rustset_framework_gm::secrets::SealingSecrets,
+    batch_size: i64,
+) -> anyhow::Result<(usize, usize)> {
+    use sqlx::Row as _;
+    use std::collections::HashSet;
+
+    let include_v2 = provider.uses_master_key();
     let mut converted = 0usize;
     let mut skipped = 0usize;
 
-    let mail_rows: Vec<(i64, String)> = sqlx::query_as(
-        "SELECT id, password FROM system_mail_account WHERE password LIKE 'enc:v1:%'",
-    )
-    .fetch_all(&state.pool)
-    .await
-    .context("failed to list legacy mail secrets")?;
-    for (id, sealed) in mail_rows {
-        match reseal(&sealed) {
-            Some(resealed) => {
-                sqlx::query("UPDATE system_mail_account SET password = $2 WHERE id = $1")
-                    .bind(id)
-                    .bind(resealed)
-                    .execute(&state.pool)
+    for (table, key_columns, columns) in SEALED_COLUMNS {
+        let composite = key_columns.len() > 1;
+        for column in *columns {
+            let predicate = if include_v2 {
+                format!("({column} LIKE 'enc:v1:%' OR {column} LIKE 'enc:sm4:v2:%')")
+            } else {
+                format!("{column} LIKE 'enc:v1:%'")
+            };
+            // rows that failed to convert once are skipped for this run so a
+            // partially stuck backlog cannot loop forever
+            let mut stuck: HashSet<SealedRowKey> = HashSet::new();
+            loop {
+                let select = format!(
+                    "SELECT id{tenant_part} , {column} FROM {table} WHERE {predicate} LIMIT {batch_size}",
+                    tenant_part = if composite { ", tenant_id" } else { "" },
+                );
+                let rows = sqlx::query(sqlx::AssertSqlSafe(select))
+                    .fetch_all(pool)
                     .await
-                    .context("failed to re-seal mail secret")?;
-                converted += 1;
+                    .with_context(|| format!("failed to list legacy secrets in {table}.{column}"))?;
+                if rows.is_empty() {
+                    break;
+                }
+                let mut progress = 0usize;
+                for row in &rows {
+                    let id: i64 = row.get("id");
+                    let tenant_id = if composite {
+                        row.get::<Option<i64>, _>("tenant_id")
+                    } else {
+                        None
+                    };
+                    let key = SealedRowKey { id, tenant_id };
+                    if stuck.contains(&key) {
+                        continue;
+                    }
+                    let Some(sealed) = row.get::<Option<String>, _>(column) else {
+                        continue;
+                    };
+                    match provider.upgrade_sealed(&sealed) {
+                        Ok(Some(resealed)) => {
+                            let update = if composite {
+                                format!("UPDATE {table} SET {column} = $3 WHERE id = $1 AND tenant_id = $2")
+                            } else {
+                                format!("UPDATE {table} SET {column} = $2 WHERE id = $1")
+                            };
+                            let mut query = sqlx::query(sqlx::AssertSqlSafe(update)).bind(id);
+                            if composite {
+                                query = query.bind(tenant_id);
+                            }
+                            query
+                                .bind(resealed)
+                                .execute(pool)
+                                .await
+                                .with_context(|| format!("failed to re-seal {table}.{column}"))?;
+                            converted += 1;
+                            progress += 1;
+                        }
+                        Ok(None) => {
+                            // v2 without a master key: expected no-op, not a failure
+                        }
+                        Err(_) => {
+                            stuck.insert(key);
+                            skipped += 1;
+                        }
+                    }
+                }
+                if progress == 0 {
+                    break;
+                }
             }
-            None => skipped += 1,
         }
     }
-
-    let sms_rows: Vec<(i64, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT id, api_key, api_secret FROM system_sms_channel
-         WHERE api_key LIKE 'enc:v1:%' OR api_secret LIKE 'enc:v1:%'",
-    )
-    .fetch_all(&state.pool)
-    .await
-    .context("failed to list legacy sms secrets")?;
-    for (id, api_key, api_secret) in sms_rows {
-        let key = match api_key.as_deref() {
-            Some(value) if value.starts_with(gm::LEGACY_SEALED_PREFIX) => reseal(value),
-            other => other.map(str::to_owned),
-        };
-        let api_key = match key {
-            Some(value) => value,
-            None => {
-                skipped += 1;
-                continue;
-            }
-        };
-        let api_secret = match api_secret.as_deref() {
-            Some(value) if value.starts_with(gm::LEGACY_SEALED_PREFIX) => reseal(value),
-            other => other.map(str::to_owned),
-        }
-        .unwrap_or_default();
-        sqlx::query("UPDATE system_sms_channel SET api_key = $2, api_secret = $3 WHERE id = $1")
-            .bind(id)
-            .bind(api_key)
-            .bind(api_secret)
-            .execute(&state.pool)
-            .await
-            .context("failed to re-seal sms secret")?;
-        converted += 1;
-    }
-
-    let datasource_rows: Vec<(i64, String)> = sqlx::query_as(
-        "SELECT id, password FROM infra_data_source_config WHERE password LIKE 'enc:v1:%'",
-    )
-    .fetch_all(&state.pool)
-    .await
-    .context("failed to list legacy datasource secrets")?;
-    for (id, sealed) in datasource_rows {
-        match reseal(&sealed) {
-            Some(resealed) => {
-                sqlx::query("UPDATE infra_data_source_config SET password = $2 WHERE id = $1")
-                    .bind(id)
-                    .bind(resealed)
-                    .execute(&state.pool)
-                    .await
-                    .context("failed to re-seal datasource secret")?;
-                converted += 1;
-            }
-            None => skipped += 1,
-        }
-    }
-
-    let cloud_rows: Vec<(i64, String, String)> = sqlx::query_as(
-        "SELECT id, access_key_id, access_key_secret FROM infra_cloud_provider_config
-         WHERE access_key_id LIKE 'enc:v1:%' OR access_key_secret LIKE 'enc:v1:%'",
-    )
-    .fetch_all(&state.pool)
-    .await
-    .context("failed to list legacy cloud credentials")?;
-    for (id, key_id, key_secret) in cloud_rows {
-        let key = if key_id.starts_with(gm::LEGACY_SEALED_PREFIX) {
-            reseal(&key_id)
-        } else {
-            Some(key_id)
-        };
-        let secret_value = if key_secret.starts_with(gm::LEGACY_SEALED_PREFIX) {
-            reseal(&key_secret)
-        } else {
-            Some(key_secret)
-        };
-        match (key, secret_value) {
-            (Some(key), Some(secret_value)) => {
-                sqlx::query(
-                    "UPDATE infra_cloud_provider_config
-                     SET access_key_id = $2, access_key_secret = $3 WHERE id = $1",
-                )
-                .bind(id)
-                .bind(key)
-                .bind(secret_value)
-                .execute(&state.pool)
-                .await
-                .context("failed to re-seal cloud credentials")?;
-                converted += 1;
-            }
-            _ => skipped += 1,
-        }
-    }
-
-    if converted > 0 || skipped > 0 {
-        info!(converted, skipped, "re-sealed legacy secrets to SM4");
-    }
-    Ok(())
+    Ok((converted, skipped))
 }

@@ -1,3 +1,4 @@
+use rustset_framework_database::{DbConnectOptions, DbPool, DbPoolOptions};
 use super::*;
 use serde_json::json;
 
@@ -100,14 +101,13 @@ fn validation_rejects_invalid_or_empty_required_defaults() {
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
 async fn concurrent_writes_and_delete_rollback() {
-    use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
     use std::{
         str::FromStr,
         time::{Duration, SystemTime, UNIX_EPOCH},
     };
 
     let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
-    let admin = PgPool::connect(&url).await.unwrap();
+    let admin = DbPool::connect(&url).await.unwrap();
     let schema = format!(
         "cmdb_test_{}",
         SystemTime::now()
@@ -119,10 +119,10 @@ async fn concurrent_writes_and_delete_rollback() {
         .execute(&admin)
         .await
         .unwrap();
-    let options = PgConnectOptions::from_str(&url)
+    let options = DbConnectOptions::from_str(&url)
         .unwrap()
         .options([("search_path", schema.as_str())]);
-    let pool = PgPoolOptions::new()
+    let pool = DbPoolOptions::new()
         .max_connections(8)
         .connect_with(options)
         .await

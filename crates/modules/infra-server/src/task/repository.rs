@@ -1,6 +1,7 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use rustset_infra_api::ScanTaskResponse;
-use sqlx::{PgPool, Row, postgres::PgRow};
+use sqlx::{Row, postgres::PgRow};
+use rustset_framework_database::{DbPool};
 
 const SELECT_TASK: &str = "SELECT id,name,target,status,start_time,end_time,found_assets,
     found_risks,port_policy,domain_brute,service_detection,os_detection,site_identify,
@@ -45,7 +46,7 @@ fn response(row: PgRow) -> ScanTaskResponse {
     }
 }
 
-pub(crate) async fn count(pool: &PgPool, tenant_id: i64) -> Result<i64, sqlx::Error> {
+pub(crate) async fn count(pool: &DbPool, tenant_id: i64) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar("SELECT count(*) FROM infra_task WHERE tenant_id=$1 AND deleted=0")
         .bind(tenant_id)
         .fetch_one(pool)
@@ -53,7 +54,7 @@ pub(crate) async fn count(pool: &PgPool, tenant_id: i64) -> Result<i64, sqlx::Er
 }
 
 pub(crate) async fn page(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     limit: i64,
     offset: i64,
@@ -71,7 +72,7 @@ pub(crate) async fn page(
 }
 
 pub(crate) async fn list(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
 ) -> Result<Vec<ScanTaskResponse>, sqlx::Error> {
     let query = format!("{SELECT_TASK} WHERE tenant_id=$1 AND deleted=0 ORDER BY create_time DESC");
@@ -83,7 +84,7 @@ pub(crate) async fn list(
 }
 
 pub(crate) async fn list_kind(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     task_kind: &str,
 ) -> Result<Vec<ScanTaskResponse>, sqlx::Error> {
@@ -99,7 +100,7 @@ pub(crate) async fn list_kind(
 }
 
 pub(crate) async fn get(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     id: &str,
 ) -> Result<Option<ScanTaskResponse>, sqlx::Error> {

@@ -1,10 +1,12 @@
 //! Tenant-scoped ticket access. The owner is supplied by authentication, never
 //! copied from the request; it remains stable for later provisioning retries.
+#[cfg(test)]
+use rustset_framework_database::{DbConnectOptions, DbPoolOptions};
 use super::*;
 use rustset_framework_tenant::TenantContext;
-use sqlx::PgPool;
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 
-pub(super) async fn get(pool: &PgPool, tenant: &TenantContext, id: i64) -> Result<Value, AppError> {
+pub(super) async fn get(pool: &DbPool, tenant: &TenantContext, id: i64) -> Result<Value, AppError> {
     let value = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_resource_ticket t WHERE id=$1 AND tenant_id=$2 AND deleted=0")
         .bind(id).bind(tenant.id()).fetch_optional(pool).await
         .map_err(|_| AppError::internal("failed to read ticket"))?
@@ -13,7 +15,7 @@ pub(super) async fn get(pool: &PgPool, tenant: &TenantContext, id: i64) -> Resul
 }
 
 pub(super) async fn page(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     params: QueryParams,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
@@ -33,7 +35,7 @@ pub(super) async fn page(
 }
 
 pub(super) async fn create(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     payload: Value,
 ) -> Result<(Json<ApiResponse<String>>, bool), AppError> {
@@ -75,7 +77,7 @@ pub(super) async fn create(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "INSERT INTO infra_resource_ticket ({}) SELECT {values} FROM jsonb_populate_record(NULL::infra_resource_ticket, $1::jsonb) r
+        "INSERT INTO infra_resource_ticket ({}) SELECT {values} FROM jsonb_populate_record(NULL::infra_resource_ticket, $1) r
          ON CONFLICT(tenant_id,idempotency_key) WHERE deleted=0 AND idempotency_key IS NOT NULL
          DO UPDATE SET update_time=infra_resource_ticket.update_time
          RETURNING id, (xmax = 0) AS inserted",
@@ -90,7 +92,7 @@ pub(super) async fn create(
 }
 
 pub(super) async fn update(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     payload: Value,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -114,7 +116,7 @@ pub(super) async fn update(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "UPDATE infra_resource_ticket t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::infra_resource_ticket, $2::jsonb) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0"
+        "UPDATE infra_resource_ticket t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::infra_resource_ticket, $2) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0"
     );
     let result = sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(id)
@@ -130,15 +132,23 @@ pub(super) async fn update(
 }
 
 pub(super) async fn delete(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     ids: &[i64],
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     if ids.is_empty() || ids.iter().any(|id| *id <= 0) {
         return Err(AppError::bad_request("ids are required"));
     }
-    sqlx::query("UPDATE infra_resource_ticket SET deleted=1, update_time=now() WHERE id=ANY($1) AND tenant_id=$2 AND deleted=0")
-        .bind(ids).bind(tenant.id()).execute(pool).await.map_err(|_| AppError::internal("failed to delete tickets"))?;
+    let placeholders = expand_in_placeholders(ids, 1);
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE infra_resource_ticket SET deleted=1, update_time=now() WHERE id IN ({placeholders}) AND tenant_id=${index} AND deleted=0",
+        index = ids.len() + 1,
+    )))
+    .bind_in(ids)
+    .bind(tenant.id())
+    .execute(pool)
+    .await
+    .map_err(|_| AppError::internal("failed to delete tickets"))?;
     Ok(Json(ApiResponse::new(())))
 }
 
@@ -148,10 +158,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires TEST_DATABASE_URL and PostgreSQL CREATEDB permission"]
     async fn crud_never_accepts_a_request_tenant_or_cross_tenant_id() {
-        use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
         use std::str::FromStr;
         let url = std::env::var("TEST_DATABASE_URL").unwrap();
-        let admin = PgPool::connect(&url).await.unwrap();
+        let admin = DbPool::connect(&url).await.unwrap();
         let database = format!("ticket_tenant_{}", uuid::Uuid::new_v4().simple());
         sqlx::query(sqlx::AssertSqlSafe(format!(
             "CREATE DATABASE {database} TEMPLATE template0 ENCODING 'UTF8'"
@@ -159,9 +168,9 @@ mod tests {
         .execute(&admin)
         .await
         .unwrap();
-        let pool = PgPoolOptions::new()
+        let pool = DbPoolOptions::new()
             .connect_with(
-                PgConnectOptions::from_str(&url)
+                DbConnectOptions::from_str(&url)
                     .unwrap()
                     .database(&database),
             )

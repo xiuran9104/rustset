@@ -5,6 +5,7 @@ use axum::{
     extract::{Query, State},
     middleware::from_fn_with_state,
 };
+use rustset_framework_database::DbPool;
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::{CurrentUser, DataScope, authenticate};
 use rustset_framework_web::AppError;
@@ -98,7 +99,7 @@ async fn tenant_by_website(
                 )
          FROM system_tenant
          WHERE deleted = 0 AND status = 0
-           AND ($1 = '' OR $1 = ANY(string_to_array(websites, ',')))
+           AND ($1 = '' OR (','||websites||',') LIKE ('%,'||$1||',%'))
          ORDER BY id
          LIMIT 1",
     )
@@ -202,7 +203,7 @@ struct AuthorizedMenuRow {
 }
 
 async fn authorized_menus(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     user_id: &str,
 ) -> Result<Vec<AuthorizedMenuRow>, AppError> {
     sqlx::query_as::<_, AuthorizedMenuRow>(
@@ -250,11 +251,11 @@ async fn authorized_menus(
                      )
                  )
              )
-         WHERE u.identity_uuid = $1::uuid
+         WHERE u.identity_uuid = $1
            AND u.deleted = 0 AND u.status = 0
          ORDER BY m.id",
     )
-    .bind(user_id)
+    .bind(uuid::Uuid::parse_str(user_id).unwrap_or_default())
     .fetch_all(pool)
     .await
     .map_err(|_| AppError::internal("failed to load authorized menus"))
@@ -269,11 +270,11 @@ async fn permission_info(
                     'id', id, 'nickname', nickname, 'avatar', avatar,
                     'deptId', dept_id, 'username', username, 'email', email)
          FROM system_users
-         WHERE identity_uuid = $1::uuid AND deleted = 0
+         WHERE identity_uuid = $1 AND deleted = 0
          ORDER BY id
          LIMIT 1",
     )
-    .bind(&user.user_id)
+    .bind(uuid::Uuid::parse_str(&user.user_id).unwrap_or_default())
     .fetch_optional(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to load user profile"))?

@@ -17,7 +17,8 @@ use rustset_infra_api::{
     SaveInspectionBaselineRequest, ScanTaskResponse,
 };
 use serde_json::json;
-use sqlx::{PgPool, Row};
+use sqlx::{Row};
+use rustset_framework_database::{DbPool};
 use std::{
     collections::BTreeSet,
     net::{IpAddr, SocketAddr},
@@ -86,7 +87,7 @@ async fn run(
 }
 
 pub(crate) async fn start_scan(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: TenantContext,
     operator: &str,
     request: RunInspectionRequest,
@@ -182,7 +183,7 @@ fn differences(
         .collect()
 }
 
-async fn registered(pool: &PgPool, tenant: &TenantContext, ip: &str) -> Result<bool, sqlx::Error> {
+async fn registered(pool: &DbPool, tenant: &TenantContext, ip: &str) -> Result<bool, sqlx::Error> {
     // Compare normalized IPs in Rust too: IPv6 has multiple equivalent spellings
     // and ledger columns may hold comma-separated lists.
     let candidates: Vec<String> = sqlx::query_scalar(
@@ -201,7 +202,7 @@ async fn registered(pool: &PgPool, tenant: &TenantContext, ip: &str) -> Result<b
 }
 
 pub(crate) async fn execute_queued(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     task: &str,
     lease_owner: &str,
@@ -233,7 +234,7 @@ pub(crate) async fn execute_queued(
 }
 
 async fn save_observation(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     task: &str,
     ip: IpAddr,
@@ -309,7 +310,8 @@ async fn save_observation(
 }
 
 fn db_error(error: sqlx::Error) -> AppError {
-    tracing::error!(?error, "inspection database error");
+    let error = rustset_framework_database::DbError::from(error);
+    tracing::error!(%error, "inspection database error");
     AppError::internal("资产核查数据操作失败")
 }
 
@@ -336,7 +338,7 @@ async fn results(
 }
 
 pub(crate) async fn load_results(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     task_id: &str,
 ) -> Result<Vec<InspectionResultResponse>, AppError> {

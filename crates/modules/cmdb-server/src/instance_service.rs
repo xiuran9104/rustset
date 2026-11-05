@@ -7,13 +7,12 @@ use rustset_cmdb_api::AttrType;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use serde_json::{Map, Value};
-use sqlx::{PgPool, Row};
+use sqlx::{Row};
+use rustset_framework_database::{BindIn, DbError, DbPool, expand_in_placeholders};
 use std::collections::BTreeMap;
 
 pub(crate) fn mutation_error(error: sqlx::Error, fallback: &str) -> AppError {
-    if error.as_database_error().is_some_and(|error| {
-        error.is_unique_violation() && error.constraint() == Some("cmdb_instance_unique_value_key")
-    }) {
+    if DbError::from(error).is_unique_violation_on("cmdb_instance_unique_value_key") {
         return AppError::bad_request("unique key already has an instance with this value");
     }
     AppError::internal(fallback)
@@ -481,7 +480,7 @@ async fn enforce_unique_key(
     };
     let duplicate: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM cmdb_instance
-         WHERE model_id = $1 AND deleted = 0 AND id <> $2 AND attributes->$3 = $4::jsonb AND tenant_id = $5",
+         WHERE model_id = $1 AND deleted = 0 AND id <> $2 AND attributes->$3 = $4 AND tenant_id = $5",
     )
     .bind(model.id)
     .bind(instance_id.unwrap_or(0))
@@ -520,7 +519,7 @@ pub(crate) async fn lock_model(
 }
 
 pub(crate) async fn create(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     model_id: i64,
     attributes: Map<String, Value>,
@@ -551,7 +550,7 @@ pub(crate) async fn create(
 /// The row number is retained so an atomic import can report the failing Excel
 /// row without committing any preceding rows.
 pub(crate) async fn create_many(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     model_id: i64,
     rows: Vec<(usize, Map<String, Value>)>,
@@ -607,7 +606,7 @@ pub(crate) async fn create_many(
 }
 
 pub(crate) async fn update(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     id: i64,
     attributes: Map<String, Value>,
@@ -651,7 +650,7 @@ pub(crate) async fn update(
 }
 
 pub(crate) async fn batch_update(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     ids: &[i64],
     attributes: Map<String, Value>,
@@ -665,11 +664,15 @@ pub(crate) async fn batch_update(
 
     // Read the owning model first, then acquire the model lock used by every
     // CMDB writer. Instance rows are locked only after the model lock.
+    let placeholders = expand_in_placeholders(&ids, 1);
     let model_ids: Vec<i64> = sqlx::query_scalar(
-        "SELECT model_id FROM cmdb_instance
-         WHERE id = ANY($1) AND tenant_id = $2 AND deleted = 0 ORDER BY id",
+        sqlx::AssertSqlSafe(format!(
+            "SELECT model_id FROM cmdb_instance
+             WHERE id IN ({placeholders}) AND tenant_id = ${index} AND deleted = 0 ORDER BY id",
+            index = ids.len() + 1,
+        )),
     )
-    .bind(&ids)
+    .bind_in(&ids)
     .bind(tenant.id())
     .fetch_all(&mut *tx)
     .await
@@ -687,12 +690,14 @@ pub(crate) async fn batch_update(
     }
 
     let model = lock_model(&mut tx, model_id).await?;
-    let rows = sqlx::query(
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
         "SELECT id, attributes FROM cmdb_instance
-         WHERE id = ANY($1) AND model_id = $2 AND tenant_id = $3 AND deleted = 0
+         WHERE id IN ({placeholders}) AND model_id = ${model} AND tenant_id = ${tenant} AND deleted = 0
          ORDER BY id FOR UPDATE",
-    )
-    .bind(&ids)
+        model = ids.len() + 1,
+        tenant = ids.len() + 2,
+    )))
+    .bind_in(&ids)
     .bind(model_id)
     .bind(tenant.id())
     .fetch_all(&mut *tx)
@@ -743,7 +748,7 @@ pub(crate) async fn batch_update(
         let result = sqlx::query(
             "UPDATE cmdb_instance AS instance
              SET attributes = change.attributes, updater = $2, update_time = now()
-             FROM jsonb_to_recordset($1::jsonb) AS change(id bigint, attributes jsonb)
+             FROM jsonb_to_recordset($1) AS change(id bigint, attributes jsonb)
              WHERE instance.id = change.id AND instance.model_id = $3 AND instance.tenant_id = $4 AND instance.deleted = 0",
         )
         .bind(Value::Array(changes.clone()))
@@ -808,19 +813,23 @@ async fn validate_batch_unique_key(
     if values.is_empty() {
         return Ok(());
     }
-    let conflict: bool = sqlx::query_scalar(
+    let conflict: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT EXISTS(
             SELECT 1 FROM cmdb_instance AS instance
-            WHERE instance.model_id = $1 AND instance.tenant_id = $5 AND instance.deleted = 0
-              AND NOT (instance.id = ANY($2))
+            WHERE instance.model_id = $1 AND instance.tenant_id = ${tenant_index} AND instance.deleted = 0
+              AND instance.id NOT IN ({id_placeholders})
               AND EXISTS (
-                  SELECT 1 FROM jsonb_array_elements($4::jsonb) AS candidate(value)
-                  WHERE instance.attributes->$3 = candidate.value
+                  SELECT 1 FROM jsonb_array_elements(${values_index}::jsonb) AS candidate(value)
+                  WHERE instance.attributes->${key_index} = candidate.value
               )
          )",
-    )
+        id_placeholders = expand_in_placeholders(ids, 2),
+        key_index = ids.len() + 2,
+        values_index = ids.len() + 3,
+        tenant_index = ids.len() + 4,
+    )))
     .bind(model.id)
-    .bind(ids)
+    .bind_in(ids)
     .bind(key)
     .bind(Value::Array(values))
     .bind(tenant.id())
@@ -850,7 +859,7 @@ pub(crate) fn parse_ids(raw: &str) -> Result<Vec<i64>, AppError> {
 }
 
 pub(crate) async fn delete(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     ids: &[i64],
     actor: &str,
@@ -864,30 +873,41 @@ pub(crate) async fn delete(
         .await
         .map_err(|_| AppError::internal("failed to start delete"))?;
     // Match create/update ordering and the database registry triggers.
-    sqlx::query(
-        "SELECT id FROM cmdb_model WHERE id IN (SELECT model_id FROM cmdb_instance WHERE id = ANY($1) AND tenant_id = $2 AND deleted = 0) ORDER BY id FOR UPDATE",
-    )
-    .bind(ids)
+    let placeholders = expand_in_placeholders(ids, 1);
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT id FROM cmdb_model WHERE id IN (SELECT model_id FROM cmdb_instance WHERE id IN ({placeholders}) AND tenant_id = ${index} AND deleted = 0) ORDER BY id FOR UPDATE",
+        index = ids.len() + 1,
+    )))
+    .bind_in(ids)
     .bind(tenant.id())
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to lock models"))?;
     // Lock in ID order so overlapping bulk requests cannot reverse lock order.
-    sqlx::query(
-        "SELECT id FROM cmdb_instance WHERE id = ANY($1) AND tenant_id = $2 AND deleted = 0 ORDER BY id FOR UPDATE",
-    )
-    .bind(ids)
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT id FROM cmdb_instance WHERE id IN ({placeholders}) AND tenant_id = ${index} AND deleted = 0 ORDER BY id FOR UPDATE",
+        index = ids.len() + 1,
+    )))
+    .bind_in(ids)
     .bind(tenant.id())
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::internal("failed to lock instances"))?;
-    let result = sqlx::query("UPDATE cmdb_instance SET deleted = 1, updater = $2, update_time = now() WHERE id = ANY($1) AND tenant_id = $3 AND deleted = 0")
-        .bind(ids).bind(actor).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to delete instances"))?;
+    let result = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE cmdb_instance SET deleted = 1, updater = ${updater}, update_time = now() WHERE id IN ({placeholders}) AND tenant_id = ${tenant_index} AND deleted = 0",
+        updater = ids.len() + 1,
+        tenant_index = ids.len() + 2,
+    )))
+        .bind_in(ids).bind(actor).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to delete instances"))?;
     if require_existing && result.rows_affected() == 0 {
         return Err(AppError::not_found("instance not found"));
     }
-    sqlx::query("UPDATE cmdb_relation SET deleted = 1, updater = $2 WHERE deleted = 0 AND tenant_id = $3 AND (source_id = ANY($1) OR target_id = ANY($1))")
-        .bind(ids).bind(actor).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to detach relations"))?;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE cmdb_relation SET deleted = 1, updater = ${updater} WHERE deleted = 0 AND tenant_id = ${tenant_index} AND (source_id IN ({placeholders}) OR target_id IN ({placeholders}))",
+        updater = ids.len() + 1,
+        tenant_index = ids.len() + 2,
+    )))
+        .bind_in(ids).bind(actor).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to detach relations"))?;
     tx.commit()
         .await
         .map_err(|_| AppError::internal("failed to commit delete"))?;

@@ -1,3 +1,4 @@
+use rustset_framework_database::{BindIn, expand_in_placeholders};
 use crate::{InfraState, QueryParams};
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -149,9 +150,13 @@ async fn delete_list(
     if ids.is_empty() {
         return Err(AppError::bad_request("ids are required"));
     }
-    sqlx::query("UPDATE infra_network_zone SET deleted=1, update_time=now() WHERE id=ANY($1) AND tenant_id=$2 AND deleted=0")
-        .bind(&ids)
-        .bind(tenant.id())
+    let placeholders = expand_in_placeholders(&ids, 1);
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE infra_network_zone SET deleted=1, update_time=now() WHERE id IN ({placeholders}) AND tenant_id=${index} AND deleted=0",
+        index = ids.len() + 1,
+    )))
+    .bind_in(&ids)
+    .bind(tenant.id())
         .execute(&state.pool)
         .await
         .map_err(|error| crate::record_query_error("delete network zones", error))?;

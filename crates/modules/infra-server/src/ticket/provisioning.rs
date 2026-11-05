@@ -1,3 +1,6 @@
+use rustset_framework_database::DbPool;
+#[cfg(test)]
+use rustset_framework_database::{DbConnectOptions, DbPoolOptions};
 use crate::InfraState;
 use chrono::Utc;
 use rustset_framework_tenant::TenantContext;
@@ -98,7 +101,7 @@ pub(super) async fn apply_resource_side_effect(
 /// 回收后联动归档：应用名下在用云资源、物理资源、端点全部为零时，
 /// 应用置为已归档，其网络策略一并归档（记录保留，设备侧删除是独立动作）。
 async fn archive_application_if_drained(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     target: i64,
     physical: bool,
@@ -178,7 +181,7 @@ async fn archive_application_if_drained(
 
 /// 资源绑定已归档应用时复活：应用与名下策略回到在用。
 pub(super) async fn resurrect_application_if_archived(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     application_id: i64,
 ) {
@@ -617,7 +620,7 @@ async fn upsert_cmdb_instance(
                 && !value.as_array().is_some_and(|a| a.is_empty())
         }) {
             let duplicate: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM cmdb_instance WHERE model_id=$1 AND deleted=0 AND attributes->>'ticket_id' IS DISTINCT FROM $2 AND attributes->$3 = $4::jsonb AND tenant_id=$5)"
+                "SELECT EXISTS(SELECT 1 FROM cmdb_instance WHERE model_id=$1 AND deleted=0 AND attributes->>'ticket_id' IS DISTINCT FROM $2 AND attributes->$3 = $4 AND tenant_id=$5)"
             ).bind(model_id).bind(ticket_id.to_string()).bind(key).bind(value).bind(tenant.id())
                 .fetch_one(&mut *tx).await.map_err(|_| AppError::internal("failed to check provisioned CMDB unique key"))?;
             if duplicate {
@@ -688,20 +691,19 @@ mod provision_tests {
     #[tokio::test]
     #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
     async fn concurrent_cmdb_upserts_reuse_model_and_instance() {
-        use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
         use std::str::FromStr;
 
         let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
-        let admin = sqlx::PgPool::connect(&url).await.unwrap();
+        let admin = DbPool::connect(&url).await.unwrap();
         let schema = format!("cmdb_provision_test_{}", uuid::Uuid::new_v4().simple());
         sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
             .execute(&admin)
             .await
             .unwrap();
-        let options = PgConnectOptions::from_str(&url)
+        let options = DbConnectOptions::from_str(&url)
             .unwrap()
             .options([("search_path", schema.as_str())]);
-        let pool = PgPoolOptions::new()
+        let pool = DbPoolOptions::new()
             .max_connections(5)
             .connect_with(options)
             .await

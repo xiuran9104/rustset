@@ -1,6 +1,7 @@
+use rustset_framework_database::DbTransaction;
 use anyhow::Context;
 use chrono::{Duration, Utc};
-use rustset_framework_database::PgPool;
+use rustset_framework_database::DbPool;
 use sqlx::FromRow;
 use uuid::Uuid;
 
@@ -20,7 +21,7 @@ struct RefreshTokenRow {
 }
 
 pub async fn create_token_pair(
-    pool: &PgPool,
+    pool: &DbPool,
     user_id: Uuid,
     access_token: &str,
     access_token_ttl_seconds: u64,
@@ -89,7 +90,7 @@ pub async fn create_token_pair(
     Ok(refresh_token)
 }
 
-pub async fn verify_refresh_token(pool: &PgPool, token: &str) -> Result<Uuid, TokenError> {
+pub async fn verify_refresh_token(pool: &DbPool, token: &str) -> Result<Uuid, TokenError> {
     sqlx::query_as::<_, RefreshTokenRow>(
         "SELECT users.identity_uuid AS user_id
          FROM system_oauth2_refresh_token token
@@ -111,7 +112,7 @@ pub async fn verify_refresh_token(pool: &PgPool, token: &str) -> Result<Uuid, To
     .ok_or(TokenError::Invalid)
 }
 
-pub async fn revoke_refresh_token(pool: &PgPool, token: &str) -> Result<Uuid, TokenError> {
+pub async fn revoke_refresh_token(pool: &DbPool, token: &str) -> Result<Uuid, TokenError> {
     let user_id = verify_refresh_token(pool, token).await?;
     let mut transaction = pool.begin().await.map_err(|_| TokenError::Internal)?;
     sqlx::query(
@@ -140,7 +141,7 @@ pub async fn revoke_refresh_token(pool: &PgPool, token: &str) -> Result<Uuid, To
 }
 
 pub async fn revoke_user_tokens(
-    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    transaction: &mut DbTransaction<'_>,
     user_id: i64,
 ) -> anyhow::Result<()> {
     sqlx::query(

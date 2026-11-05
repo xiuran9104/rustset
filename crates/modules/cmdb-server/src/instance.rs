@@ -83,7 +83,7 @@ async fn instance_page(
     let total: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM cmdb_instance
          WHERE model_id = $1 AND tenant_id = $3 AND deleted = 0
-           AND ($2::text IS NULL OR attributes::text ILIKE $2)",
+           AND ($2::text IS NULL OR UPPER(attributes::text) LIKE UPPER($2))",
     )
     .bind(params.model_id)
     .bind(&keyword)
@@ -95,7 +95,7 @@ async fn instance_page(
         "SELECT id, model_id, attributes, create_time, update_time
          FROM cmdb_instance
          WHERE model_id = $1 AND tenant_id = $5 AND deleted = 0
-           AND ($2::text IS NULL OR attributes::text ILIKE $2)
+           AND ($2::text IS NULL OR UPPER(attributes::text) LIKE UPPER($2))
          ORDER BY id DESC LIMIT $3 OFFSET $4",
     )
     .bind(params.model_id)

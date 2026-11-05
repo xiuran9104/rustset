@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow};
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
+use chrono::{TimeDelta, Utc};
 use std::{net::IpAddr, sync::Arc, time::Duration};
 use tokio::{sync::Semaphore, task::JoinSet, time};
 use uuid::Uuid;
@@ -28,7 +30,7 @@ struct ScanPayload {
     ports: Vec<i32>,
 }
 
-pub(super) fn start(pool: PgPool) {
+pub(super) fn start(pool: DbPool) {
     let concurrency = std::env::var("SCAN_WORKER_CONCURRENCY")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
@@ -70,7 +72,7 @@ pub(super) fn start(pool: PgPool) {
     });
 }
 
-async fn claim(pool: &PgPool, worker_id: &str) -> Result<Option<Job>, sqlx::Error> {
+async fn claim(pool: &DbPool, worker_id: &str) -> Result<Option<Job>, sqlx::Error> {
     sqlx::query_as::<_, Job>(
         "WITH candidate AS (
              SELECT id FROM infra_task
@@ -80,7 +82,7 @@ async fn claim(pool: &PgPool, worker_id: &str) -> Result<Option<Job>, sqlx::Erro
              FOR UPDATE SKIP LOCKED LIMIT 1
          )
          UPDATE infra_task task SET status='running',lease_owner=$1,
-             lease_expires_at=now()+make_interval(secs => $2),heartbeat_at=now(),
+             lease_expires_at=$2,heartbeat_at=now(),
              attempt_count=attempt_count+1,start_time=COALESCE(start_time,now()::text),
              end_time=NULL,error_message=NULL,completed_targets=0,
              found_assets=0,found_risks=0,update_time=now()
@@ -89,12 +91,12 @@ async fn claim(pool: &PgPool, worker_id: &str) -> Result<Option<Job>, sqlx::Erro
              task.max_attempts,task.timeout_seconds,task.created_by",
     )
     .bind(worker_id)
-    .bind(LEASE_SECONDS as i32)
+    .bind(Utc::now() + TimeDelta::try_seconds(LEASE_SECONDS).unwrap_or_default())
     .fetch_optional(pool)
     .await
 }
 
-async fn recover_expired(pool: &PgPool) -> Result<(), sqlx::Error> {
+async fn recover_expired(pool: &DbPool) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE infra_task SET
              status=CASE
@@ -107,7 +109,7 @@ async fn recover_expired(pool: &PgPool) -> Result<(), sqlx::Error> {
                  ELSE '执行租约过期，等待重试' END,
              next_attempt_at=CASE
                  WHEN attempt_count < max_attempts AND NOT cancel_requested
-                 THEN now()+interval '5 seconds' ELSE next_attempt_at END,
+                 THEN $1 ELSE next_attempt_at END,
              end_time=CASE
                  WHEN cancel_requested OR attempt_count >= max_attempts THEN now()::text
                  ELSE NULL END,
@@ -115,12 +117,14 @@ async fn recover_expired(pool: &PgPool) -> Result<(), sqlx::Error> {
          WHERE task_kind IN ('scan','inspection','asset_discovery') AND status='running' AND deleted=0
            AND lease_expires_at < now()",
     )
+    // chrono-computed replacement for `now()+interval '5 seconds'` (§4.1.2)
+    .bind(Utc::now() + TimeDelta::try_seconds(5).unwrap_or_default())
     .execute(pool)
     .await?;
     Ok(())
 }
 
-async fn run_claimed(pool: PgPool, owner: String, job: Job) {
+async fn run_claimed(pool: DbPool, owner: String, job: Job) {
     let timeout = Duration::from_secs(job.timeout_seconds.max(1) as u64);
     let outcome = time::timeout(timeout, execute_job(&pool, &owner, &job)).await;
     let result = match outcome {
@@ -162,7 +166,7 @@ async fn run_claimed(pool: PgPool, owner: String, job: Job) {
             if let Err(error) = sqlx::query(
                 "UPDATE infra_task SET status=$3,error_message=$4,
                      next_attempt_at=CASE WHEN $3='retrying'
-                         THEN now()+make_interval(secs => $5) ELSE next_attempt_at END,
+                         THEN $5 ELSE next_attempt_at END,
                      end_time=CASE WHEN $3='failed' THEN now()::text ELSE NULL END,
                      lease_owner=NULL,lease_expires_at=NULL,update_time=now()
                  WHERE id=$1 AND lease_owner=$2 AND status='running'",
@@ -171,7 +175,7 @@ async fn run_claimed(pool: PgPool, owner: String, job: Job) {
             .bind(&owner)
             .bind(status)
             .bind(reason)
-            .bind(delay as i32)
+            .bind(Utc::now() + TimeDelta::try_seconds(delay).unwrap_or_default())
             .execute(&pool)
             .await
             {
@@ -181,7 +185,7 @@ async fn run_claimed(pool: PgPool, owner: String, job: Job) {
     }
 }
 
-async fn execute_job(pool: &PgPool, owner: &str, job: &Job) -> Result<(i32, i32), String> {
+async fn execute_job(pool: &DbPool, owner: &str, job: &Job) -> Result<(i32, i32), String> {
     let payload: ScanPayload = serde_json::from_value(job.payload.clone())
         .map_err(|_| "任务参数无效，无法恢复执行".to_owned())?;
     if payload.target_ips.is_empty()
@@ -214,7 +218,7 @@ async fn execute_job(pool: &PgPool, owner: &str, job: &Job) -> Result<(i32, i32)
 }
 
 async fn execute_scan(
-    pool: &PgPool,
+    pool: &DbPool,
     owner: &str,
     job: &Job,
     payload: ScanPayload,
@@ -259,15 +263,28 @@ async fn execute_scan(
             save_discovered_asset(pool, job, ip, &open_ports).await?;
         }
     }
+    // With no observed keys the old `NOT (key = ANY('{}'))` resolved every
+    // matching row; an empty NOT IN list would instead match none, so the
+    // exclusion clause is dropped entirely.
+    let exclusion = if observed_risk_keys.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " AND inspection_key NOT IN ({})",
+            expand_in_placeholders(&observed_risk_keys, 3)
+        )
+    };
     sqlx::query(
-        "UPDATE infra_risk SET status='resolved',update_time=now()
-         WHERE tenant_id=$1 AND source_type='scan_task' AND deleted=0
-           AND inspection_key LIKE $2 AND NOT (inspection_key = ANY($3))
-           AND status NOT IN ('ignored','false_positive','resolved')",
-    )
+        sqlx::AssertSqlSafe(format!(
+            "UPDATE infra_risk SET status='resolved',update_time=now()
+             WHERE tenant_id=$1 AND source_type='scan_task' AND deleted=0
+               AND inspection_key LIKE $2{exclusion}
+               AND status NOT IN ('ignored','false_positive','resolved')",
+        ),
+    ))
     .bind(job.tenant_id)
     .bind(format!("task_scan:{}:%", job.id))
-    .bind(&observed_risk_keys)
+    .bind_in(&observed_risk_keys)
     .execute(pool)
     .await
     .map_err(|error| error.to_string())?;
@@ -275,7 +292,7 @@ async fn execute_scan(
 }
 
 async fn save_discovered_asset(
-    pool: &PgPool,
+    pool: &DbPool,
     job: &Job,
     ip: IpAddr,
     open_ports: &[i32],
@@ -290,7 +307,7 @@ async fn save_discovered_asset(
     sqlx::query(
         "INSERT INTO infra_asset
             (name,ip,zone,ports,last_scanned,created_by,updated_by,creator,updater,tenant_id)
-         VALUES($1,$2,'discovered',$3,to_char(now(),'YYYY-MM-DD HH24:MI:SS'),$4,$4,$4,$4,$5)
+         VALUES($1,$2,'discovered',$3,$6,$4,$4,$4,$4,$5)
          ON CONFLICT(tenant_id,ip) WHERE deleted=0 AND tenant_id IS NOT NULL
          DO UPDATE SET ports=EXCLUDED.ports,last_scanned=EXCLUDED.last_scanned,
              updated_by=EXCLUDED.updated_by,updater=EXCLUDED.updater,update_time=now(),
@@ -302,13 +319,14 @@ async fn save_discovered_asset(
     .bind(ports)
     .bind(&job.created_by)
     .bind(job.tenant_id)
+    .bind(Utc::now().format("%Y-%m-%d %H:%M:%S").to_string())
     .execute(pool)
     .await
     .map_err(|error| error.to_string())?;
     Ok(())
 }
 
-pub(crate) async fn ensure_active(pool: &PgPool, owner: &str, task_id: &str) -> Result<(), String> {
+pub(crate) async fn ensure_active(pool: &DbPool, owner: &str, task_id: &str) -> Result<(), String> {
     let state: Option<(bool,)> = sqlx::query_as(
         "SELECT cancel_requested FROM infra_task
          WHERE id=$1 AND lease_owner=$2 AND status='running'",
@@ -325,15 +343,15 @@ pub(crate) async fn ensure_active(pool: &PgPool, owner: &str, task_id: &str) -> 
     }
 }
 
-pub(crate) async fn renew_lease(pool: &PgPool, owner: &str, task_id: &str) -> Result<(), String> {
+pub(crate) async fn renew_lease(pool: &DbPool, owner: &str, task_id: &str) -> Result<(), String> {
     let affected = sqlx::query(
         "UPDATE infra_task SET heartbeat_at=now(),
-             lease_expires_at=now()+make_interval(secs => $3),update_time=now()
+             lease_expires_at=$3,update_time=now()
          WHERE id=$1 AND lease_owner=$2 AND status='running' AND cancel_requested=false",
     )
     .bind(task_id)
     .bind(owner)
-    .bind(LEASE_SECONDS as i32)
+    .bind(Utc::now() + TimeDelta::try_seconds(LEASE_SECONDS).unwrap_or_default())
     .execute(pool)
     .await
     .map_err(|error| error.to_string())?
@@ -346,7 +364,7 @@ pub(crate) async fn renew_lease(pool: &PgPool, owner: &str, task_id: &str) -> Re
 }
 
 async fn save_open_port_risk(
-    pool: &PgPool,
+    pool: &DbPool,
     job: &Job,
     ip: IpAddr,
     port: i32,
@@ -374,7 +392,7 @@ async fn save_open_port_risk(
     Ok(())
 }
 
-async fn finish_cancelled(pool: &PgPool, owner: &str, task_id: &str) -> Result<(), sqlx::Error> {
+async fn finish_cancelled(pool: &DbPool, owner: &str, task_id: &str) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE infra_task SET status='cancelled',error_message='任务已取消',
              end_time=now()::text,lease_owner=NULL,lease_expires_at=NULL,update_time=now()
@@ -409,7 +427,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires TEST_DATABASE_URL with the latest migrations"]
     async fn claims_idempotently_probes_and_recovers_an_expired_lease() {
-        let pool = PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
+        let pool = DbPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
             .await
             .unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

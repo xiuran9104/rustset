@@ -1,6 +1,6 @@
 use anyhow::{Context, anyhow};
 use chrono::{DateTime, Utc};
-use rustset_framework_database::PgPool;
+use rustset_framework_database::DbPool;
 use rustset_framework_security::{CurrentUser, DataScope, Permission, PermissionSet};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -27,7 +27,7 @@ pub fn identity_uuid_for(user_id: i64) -> Uuid {
 }
 
 pub async fn find_account_by_username(
-    pool: &PgPool,
+    pool: &DbPool,
     username: &str,
     tenant_id: Option<i64>,
 ) -> anyhow::Result<Option<UserAccount>> {
@@ -61,7 +61,7 @@ pub async fn find_account_by_username(
 }
 
 pub async fn find_account_by_id(
-    pool: &PgPool,
+    pool: &DbPool,
     user_id: Uuid,
 ) -> anyhow::Result<Option<UserAccount>> {
     sqlx::query_as::<_, UserAccount>(
@@ -84,7 +84,7 @@ pub async fn find_account_by_id(
 }
 
 pub async fn record_failed_login(
-    pool: &PgPool,
+    pool: &DbPool,
     user_id: Uuid,
     failed_attempts: i32,
     lock_until: Option<DateTime<Utc>>,
@@ -98,7 +98,7 @@ pub async fn record_failed_login(
     Ok(())
 }
 
-pub async fn record_successful_login(pool: &PgPool, user_id: Uuid) -> anyhow::Result<()> {
+pub async fn record_successful_login(pool: &DbPool, user_id: Uuid) -> anyhow::Result<()> {
     sqlx::query(
         "UPDATE system_users source
          SET login_date = now(), update_time = now()
@@ -119,7 +119,7 @@ struct RolePermissionRow {
 }
 
 pub async fn load_current_user(
-    pool: &PgPool,
+    pool: &DbPool,
     account: &UserAccount,
 ) -> anyhow::Result<CurrentUser> {
     let rows = sqlx::query_as::<_, RolePermissionRow>(

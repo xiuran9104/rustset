@@ -1,3 +1,4 @@
+use chrono::{TimeDelta, Utc};
 use std::fs;
 
 use axum::{Json, extract::State};
@@ -140,8 +141,10 @@ pub(super) async fn traces(
                 coalesce(avg(duration), 0)::float8 AS average_duration,
                 coalesce(max(duration), 0)::bigint AS maximum_duration
          FROM infra_api_access_log
-         WHERE deleted=0 AND create_time >= now()-interval '24 hours'",
+         WHERE deleted=0 AND create_time >= $1",
     )
+    // chrono-computed replacement for `now()-interval '24 hours'` (§4.1.2)
+    .bind(Utc::now().naive_utc() - TimeDelta::try_hours(24).unwrap_or_default())
     .fetch_one(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to read trace summary"))?;
@@ -152,8 +155,8 @@ pub(super) async fn traces(
                 coalesce(request_url, '') AS request_url,
                 duration, coalesce(result_code, 0) AS result_code,
                 coalesce(result_msg, '') AS result_msg,
-                coalesce(to_char(begin_time, 'YYYY-MM-DD HH24:MI:SS.MS'), '') AS begin_time,
-                coalesce(to_char(end_time, 'YYYY-MM-DD HH24:MI:SS.MS'), '') AS end_time
+                begin_time,
+                end_time
          FROM infra_api_access_log WHERE deleted=0
          ORDER BY create_time DESC LIMIT 100",
     )
@@ -174,8 +177,15 @@ pub(super) async fn traces(
             "durationMs": row.get::<i32, _>("duration"),
             "status": row.get::<i32, _>("result_code"),
             "message": row.get::<String, _>("result_msg"),
-            "startedAt": row.get::<String, _>("begin_time"),
-            "endedAt": row.get::<String, _>("end_time")
+            "startedAt": format_timestamp(row.get::<Option<chrono::NaiveDateTime>, _>("begin_time")),
+            "endedAt": format_timestamp(row.get::<Option<chrono::NaiveDateTime>, _>("end_time"))
         })).collect::<Vec<_>>()
     }))))
+}
+
+/// Portability replacement for `to_char(ts, 'YYYY-MM-DD HH24:MI:SS.MS')` (§4.1.2).
+fn format_timestamp(value: Option<chrono::NaiveDateTime>) -> String {
+    value
+        .map(|ts| ts.format("%Y-%m-%d %H:%M:%S%.3f").to_string())
+        .unwrap_or_default()
 }

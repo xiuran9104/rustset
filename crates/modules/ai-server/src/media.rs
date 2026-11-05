@@ -6,6 +6,7 @@ use axum::{
     extract::{Query, State},
 };
 use rustset_ai_api::ImageRequest;
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
@@ -29,7 +30,7 @@ pub fn routes() -> ApiRouter<AiState> {
         .api_route("/ai/music/update", put(music_update))
         .api_route("/ai/music/delete", delete(music_delete))
 }
-pub(crate) fn spawn_music_sync(pool: sqlx::PgPool, factory: AiModelFactory) {
+pub(crate) fn spawn_music_sync(pool: DbPool, factory: AiModelFactory) {
     let Ok(handle) = tokio::runtime::Handle::try_current() else {
         return;
     };
@@ -47,7 +48,7 @@ fn text_at<'a>(v: &'a Value, paths: &[&str]) -> Option<&'a str> {
         .find_map(|p| v.pointer(p).and_then(Value::as_str))
 }
 async fn sync_one_music(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     factory: &AiModelFactory,
     id: i64,
     model_id: i64,
@@ -138,11 +139,30 @@ async fn sync_one_music(
     Ok(())
 }
 async fn sync_pending_music(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     factory: &AiModelFactory,
     ids: Option<&[i64]>,
 ) -> Result<Vec<i64>, AppError> {
-    let rows=sqlx::query("SELECT id,model_id,task_id,poll_count FROM ai.music WHERE status=10 AND task_id IS NOT NULL AND ($1::bigint[] IS NULL OR id=ANY($1)) ORDER BY coalesce(last_poll_time,0) LIMIT 50").bind(ids).fetch_all(pool).await.map_err(|_|AppError::internal("读取待同步音乐失败"))?;
+    // Portable replacement for `($1::bigint[] IS NULL OR id=ANY($1))`; an
+    // empty slice keeps `id = ANY('{}')` semantics (matches nothing).
+    let (id_filter, bind_ids) = match ids {
+        None => (String::new(), None),
+        Some([]) => (" AND id IN (NULL)".to_owned(), None),
+        Some(list) => (
+            format!(" AND id IN ({})", expand_in_placeholders(list, 1)),
+            Some(list),
+        ),
+    };
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT id,model_id,task_id,poll_count FROM ai.music WHERE status=10 AND task_id IS NOT NULL{id_filter} ORDER BY coalesce(last_poll_time,0) LIMIT 50"
+    )));
+    if let Some(list) = bind_ids {
+        query = query.bind_in(list);
+    }
+    let rows = query
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::internal("读取待同步音乐失败"))?;
     let mut synced = Vec::new();
     for row in rows {
         let id = row.get("id");
@@ -322,8 +342,12 @@ async fn image_ids(
         .split(',')
         .filter_map(|x| x.parse().ok())
         .collect::<Vec<i64>>();
-    let rows = sqlx::query("SELECT * FROM ai.images WHERE id=ANY($1) AND user_id=$2")
-        .bind(ids)
+    let placeholders = expand_in_placeholders(&ids, 1);
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT * FROM ai.images WHERE id IN ({placeholders}) AND user_id=${index}",
+        index = ids.len() + 1,
+    )))
+        .bind_in(&ids)
         .bind(&u.user_id)
         .fetch_all(&s.pool)
         .await

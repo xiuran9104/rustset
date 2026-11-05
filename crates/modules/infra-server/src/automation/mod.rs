@@ -5,7 +5,7 @@
 pub(crate) mod firewall;
 pub(crate) mod vendors;
 
-use sqlx::PgPool;
+use rustset_framework_database::DbPool;
 use std::time::Instant;
 
 #[derive(Debug, Clone)]
@@ -37,7 +37,7 @@ pub enum AutomationDecision {
 
 /// 读取指定类型的自动化配置（租户隔离）。
 pub async fn load_config(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     automation_type: &str,
 ) -> Option<AutomationConfig> {
@@ -72,7 +72,7 @@ pub async fn load_config(
 /// 3. 熔断触发   → 拒绝自动
 /// 4. 其余       → 自动
 pub async fn decide(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     automation_type: &str,
 ) -> AutomationDecision {
@@ -93,7 +93,7 @@ pub async fn decide(
 /// 写审计记录：每次决策（执行/跳过/失败/熔断）都留痕。
 #[allow(clippy::too_many_arguments)] // 审计字段数量由业务决定
 pub async fn audit(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     automation_type: &str,
     ticket_id: Option<i64>,
@@ -119,7 +119,7 @@ pub async fn audit(
 }
 
 /// 成功后重置熔断计数。
-pub async fn on_success(pool: &PgPool, tenant_id: i64, automation_type: &str) {
+pub async fn on_success(pool: &DbPool, tenant_id: i64, automation_type: &str) {
     let _ = sqlx::query(
         "UPDATE infra_automation_config
          SET circuit_breaker_count=0, circuit_breaker_tripped=0,
@@ -133,7 +133,7 @@ pub async fn on_success(pool: &PgPool, tenant_id: i64, automation_type: &str) {
 }
 
 /// 失败后累加计数，达到阈值自动熔断。
-pub async fn on_failure(pool: &PgPool, tenant_id: i64, automation_type: &str, error: &str) {
+pub async fn on_failure(pool: &DbPool, tenant_id: i64, automation_type: &str, error: &str) {
     let _ = sqlx::query(
         "UPDATE infra_automation_config
          SET circuit_breaker_count = circuit_breaker_count + 1,

@@ -555,13 +555,13 @@ async fn policies_by_ip(
                     traffic_direction, action, applicant, application_date,
                     'source'::text AS relation
              FROM infra_network_policy
-             WHERE deleted = 0 AND tenant_id = $3 AND source_ip ILIKE $1
+             WHERE deleted = 0 AND tenant_id = $3 AND UPPER(source_ip) LIKE UPPER($1)
              UNION ALL
              SELECT id, firewall_name, source_ip, destination_ip, service_port,
                     traffic_direction, action, applicant, application_date,
                     'destination'::text
              FROM infra_network_policy
-             WHERE deleted = 0 AND tenant_id = $3 AND destination_ip ILIKE $1
+             WHERE deleted = 0 AND tenant_id = $3 AND UPPER(destination_ip) LIKE UPPER($1)
          ) matched
          ORDER BY id LIMIT $2",
     )

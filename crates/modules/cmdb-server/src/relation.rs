@@ -1,6 +1,8 @@
 //! CMDB relations between configuration items: bind, unbind, and lookup in
 //! both directions.
 
+#[cfg(test)]
+use rustset_framework_database::{DbConnectOptions, DbPoolOptions};
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post};
 use axum::{
@@ -8,6 +10,7 @@ use axum::{
     extract::{Query, State},
 };
 use rustset_cmdb_api::BindRelationRequest;
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
@@ -55,7 +58,7 @@ fn topology_bounds(depth: Option<u8>, limit: Option<usize>) -> Result<(u8, usize
 }
 
 async fn instance_exists(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     id: i64,
 ) -> Result<bool, AppError> {
@@ -120,7 +123,7 @@ async fn relation_topology(
 }
 
 async fn load_topology(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     root_id: i64,
     max_depth: u8,
@@ -141,21 +144,33 @@ async fn load_topology(
         }
         let seen_edges: Vec<i64> = edges.iter().copied().collect();
         let remaining_edges = edge_limit - edges.len();
-        let rows = sqlx::query(
+        // `NOT (id = ANY('{}'))` on the first hop matches everything; an empty
+        // NOT IN list would match nothing, so the exclusion clause is dropped.
+        let seen_filter = if seen_edges.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " AND relation.id NOT IN ({})",
+                expand_in_placeholders(&seen_edges, frontier.len() + 2)
+            )
+        };
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT relation.id, relation.source_id, relation.target_id
              FROM cmdb_relation AS relation
              JOIN cmdb_instance AS source
                ON source.id = relation.source_id AND source.tenant_id = relation.tenant_id AND source.deleted = 0
              JOIN cmdb_instance AS target
                ON target.id = relation.target_id AND target.tenant_id = relation.tenant_id AND target.deleted = 0
-             WHERE relation.tenant_id = $4 AND relation.deleted = 0
-               AND (relation.source_id = ANY($1) OR relation.target_id = ANY($1))
-               AND NOT (relation.id = ANY($2))
+             WHERE relation.tenant_id = ${tenant_index} AND relation.deleted = 0
+               AND (relation.source_id IN ({frontier_placeholders}) OR relation.target_id IN ({frontier_placeholders})){seen_filter}
              ORDER BY relation.id
-             LIMIT $3",
-        )
-        .bind(&frontier)
-        .bind(&seen_edges)
+             LIMIT ${limit_index}",
+            frontier_placeholders = expand_in_placeholders(&frontier, 1),
+            limit_index = frontier.len() + 1,
+            tenant_index = frontier.len() + 2,
+        )))
+        .bind_in(&frontier)
+        .bind_in(&seen_edges)
         .bind((remaining_edges + 1) as i64)
         .bind(tenant.id())
         .fetch_all(pool)
@@ -189,19 +204,22 @@ async fn load_topology(
     }
 
     let node_ids: Vec<i64> = node_depths.keys().copied().collect();
-    let edge_rows = sqlx::query(
+    let edge_rows = sqlx::query(sqlx::AssertSqlSafe(format!(
         "SELECT relation.id, relation.source_id, relation.target_id, relation.relation
          FROM cmdb_relation AS relation
          JOIN cmdb_instance AS source
            ON source.id = relation.source_id AND source.tenant_id = relation.tenant_id AND source.deleted = 0
          JOIN cmdb_instance AS target
            ON target.id = relation.target_id AND target.tenant_id = relation.tenant_id AND target.deleted = 0
-         WHERE relation.tenant_id = $3 AND relation.deleted = 0
-           AND relation.source_id = ANY($1) AND relation.target_id = ANY($1)
+         WHERE relation.tenant_id = ${tenant_index} AND relation.deleted = 0
+           AND relation.source_id IN ({placeholders}) AND relation.target_id IN ({placeholders})
          ORDER BY relation.id
-         LIMIT $2",
-    )
-    .bind(&node_ids)
+         LIMIT ${limit_index}",
+        placeholders = expand_in_placeholders(&node_ids, 1),
+        limit_index = node_ids.len() + 1,
+        tenant_index = node_ids.len() + 2,
+    )))
+    .bind_in(&node_ids)
     .bind((edge_limit + 1) as i64)
     .bind(tenant.id())
     .fetch_all(pool)
@@ -222,15 +240,17 @@ async fn load_topology(
             })
         })
         .collect();
-    let rows = sqlx::query(
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
         "SELECT instance.id, instance.model_id, instance.attributes,
                 model.name AS model_name, model.code AS model_code, model.unique_key
          FROM cmdb_instance AS instance
          JOIN cmdb_model AS model ON model.id = instance.model_id AND model.deleted = 0
-         WHERE instance.id = ANY($1) AND instance.tenant_id = $2 AND instance.deleted = 0
+         WHERE instance.id IN ({placeholders}) AND instance.tenant_id = ${index} AND instance.deleted = 0
          ORDER BY instance.id",
-    )
-    .bind(&node_ids)
+        placeholders = expand_in_placeholders(&node_ids, 1),
+        index = node_ids.len() + 1,
+    )))
+    .bind_in(&node_ids)
     .bind(tenant.id())
     .fetch_all(pool)
     .await
@@ -311,8 +331,8 @@ async fn relation_bind(
         .await
         .map_err(|_| AppError::internal("failed to start relation bind"))?;
     // Endpoint row locks also serialize overlapping binds and instance deletes.
-    let endpoints = sqlx::query("SELECT id FROM cmdb_instance WHERE id = ANY($1) AND tenant_id = $2 AND deleted = 0 ORDER BY id FOR UPDATE")
-        .bind(vec![source_id, target_id]).bind(tenant.id()).fetch_all(&mut *tx).await
+    let endpoints = sqlx::query("SELECT id FROM cmdb_instance WHERE id IN ($1, $2) AND tenant_id = $3 AND deleted = 0 ORDER BY id FOR UPDATE")
+        .bind(source_id).bind(target_id).bind(tenant.id()).fetch_all(&mut *tx).await
         .map_err(|_| AppError::internal("failed to lock relation endpoints"))?;
     if endpoints.len() != 2 {
         return Err(AppError::not_found("instance not found"));
@@ -406,14 +426,13 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
     async fn topology_is_cycle_safe_depth_bounded_and_excludes_deleted_endpoints() {
-        use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
         use std::{
             str::FromStr,
             time::{SystemTime, UNIX_EPOCH},
         };
 
         let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
-        let admin = sqlx::PgPool::connect(&url).await.unwrap();
+        let admin = DbPool::connect(&url).await.unwrap();
         let schema = format!(
             "cmdb_topology_test_{}",
             SystemTime::now()
@@ -425,10 +444,10 @@ mod tests {
             .execute(&admin)
             .await
             .unwrap();
-        let options = PgConnectOptions::from_str(&url)
+        let options = DbConnectOptions::from_str(&url)
             .unwrap()
             .options([("search_path", schema.as_str())]);
-        let pool = PgPoolOptions::new()
+        let pool = DbPoolOptions::new()
             .max_connections(2)
             .connect_with(options)
             .await

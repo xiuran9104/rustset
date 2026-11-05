@@ -1,8 +1,8 @@
 use anyhow::Context;
-use sqlx::{Postgres, Transaction};
+use rustset_framework_database::DbTransaction;
 
 pub async fn replace_posts(
-    transaction: &mut Transaction<'_, Postgres>,
+    transaction: &mut DbTransaction<'_>,
     user_id: i64,
     post_ids: &[i64],
     operator: &str,
@@ -43,7 +43,7 @@ pub async fn replace_posts(
 }
 
 pub async fn replace_roles(
-    transaction: &mut Transaction<'_, Postgres>,
+    transaction: &mut DbTransaction<'_>,
     user_id: i64,
     role_ids: &[i64],
     operator: &str,
@@ -84,7 +84,7 @@ pub async fn replace_roles(
 }
 
 pub async fn delete_all(
-    transaction: &mut Transaction<'_, Postgres>,
+    transaction: &mut DbTransaction<'_>,
     user_id: i64,
     operator: &str,
 ) -> anyhow::Result<()> {

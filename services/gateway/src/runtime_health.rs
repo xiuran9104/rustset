@@ -7,7 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use rustset_framework_database::PgPool;
+use rustset_framework_database::DbPool;
 use rustset_framework_redis::RedisClient;
 use rustset_infra_server::object_storage::ObjectStorage;
 use serde::Serialize;
@@ -16,7 +16,7 @@ use crate::audit::{AuditMetrics, AuditMetricsSnapshot};
 
 #[derive(Clone)]
 pub struct RuntimeHealthState {
-    pool: PgPool,
+    pool: DbPool,
     cache: Dependency,
     rate_limit: Dependency,
     object_storage: ObjectStorageDependency,
@@ -80,7 +80,7 @@ struct TaskSnapshot {
 
 impl RuntimeHealthState {
     pub fn new(
-        pool: PgPool,
+        pool: DbPool,
         cache: Dependency,
         rate_limit: Dependency,
         object_storage: ObjectStorageDependency,
@@ -182,23 +182,25 @@ async fn object_storage_status(dependency: &ObjectStorageDependency) -> Componen
     }
 }
 
-async fn task_snapshot(pool: &PgPool) -> Result<TaskSnapshot, sqlx::Error> {
-    let row: (i64, i64, i64, Option<i64>) = sqlx::query_as(
+async fn task_snapshot(pool: &DbPool) -> Result<TaskSnapshot, sqlx::Error> {
+    let row: (i64, i64, i64, Option<chrono::DateTime<chrono::Utc>>) = sqlx::query_as(
         "SELECT
             count(*) FILTER (WHERE status='queued'),
             count(*) FILTER (WHERE status='retrying'),
             count(*) FILTER (WHERE status='running'),
-            EXTRACT(EPOCH FROM now()-min(next_attempt_at)
-                FILTER (WHERE status IN ('queued','retrying')))::bigint
+            min(next_attempt_at) FILTER (WHERE status IN ('queued','retrying'))
          FROM infra_task WHERE deleted=0",
     )
     .fetch_one(pool)
     .await?;
+    // Epoch extraction moved into Rust so the SQL stays dialect-portable.
     Ok(TaskSnapshot {
         queued: row.0,
         retrying: row.1,
         running: row.2,
-        oldest_wait_seconds: row.3.map(|seconds| seconds.max(0)),
+        oldest_wait_seconds: row
+            .3
+            .map(|oldest| (chrono::Utc::now() - oldest).num_seconds().max(0)),
     })
 }
 
@@ -221,7 +223,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires TEST_DATABASE_URL with the latest migrations"]
     async fn reads_persisted_task_backlog() {
-        let pool = PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
+        let pool = DbPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
             .await
             .unwrap();
         let snapshot = task_snapshot(&pool).await.unwrap();

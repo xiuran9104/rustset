@@ -1,11 +1,11 @@
-use rustset_framework_database::PgPool;
+use rustset_framework_database::DbPool;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
 use serde_json::Value;
 use uuid::Uuid;
 
 pub async fn visible_user_values(
-    pool: &PgPool,
+    pool: &DbPool,
     user: &CurrentUser,
     tenant_id: i64,
 ) -> Result<Vec<Value>, AppError> {

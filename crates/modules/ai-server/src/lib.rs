@@ -23,7 +23,7 @@ use rustset_ai_api::{
     SpeechRequest,
 };
 use rustset_framework_common::ApiResponse;
-use rustset_framework_database::PgPool;
+use rustset_framework_database::DbPool;
 use rustset_framework_security::{CurrentUser, Permission, TokenService, authenticate};
 use rustset_framework_web::AppError;
 use schemars::JsonSchema;
@@ -33,12 +33,12 @@ use sqlx::Row;
 
 #[derive(Clone)]
 pub struct AiState {
-    pool: PgPool,
+    pool: DbPool,
     tokens: TokenService,
     factory: AiModelFactory,
 }
 impl AiState {
-    pub fn new(pool: PgPool, tokens: TokenService) -> Self {
+    pub fn new(pool: DbPool, tokens: TokenService) -> Self {
         let factory = AiModelFactory::new(pool.clone());
         media::spawn_music_sync(pool.clone(), factory.clone());
         midjourney::spawn_sync(pool.clone(), factory.clone());
@@ -117,8 +117,8 @@ async fn page(
     let page = query.page_no.unwrap_or(1).max(1);
     let size = query.page_size.unwrap_or(10).clamp(1, 200);
     let type_filter = query.type_.as_deref().and_then(normalize_type);
-    let rows=sqlx::query("SELECT id,name,key,platform,type,model,api_key,url,status,config FROM ai.model_configs WHERE ($1::text IS NULL OR name ILIKE '%'||$1||'%') AND ($2::text IS NULL OR model ILIKE '%'||$2||'%') AND ($3::text IS NULL OR platform=$3) AND ($4::text IS NULL OR type=$4) AND ($5::integer IS NULL OR status=$5) ORDER BY id DESC LIMIT $6 OFFSET $7").bind(&query.name).bind(&query.model).bind(&query.platform).bind(type_filter).bind(query.status).bind(size).bind((page-1)*size).fetch_all(&state.pool).await.map_err(|_|AppError::internal("failed to list AI models"))?;
-    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.model_configs WHERE ($1::text IS NULL OR name ILIKE '%'||$1||'%') AND ($2::text IS NULL OR model ILIKE '%'||$2||'%') AND ($3::text IS NULL OR platform=$3) AND ($4::text IS NULL OR type=$4) AND ($5::integer IS NULL OR status=$5)").bind(&query.name).bind(&query.model).bind(&query.platform).bind(type_filter).bind(query.status).fetch_one(&state.pool).await.map_err(|_|AppError::internal("failed to count AI models"))?;
+    let rows=sqlx::query("SELECT id,name,key,platform,type,model,api_key,url,status,config FROM ai.model_configs WHERE ($1::text IS NULL OR UPPER(name) LIKE UPPER('%'||$1||'%')) AND ($2::text IS NULL OR UPPER(model) LIKE UPPER('%'||$2||'%')) AND ($3::text IS NULL OR platform=$3) AND ($4::text IS NULL OR type=$4) AND ($5::integer IS NULL OR status=$5) ORDER BY id DESC LIMIT $6 OFFSET $7").bind(&query.name).bind(&query.model).bind(&query.platform).bind(type_filter).bind(query.status).bind(size).bind((page-1)*size).fetch_all(&state.pool).await.map_err(|_|AppError::internal("failed to list AI models"))?;
+    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.model_configs WHERE ($1::text IS NULL OR UPPER(name) LIKE UPPER('%'||$1||'%')) AND ($2::text IS NULL OR UPPER(model) LIKE UPPER('%'||$2||'%')) AND ($3::text IS NULL OR platform=$3) AND ($4::text IS NULL OR type=$4) AND ($5::integer IS NULL OR status=$5)").bind(&query.name).bind(&query.model).bind(&query.platform).bind(type_filter).bind(query.status).fetch_one(&state.pool).await.map_err(|_|AppError::internal("failed to count AI models"))?;
     let list = rows.into_iter().map(row_model).collect::<Vec<_>>();
     Ok(Json(ApiResponse::new(json!({"list":list,"total":total}))))
 }

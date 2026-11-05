@@ -3,7 +3,7 @@ use aide::openapi::{Components, Info, OpenApi, ReferenceOr, SecurityScheme, Serv
 use axum::{Json, middleware::from_fn_with_state};
 use indexmap::IndexMap;
 use rustset_framework_common::{ApiResponse, ServiceConfig, health_route, init_tracing, serve};
-use rustset_framework_database::{DatabaseConfig, connect, migrate};
+use rustset_framework_database::{DatabaseConfig, connect, migrate_with_flavor};
 use rustset_framework_redis::{RateLimitConfig, RateLimitState, RedisClient, RedisConfig};
 use rustset_framework_security::{SecurityConfig, TokenService};
 use rustset_framework_web::{AppError, WebConfig, apply_web_layers};
@@ -14,6 +14,7 @@ use tracing::warn;
 mod audit;
 mod openapi;
 mod runtime_health;
+mod secrets_cmd;
 
 const SERVICE_NAME: &str = "gateway";
 
@@ -50,8 +51,18 @@ fn tag_for(path: &str) -> &'static str {
 async fn main() -> anyhow::Result<()> {
     init_tracing(SERVICE_NAME);
 
-    let database = connect(&DatabaseConfig::from_env()?).await?;
-    migrate(&database).await?;
+    // Offline management subcommands (信创方案 §4.4.2 密钥管理与批量 re-seal).
+    let args: Vec<String> = std::env::args().collect();
+    match args.get(1).map(String::as_str) {
+        Some("gen-master-key") => return secrets_cmd::gen_master_key(&args[2..]),
+        Some("reseal-secrets") => return secrets_cmd::reseal_secrets(&args[2..]).await,
+        _ => {}
+    }
+
+    let database_config = DatabaseConfig::from_env()?;
+    let database = connect(&database_config).await?;
+    tracing::info!(flavor = %database_config.flavor, "database flavor resolved");
+    migrate_with_flavor(&database, database_config.flavor).await?;
     let redis_config = RedisConfig::from_env();
     let redis_configured = redis_config.is_some();
     let cache_required = env_bool("CACHE_REDIS_REQUIRED", false);
@@ -59,6 +70,11 @@ async fn main() -> anyhow::Result<()> {
     let production = std::env::var("RUST_ENV")
         .map(|value| value.eq_ignore_ascii_case("production"))
         .unwrap_or(false);
+    if production && std::env::var_os("SECRET_MASTER_KEY_FILE").is_none() {
+        warn!(
+            "production runs without a sealing master key file; sealed secrets stay              on the env-derived v2 key (信创方案 §4.4.2 整改项 3)"
+        );
+    }
     let object_storage_configured = std::env::var_os("RUSTFS_ENDPOINT").is_some();
     let object_storage_required = env_bool(
         "READINESS_REQUIRE_OBJECT_STORAGE",

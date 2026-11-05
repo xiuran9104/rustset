@@ -524,8 +524,8 @@ async fn conversation_page(
     require(&user, "ai:chat:query")?;
     let p = q.page_no.unwrap_or(1).max(1);
     let n = q.page_size.unwrap_or(10).clamp(1, 200);
-    let rows=sqlx::query("SELECT c.id,c.user_id,c.title,c.pinned,c.role_id,c.model_id,m.model,m.name model_name,c.temperature,c.max_tokens,c.max_contexts,c.system_message,c.tool_ids,c.knowledge_ids,c.create_time,(SELECT count(*) FROM ai.chat_messages x WHERE x.conversation_id=c.id) message_count FROM ai.chat_conversations c JOIN ai.model_configs m ON m.id=c.model_id WHERE ($1::text IS NULL OR c.user_id=$1) AND ($2::text IS NULL OR c.title ILIKE '%'||$2||'%') ORDER BY c.id DESC LIMIT $3 OFFSET $4").bind(&q.user_id).bind(&q.title).bind(n).bind((p-1)*n).fetch_all(&state.pool).await.map_err(|_|AppError::internal("读取对话失败"))?;
-    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.chat_conversations WHERE ($1::text IS NULL OR user_id=$1) AND ($2::text IS NULL OR title ILIKE '%'||$2||'%')").bind(&q.user_id).bind(&q.title).fetch_one(&state.pool).await.map_err(|_|AppError::internal("读取对话失败"))?;
+    let rows=sqlx::query("SELECT c.id,c.user_id,c.title,c.pinned,c.role_id,c.model_id,m.model,m.name model_name,c.temperature,c.max_tokens,c.max_contexts,c.system_message,c.tool_ids,c.knowledge_ids,c.create_time,(SELECT count(*) FROM ai.chat_messages x WHERE x.conversation_id=c.id) message_count FROM ai.chat_conversations c JOIN ai.model_configs m ON m.id=c.model_id WHERE ($1::text IS NULL OR c.user_id=$1) AND ($2::text IS NULL OR UPPER(c.title) LIKE UPPER('%'||$2||'%')) ORDER BY c.id DESC LIMIT $3 OFFSET $4").bind(&q.user_id).bind(&q.title).bind(n).bind((p-1)*n).fetch_all(&state.pool).await.map_err(|_|AppError::internal("读取对话失败"))?;
+    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.chat_conversations WHERE ($1::text IS NULL OR user_id=$1) AND ($2::text IS NULL OR UPPER(title) LIKE UPPER('%'||$2||'%'))").bind(&q.user_id).bind(&q.title).fetch_one(&state.pool).await.map_err(|_|AppError::internal("读取对话失败"))?;
     let list = rows
         .into_iter()
         .map(|r| {

@@ -14,8 +14,8 @@ use axum::{
     response::Response,
 };
 use chrono::NaiveDateTime;
-use rustset_framework_database::PgPool;
-use sqlx::{Postgres, QueryBuilder};
+use rustset_framework_database::DbPool;
+use rustset_framework_database::DbQueryBuilder;
 use tokio::sync::mpsc;
 
 #[derive(Debug)]
@@ -42,6 +42,7 @@ struct AuditMetricValues {
     persisted: AtomicU64,
     dropped: AtomicU64,
     failed: AtomicU64,
+    pruned: AtomicU64,
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
@@ -51,6 +52,7 @@ pub struct AuditMetricsSnapshot {
     pub persisted: u64,
     pub dropped: u64,
     pub failed: u64,
+    pub pruned: u64,
 }
 
 impl AuditMetrics {
@@ -60,6 +62,7 @@ impl AuditMetrics {
             persisted: self.inner.persisted.load(Ordering::Relaxed),
             dropped: self.inner.dropped.load(Ordering::Relaxed),
             failed: self.inner.failed.load(Ordering::Relaxed),
+            pruned: self.inner.pruned.load(Ordering::Relaxed),
         }
     }
 }
@@ -71,10 +74,13 @@ pub struct AuditState {
 }
 
 impl AuditState {
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: DbPool) -> Self {
         let capacity = env_usize("AUDIT_QUEUE_CAPACITY", 4096).clamp(64, 65_536);
         let batch_size = env_usize("AUDIT_BATCH_SIZE", 100).clamp(1, 1000);
         let flush_ms = env_u64("AUDIT_FLUSH_INTERVAL_MS", 1000).clamp(50, 60_000);
+        // 等保/密评要求审计日志留存 ≥6 个月（§4.4.3 整改项 6）。默认 190 天
+        // （6 个月 + 安全余量）；下限 30 天防止误配，上限 10 年。
+        let retention_days = env_i64("AUDIT_RETENTION_DAYS", 190).clamp(30, 3_650);
         let (sender, receiver) = mpsc::channel(capacity);
         let metrics = AuditMetrics::default();
         tokio::spawn(run_writer(
@@ -83,6 +89,7 @@ impl AuditState {
             metrics.clone(),
             batch_size,
             Duration::from_millis(flush_ms),
+            retention_days,
         ));
         Self { sender, metrics }
     }
@@ -161,15 +168,24 @@ pub async fn record(
     response
 }
 
+/// 审计留存清理的执行间隔：启动先清一次积压，此后每 6 小时一轮。
+const PRUNE_INTERVAL: Duration = Duration::from_secs(6 * 3600);
+
+/// 单批删除上限，避免长事务与大锁；多批循环直到清完。
+const PRUNE_BATCH: i64 = 5_000;
+
 async fn run_writer(
-    pool: PgPool,
+    pool: DbPool,
     mut receiver: mpsc::Receiver<AuditEntry>,
     metrics: AuditMetrics,
     batch_size: usize,
     flush_interval: Duration,
+    retention_days: i64,
 ) {
     let mut batch = Vec::with_capacity(batch_size);
     let mut tick = tokio::time::interval(flush_interval);
+    // 启动即清一次积压（Instant 减去 PRUNE_INTERVAL 使首轮 tick 命中）。
+    let mut last_prune = Instant::now() - PRUNE_INTERVAL;
     loop {
         tokio::select! {
             entry = receiver.recv() => match entry {
@@ -184,17 +200,63 @@ async fn run_writer(
                     break;
                 }
             },
-            _ = tick.tick() => flush(&pool, &metrics, &mut batch).await,
+            _ = tick.tick() => {
+                flush(&pool, &metrics, &mut batch).await;
+                if last_prune.elapsed() >= PRUNE_INTERVAL {
+                    last_prune = Instant::now();
+                    prune_expired(&pool, retention_days, &metrics).await;
+                }
+            },
         }
     }
 }
 
-async fn flush(pool: &PgPool, metrics: &AuditMetrics, batch: &mut Vec<AuditEntry>) {
+/// 删除超过留存期的访问日志（§4.4.3 #6：等保要求留存 ≥6 个月）。
+/// 分批删除避免长事务；失败只记录告警，不影响写入路径。
+async fn prune_expired(pool: &DbPool, retention_days: i64, metrics: &AuditMetrics) {
+    let Some(cutoff) = chrono::TimeDelta::try_days(retention_days)
+        .map(|delta| chrono::Utc::now().naive_utc() - delta)
+    else {
+        return;
+    };
+    let mut pruned_total = 0u64;
+    loop {
+        match sqlx::query(
+            "DELETE FROM infra_api_access_log WHERE id IN (
+                 SELECT id FROM infra_api_access_log
+                 WHERE create_time < $1 AND deleted = 0
+                 LIMIT $2)",
+        )
+        .bind(cutoff)
+        .bind(PRUNE_BATCH)
+        .execute(pool)
+        .await
+        {
+            Ok(result) => {
+                let deleted: u64 = result.rows_affected();
+                pruned_total += deleted;
+                if deleted < PRUNE_BATCH as u64 {
+                    break;
+                }
+            }
+            Err(error) => {
+                tracing::warn!(?error, retention_days, "audit retention prune failed");
+                return;
+            }
+        }
+    }
+    if pruned_total > 0 {
+        metrics.inner.pruned.fetch_add(pruned_total, Ordering::Relaxed);
+        tracing::info!(pruned = pruned_total, retention_days, "pruned expired audit logs");
+    }
+}
+
+async fn flush(pool: &DbPool, metrics: &AuditMetrics, batch: &mut Vec<AuditEntry>) {
     if batch.is_empty() {
         return;
     }
     let count = batch.len();
-    let mut query = QueryBuilder::<Postgres>::new(
+    let mut query = DbQueryBuilder::new(
         "INSERT INTO infra_api_access_log(
             trace_id,application_name,request_method,request_url,user_agent,
             operate_module,begin_time,end_time,duration,result_code,result_msg) ",
@@ -246,6 +308,13 @@ fn env_u64(name: &str, default: u64) -> u64 {
         .unwrap_or(default)
 }
 
+fn env_i64(name: &str, default: i64) -> i64 {
+    env::var(name)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -257,17 +326,61 @@ mod tests {
         metrics.inner.persisted.store(8, Ordering::Relaxed);
         metrics.inner.dropped.store(2, Ordering::Relaxed);
         metrics.inner.failed.store(1, Ordering::Relaxed);
+        metrics.inner.pruned.store(6, Ordering::Relaxed);
         let snapshot = metrics.snapshot();
         assert_eq!(snapshot.queued, 3);
         assert_eq!(snapshot.persisted, 8);
         assert_eq!(snapshot.dropped, 2);
         assert_eq!(snapshot.failed, 1);
+        assert_eq!(snapshot.pruned, 6);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TEST_DATABASE_URL with the latest migrations"]
+    async fn prunes_logs_older_than_retention() {
+        let pool = DbPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
+            .await
+            .unwrap();
+        let trace = format!("audit-prune-{}", std::process::id());
+        let now = chrono::Utc::now().naive_utc();
+        let entry = |index: i64, started: NaiveDateTime| AuditEntry {
+            trace_id: format!("{trace}-{index}"),
+            method: "GET".to_owned(),
+            path: "/health/test".to_owned(),
+            user_agent: "test".to_owned(),
+            module: "health".to_owned(),
+            started_at: started,
+            ended_at: started,
+            duration_ms: 1,
+            status: 200,
+        };
+        let mut batch = vec![
+            entry(0, now - chrono::TimeDelta::try_days(400).unwrap()),
+            entry(1, now),
+        ];
+        let metrics = AuditMetrics::default();
+        metrics.inner.queued.store(batch.len(), Ordering::Relaxed);
+        flush(&pool, &metrics, &mut batch).await;
+        prune_expired(&pool, 190, &metrics).await;
+        assert_eq!(metrics.snapshot().pruned, 1);
+        let remaining: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM infra_api_access_log WHERE trace_id LIKE $1")
+                .bind(format!("{trace}-%"))
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(remaining, 1);
+        sqlx::query("DELETE FROM infra_api_access_log WHERE trace_id LIKE $1")
+            .bind(format!("{trace}-%"))
+            .execute(&pool)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
     #[ignore = "requires TEST_DATABASE_URL with the latest migrations"]
     async fn flushes_access_logs_as_one_batch() {
-        let pool = PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
+        let pool = DbPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
             .await
             .unwrap();
         let trace = format!("audit-batch-{}", std::process::id());

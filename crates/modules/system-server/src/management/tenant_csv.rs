@@ -204,9 +204,13 @@ where
 }
 
 fn tenant_insert_error(error: sqlx::Error) -> String {
-    match error {
-        sqlx::Error::Database(database) => database.message().to_owned(),
-        _ => "创建租户失败".to_owned(),
+    // Client-input violations (constraint/data class) carry actionable detail;
+    // everything else stays generic so internals are not leaked.
+    let error = rustset_framework_database::DbError::from(error);
+    if error.is_client_error() {
+        error.message().to_owned()
+    } else {
+        "创建租户失败".to_owned()
     }
 }
 

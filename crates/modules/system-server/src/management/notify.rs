@@ -6,7 +6,7 @@ use axum::{
     extract::{Query, State},
 };
 use rustset_framework_common::ApiResponse;
-use rustset_framework_database::PgPool;
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
 use serde::{Deserialize, Serialize};
@@ -129,12 +129,16 @@ pub async fn update_read(
     }
     let user_id = yudao_user_id(&state.pool, &user).await?;
     let tenant_id = current_tenant_id(&user)?;
-    sqlx::query(
+    let placeholders = expand_in_placeholders(&ids, 1);
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "UPDATE system_notify_message
-         SET read_status=true, read_time=now(), updater=$4, update_time=now()
-         WHERE id = ANY($1) AND user_id=$2 AND tenant_id=$3 AND deleted=0",
-    )
-    .bind(&ids)
+         SET read_status=true, read_time=now(), updater=${updater}, update_time=now()
+         WHERE id IN ({placeholders}) AND user_id=${user} AND tenant_id=${tenant} AND deleted=0",
+        user = ids.len() + 1,
+        tenant = ids.len() + 2,
+        updater = ids.len() + 3,
+    )))
+    .bind_in(&ids)
     .bind(user_id)
     .bind(tenant_id)
     .bind(&user.username)
@@ -232,7 +236,7 @@ struct NotifyTemplateRow {
 }
 
 async fn message_list(
-    pool: &PgPool,
+    pool: &DbPool,
     user_id: i64,
     tenant_id: i64,
     unread_only: bool,
@@ -272,7 +276,7 @@ async fn message_list(
         .map_err(|_| AppError::internal("failed to list notify messages"))
 }
 
-async fn yudao_user_id(pool: &PgPool, user: &CurrentUser) -> Result<i64, AppError> {
+async fn yudao_user_id(pool: &DbPool, user: &CurrentUser) -> Result<i64, AppError> {
     let user_uuid =
         Uuid::parse_str(&user.user_id).map_err(|_| AppError::bad_request("invalid user id"))?;
     sqlx::query_scalar::<_, i64>(

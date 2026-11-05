@@ -1,16 +1,16 @@
+use rustset_framework_database::{DbConnectOptions, DbPool, DbPoolOptions};
 use super::*;
 use rustset_framework_security::{DataScope, Permission, PermissionSet};
 
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL and PostgreSQL CREATEDB permission"]
 async fn tool_queries_use_authenticated_tenant_and_permissions() {
-    use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
     use std::{
         str::FromStr,
         time::{SystemTime, UNIX_EPOCH},
     };
     let url = std::env::var("TEST_DATABASE_URL").unwrap();
-    let admin = sqlx::PgPool::connect(&url).await.unwrap();
+    let admin = DbPool::connect(&url).await.unwrap();
     let database = format!(
         "ai_tenant_{}",
         SystemTime::now()
@@ -24,9 +24,9 @@ async fn tool_queries_use_authenticated_tenant_and_permissions() {
     .execute(&admin)
     .await
     .unwrap();
-    let pool = PgPoolOptions::new()
+    let pool = DbPoolOptions::new()
         .connect_with(
-            PgConnectOptions::from_str(&url)
+            DbConnectOptions::from_str(&url)
                 .unwrap()
                 .database(&database),
         )

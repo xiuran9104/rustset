@@ -1,3 +1,6 @@
+#[cfg(test)]
+use rustset_framework_database::DbPoolOptions;
+use rustset_framework_database::DbTransaction;
 use schemars::JsonSchema;
 use std::{collections::HashMap, env, io::Write, time::Instant};
 
@@ -13,7 +16,7 @@ use axum::{
 };
 use chrono::{Datelike, Timelike, Utc};
 use rustset_framework_common::ApiResponse;
-use rustset_framework_database::PgPool;
+use rustset_framework_database::{BindIn, DbError, DbPool, expand_in_placeholders};
 use rustset_framework_security::CurrentUser;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
@@ -44,13 +47,13 @@ mod zone;
 
 #[derive(Clone)]
 pub struct InfraState {
-    pub(crate) pool: PgPool,
+    pub(crate) pool: DbPool,
     storage: object_storage::ObjectStorage,
     started_at: Instant,
 }
 
 impl InfraState {
-    pub fn new(pool: PgPool, storage: object_storage::ObjectStorage) -> Self {
+    pub fn new(pool: DbPool, storage: object_storage::ObjectStorage) -> Self {
         Self {
             pool,
             storage,
@@ -1175,7 +1178,7 @@ fn table_id_param(params: &HashMap<String, String>) -> Result<i64, AppError> {
         .ok_or_else(|| AppError::bad_request("tableId is required"))
 }
 
-async fn codegen_preview_files(pool: &PgPool, table_id: i64) -> Result<Vec<Value>, AppError> {
+async fn codegen_preview_files(pool: &DbPool, table_id: i64) -> Result<Vec<Value>, AppError> {
     let table = table_get_value(pool, CODEGEN_TABLE, table_id).await?;
     let class_name = table["className"].as_str().unwrap_or("Generated");
     Ok(vec![
@@ -1184,7 +1187,7 @@ async fn codegen_preview_files(pool: &PgPool, table_id: i64) -> Result<Vec<Value
     ])
 }
 
-async fn sync_codegen_columns(pool: &PgPool, table_id: i64) -> Result<(), AppError> {
+async fn sync_codegen_columns(pool: &DbPool, table_id: i64) -> Result<(), AppError> {
     let table = table_get_value(pool, CODEGEN_TABLE, table_id).await?;
     let table_name = table["tableName"]
         .as_str()
@@ -1207,7 +1210,7 @@ async fn sync_codegen_columns(pool: &PgPool, table_id: i64) -> Result<(), AppErr
 }
 
 async fn insert_codegen_columns(
-    pool: &PgPool,
+    pool: &DbPool,
     table_id: i64,
     table_name: &str,
 ) -> Result<(), AppError> {
@@ -1224,7 +1227,7 @@ async fn insert_codegen_columns(
 }
 
 async fn insert_codegen_columns_in_tx(
-    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    transaction: &mut DbTransaction<'_>,
     table_id: i64,
     table_name: &str,
 ) -> Result<(), AppError> {
@@ -1260,7 +1263,7 @@ async fn insert_codegen_columns_in_tx(
 }
 
 pub(crate) async fn table_page(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     params: QueryParams,
 ) -> Result<Json<ApiResponse<Page<Value>>>, AppError> {
@@ -1289,7 +1292,7 @@ pub(crate) async fn table_page(
 }
 
 pub(crate) async fn table_list(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     let sql = format!(
@@ -1307,7 +1310,7 @@ pub(crate) async fn table_list(
 }
 
 pub(crate) async fn table_get_value(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     id: i64,
 ) -> Result<Value, AppError> {
@@ -1325,7 +1328,7 @@ pub(crate) async fn table_get_value(
 }
 
 pub(crate) async fn table_update(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     payload: Value,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1344,7 +1347,7 @@ pub(crate) async fn table_update(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "UPDATE {} t SET {}, update_time=now() FROM jsonb_populate_record(NULL::{}, $2::jsonb) AS r WHERE t.id=$1 AND t.deleted=0",
+        "UPDATE {} t SET {}, update_time=now() FROM jsonb_populate_record(NULL::{}, $2) AS r WHERE t.id=$1 AND t.deleted=0",
         spec.table, set_sql, spec.table
     );
     sqlx::query(sqlx::AssertSqlSafe(sql))
@@ -1357,7 +1360,7 @@ pub(crate) async fn table_update(
 }
 
 pub(crate) async fn tenant_table_page(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     spec: TableSpec,
     params: QueryParams,
@@ -1393,7 +1396,7 @@ pub(crate) async fn tenant_table_page(
 }
 
 pub(crate) async fn tenant_table_list(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     spec: TableSpec,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
@@ -1414,7 +1417,7 @@ pub(crate) async fn tenant_table_list(
 }
 
 pub(crate) async fn tenant_table_list_by_i64(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     spec: TableSpec,
     column: &str,
@@ -1437,7 +1440,7 @@ pub(crate) async fn tenant_table_list_by_i64(
 }
 
 pub(crate) async fn tenant_table_get(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     spec: TableSpec,
     id: i64,
@@ -1449,7 +1452,7 @@ pub(crate) async fn tenant_table_get(
 }
 
 pub(crate) async fn tenant_table_get_value(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     spec: TableSpec,
     id: i64,
@@ -1469,7 +1472,7 @@ pub(crate) async fn tenant_table_get_value(
 }
 
 pub(crate) async fn tenant_table_create(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     spec: TableSpec,
     payload: Value,
@@ -1496,7 +1499,7 @@ pub(crate) async fn tenant_table_create(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "INSERT INTO {} (id, {}) SELECT nextval('{}'), {} FROM jsonb_populate_record(NULL::{}, $1::jsonb) AS r RETURNING id",
+        "INSERT INTO {} (id, {}) SELECT nextval('{}'), {} FROM jsonb_populate_record(NULL::{}, $1) AS r RETURNING id",
         spec.table, column_sql, spec.seq, record_sql, spec.table
     );
     let id = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(sql))
@@ -1508,7 +1511,7 @@ pub(crate) async fn tenant_table_create(
 }
 
 pub(crate) async fn tenant_table_update(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     spec: TableSpec,
     payload: Value,
@@ -1529,7 +1532,7 @@ pub(crate) async fn tenant_table_update(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "UPDATE {} t SET {}, update_time=now() FROM jsonb_populate_record(NULL::{}, $3::jsonb) AS r WHERE t.id=$1 AND t.tenant_id=$2 AND t.deleted=0",
+        "UPDATE {} t SET {}, update_time=now() FROM jsonb_populate_record(NULL::{}, $3) AS r WHERE t.id=$1 AND t.tenant_id=$2 AND t.deleted=0",
         spec.table, set_sql, spec.table
     );
     let result = sqlx::query(sqlx::AssertSqlSafe(sql))
@@ -1546,17 +1549,22 @@ pub(crate) async fn tenant_table_update(
 }
 
 pub(crate) async fn tenant_soft_delete(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     table: &str,
     ids: &[i64],
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    // `= ANY('{}')` deleted nothing; an empty IN list is not valid SQL — no-op.
+    if ids.is_empty() {
+        return Ok(Json(ApiResponse::new(())));
+    }
+    let placeholders = expand_in_placeholders(ids, 2);
     let sql = format!(
-        "UPDATE {table} SET deleted=1, update_time=now() WHERE tenant_id=$1 AND id = ANY($2) AND deleted=0"
+        "UPDATE {table} SET deleted=1, update_time=now() WHERE tenant_id=$1 AND id IN ({placeholders}) AND deleted=0"
     );
     sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(tenant_id)
-        .bind(ids)
+        .bind_in(ids)
         .execute(pool)
         .await
         .map_err(|_| AppError::internal("failed to delete records"))?;
@@ -1566,7 +1574,7 @@ pub(crate) async fn tenant_soft_delete(
 /// Columns the database demands on INSERT: NOT NULL with no default, besides
 /// the surrogate key and audit columns the generic INSERT supplies itself.
 async fn missing_required_fields(
-    pool: &PgPool,
+    pool: &DbPool,
     table: &str,
     db_payload: &Value,
 ) -> Result<Vec<String>, AppError> {
@@ -1595,22 +1603,18 @@ async fn missing_required_fields(
 /// Map a failed write to the API error the client deserves: data violations
 /// (class 22) and constraint violations (class 23) are caller input problems
 /// and surface as 400 with the database's field-level detail; anything else
-/// stays a 500 without leaking internals.
+/// stays a 500 without leaking internals. Classification goes through the
+/// `DbError` facade so non-PostgreSQL adapters map identically.
 fn record_query_error(action: &str, error: sqlx::Error) -> AppError {
-    if let sqlx::Error::Database(database) = &error
-        && let Some(code) = database.code()
-            && is_client_data_violation(&code) {
-                return AppError::bad_request(format!("{action}: {}", database.message()));
-            }
+    let error = DbError::from(error);
+    if error.is_client_error() {
+        return AppError::bad_request(format!("{action}: {}", error.message()));
+    }
     AppError::internal(format!("failed to {action} record"))
 }
 
-fn is_client_data_violation(code: &str) -> bool {
-    code.starts_with("22") || code.starts_with("23")
-}
-
 async fn table_writable_columns(
-    pool: &PgPool,
+    pool: &DbPool,
     table: &str,
     payload: &Value,
     include_id: bool,
@@ -1640,7 +1644,7 @@ async fn table_writable_columns(
 }
 
 pub(crate) async fn page(
-    pool: &PgPool,
+    pool: &DbPool,
     count_sql: &str,
     list_sql: &str,
     params: QueryParams,
@@ -1662,7 +1666,7 @@ pub(crate) async fn page(
 }
 
 pub(crate) async fn get_one(
-    pool: &PgPool,
+    pool: &DbPool,
     sql: &str,
     id: i64,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
@@ -1676,7 +1680,7 @@ pub(crate) async fn get_one(
 }
 
 pub(crate) async fn soft_delete(
-    pool: &PgPool,
+    pool: &DbPool,
     table: &str,
     id: i64,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1690,7 +1694,7 @@ pub(crate) async fn soft_delete(
 }
 
 pub(crate) async fn soft_delete_list(
-    pool: &PgPool,
+    pool: &DbPool,
     table: &str,
     ids: Vec<i64>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1786,28 +1790,30 @@ pub(crate) fn bool_field(value: &Value, key: &str, default: bool) -> bool {
 }
 
 fn seal_secret(value: &str) -> String {
-    use rustset_framework_gm::sm4_seal;
-    if value.is_empty() || rustset_framework_gm::is_sm4_sealed(value) {
-        return value.to_owned();
+    // 统一密码服务入口（信创方案 §4.4.2）：配置主密钥文件
+    // （SECRET_MASTER_KEY_FILE）时写入 v3 认证密文（enc:sm4:v3:<版本>:…，
+    // 带密钥版本与 HMAC-SM3 完整性标签），否则保持 v2 兼容行为。
+    // 已密封值与空值原样返回，不会嵌套加密。
+    match rustset_framework_gm::secrets::SealingSecrets::from_env() {
+        Ok(provider) => provider.seal(value),
+        Err(error) => {
+            warn!(%error, "sealing provider unavailable; storing value unsealed");
+            value.to_owned()
+        }
     }
-    let secret = env::var("SECRET_ENCRYPTION_KEY")
-        .or_else(|_| env::var("JWT_SECRET"))
-        .unwrap_or_else(|_| "rustset-local-secret".to_owned());
-    // SM4-CBC with a random IV (国密). The startup re-seal pass in
-    // system-server bootstrap converts any surviving enc:v1 XOR rows.
-    sm4_seal(value, &secret).unwrap_or_else(|_| value.to_owned())
 }
 
 /// Open a sealed secret for use (SM4 v2, or plain passthrough).
 pub(crate) fn open_secret(sealed: &str) -> String {
-    use rustset_framework_gm::sm4_open;
-    if sealed.is_empty() {
-        return String::new();
+    // 统一密码服务入口：v3 密文在密钥缺失或标签校验失败时失败关闭
+    // （返回空串，篡改可检测）；v2/明文保持宽容读取。
+    match rustset_framework_gm::secrets::SealingSecrets::from_env() {
+        Ok(provider) => provider.open(sealed),
+        Err(error) => {
+            warn!(%error, "sealing provider unavailable; cannot open sealed value");
+            String::new()
+        }
     }
-    let secret = env::var("SECRET_ENCRYPTION_KEY")
-        .or_else(|_| env::var("JWT_SECRET"))
-        .unwrap_or_else(|_| "rustset-local-secret".to_owned());
-    sm4_open(sealed, &secret).unwrap_or_else(|_| String::new())
 }
 
 fn table_value(value: Value) -> Value {
@@ -1930,21 +1936,21 @@ async fn ok_bool() -> Json<ApiResponse<bool>> {
 
 #[cfg(test)]
 mod record_error_tests {
-    use super::is_client_data_violation;
+    use rustset_framework_database::DbError;
 
     #[test]
     fn data_and_constraint_violations_are_client_errors() {
-        assert!(is_client_data_violation("22007")); // invalid date
-        assert!(is_client_data_violation("22P02")); // invalid text for type
-        assert!(is_client_data_violation("23502")); // not null
-        assert!(is_client_data_violation("23505")); // unique
+        assert!(DbError::from_code("22007", None, "date".into()).is_client_error()); // invalid date
+        assert!(DbError::from_code("22P02", None, "text".into()).is_client_error()); // invalid text for type
+        assert!(DbError::from_code("23502", None, "null".into()).is_client_error()); // not null
+        assert!(DbError::from_code("23505", None, "dup".into()).is_client_error()); // unique
     }
 
     #[test]
     fn server_faults_stay_internal() {
-        assert!(!is_client_data_violation("42P01")); // undefined table
-        assert!(!is_client_data_violation("53300")); // too many connections
-        assert!(!is_client_data_violation(""));
+        assert!(!DbError::from_code("42P01", None, "table".into()).is_client_error()); // undefined table
+        assert!(!DbError::from_code("53300", None, "conns".into()).is_client_error()); // too many connections
+        assert!(!DbError::from_code("", None, "unknown".into()).is_client_error());
     }
 }
 
@@ -1954,7 +1960,7 @@ mod api_contract_tests {
 
     #[tokio::test]
     async fn openapi_contains_typed_infra_contracts() {
-        let pool = sqlx::postgres::PgPoolOptions::new()
+        let pool = DbPoolOptions::new()
             .connect_lazy("postgres://rustset:rustset@127.0.0.1:5432/rustset")
             .unwrap();
         let mut document = aide::openapi::OpenApi::default();

@@ -8,11 +8,12 @@ use rustset_ai_api::{
 };
 use rustset_framework_web::AppError;
 use serde_json::Value;
-use sqlx::{PgPool, Row};
+use sqlx::{Row};
+use rustset_framework_database::{DbPool};
 
 #[derive(Clone)]
 pub struct AiModelFactory {
-    pool: PgPool,
+    pool: DbPool,
 }
 
 fn model_is_enabled(status: i32) -> bool {
@@ -33,7 +34,7 @@ impl AiModelFactory {
         }
         Ok(config)
     }
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self { pool }
     }
     pub async fn config(&self, id: i64) -> Result<ModelConfig, AppError> {

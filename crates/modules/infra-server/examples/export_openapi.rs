@@ -1,10 +1,10 @@
 use aide::openapi::{Info, OpenApi};
+use rustset_framework_database::DbPoolOptions;
 use rustset_infra_server::{InfraState, object_storage::ObjectStorage};
-use sqlx::postgres::PgPoolOptions;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let pool = PgPoolOptions::new().connect_lazy("postgres://openapi:openapi@127.0.0.1/openapi")?;
+    let pool = DbPoolOptions::new().connect_lazy("postgres://openapi:openapi@127.0.0.1/openapi")?;
     let storage = ObjectStorage::from_env().map_err(std::io::Error::other)?;
     let mut document = OpenApi {
         info: Info {

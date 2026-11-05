@@ -1,5 +1,6 @@
 //! 防火墙策略执行：从工单字段提取策略请求，通过厂商适配器下发。
 
+use rustset_framework_database::{DbPool};
 use serde_json::Value;
 use tracing::info;
 
@@ -37,7 +38,7 @@ pub fn generate_policy_name(ticket_id: i64, source: &str, port: &str) -> String 
 
 /// 执行策略推送：读取配置 → 构建适配器 → 调用 → 返回结果。
 pub async fn execute_policy(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     scope_config: &str,
     request: &PolicyPushRequest,
@@ -85,7 +86,7 @@ pub async fn execute_policy(
 #[allow(dead_code)] // 回收/到期联动时调用
 /// 撤除策略（回收/到期联动）。
 pub async fn revoke_policy(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     scope_config: &str,
     policy_name: &str,
@@ -127,7 +128,7 @@ pub async fn revoke_policy(
 
 /// 连接测试。
 pub async fn test_connection(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     scope_config: &str,
 ) -> super::vendors::VendorResult {

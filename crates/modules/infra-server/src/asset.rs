@@ -1,6 +1,7 @@
 mod csv;
 mod policy_risk;
 mod repository;
+use rustset_framework_database::{DbPool};
 use crate::{
     InfraState, QueryParams, TableSpec, id_param, ids_param, tenant_soft_delete,
     tenant_table_create, tenant_table_get, tenant_table_list, tenant_table_page,
@@ -121,7 +122,7 @@ pub fn routes() -> ApiRouter<InfraState> {
 
 /// 云/物理资源写入后：若绑定了已归档业务应用则复活（含名下网络策略）。
 async fn resurrect_bound_application(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     application_id: i64,
 ) {
@@ -289,7 +290,7 @@ async fn asset_create(
 /// organization_name when the IP falls inside a managed segment and the
 /// ownership is not manually pinned.
 pub(crate) async fn auto_attribute_ownership(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     asset_id: i64,
 ) -> Result<(), AppError> {
@@ -576,18 +577,19 @@ async fn cloud_asset_discover(
         .map_err(|_| AppError::internal("failed to lock cloud discovery"))?;
     let mut created = 0_i64;
     let mut updated = 0_i64;
+    let synced_at = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     for source in rows {
         let instance_id: String = source.get("instance_id");
         let config_id: Option<i64> = source.get("cloud_provider_config_id");
         let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM infra_cloud_asset WHERE instance_id = $1 AND cloud_provider_config_id IS NOT DISTINCT FROM $2 AND tenant_id=$3 AND deleted = 0 FOR UPDATE")
             .bind(&instance_id).bind(config_id).bind(tenant.id()).fetch_optional(&mut *tx).await.map_err(|_| AppError::internal("failed to match cloud asset"))?;
         if let Some(id) = existing {
-            sqlx::query("UPDATE infra_cloud_asset SET provider_type=$2, platform_name=$3, region_id=$4, name=$5, status=$6, private_ip=$7, cpu_cores=$8, memory_gb=$9, instance_type=$10, os_name=$11, raw_payload=$12, synced_at=to_char(now(),'YYYY-MM-DD HH24:MI:SS'), updater=$13, update_time=now() WHERE id=$1 AND tenant_id=$14")
-                .bind(id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to update discovered cloud asset"))?;
+            sqlx::query("UPDATE infra_cloud_asset SET provider_type=$2, platform_name=$3, region_id=$4, name=$5, status=$6, private_ip=$7, cpu_cores=$8, memory_gb=$9, instance_type=$10, os_name=$11, raw_payload=$12, synced_at=$15, updater=$13, update_time=now() WHERE id=$1 AND tenant_id=$14")
+                .bind(id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).bind(tenant.id()).bind(synced_at.clone()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to update discovered cloud asset"))?;
             updated += 1;
         } else {
-            sqlx::query("INSERT INTO infra_cloud_asset (cloud_provider_config_id, provider_type, platform_name, region_id, instance_id, name, status, private_ip, cpu_cores, memory_gb, instance_type, os_name, raw_payload, synced_at, creator, updater, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,to_char(now(),'YYYY-MM-DD HH24:MI:SS'),$14,$14,$15)")
-                .bind(config_id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(&instance_id).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to create discovered cloud asset"))?;
+            sqlx::query("INSERT INTO infra_cloud_asset (cloud_provider_config_id, provider_type, platform_name, region_id, instance_id, name, status, private_ip, cpu_cores, memory_gb, instance_type, os_name, raw_payload, synced_at, creator, updater, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$16,$14,$14,$15)")
+                .bind(config_id).bind(source.get::<String, _>("cloud_category")).bind(source.get::<Option<String>, _>("platform_name")).bind(source.get::<String, _>("cloud_region")).bind(&instance_id).bind(source.get::<String, _>("ecs_name")).bind(source.get::<String, _>("ecs_status")).bind(source.get::<String, _>("ip_address")).bind(source.get::<i32, _>("cpu_cores")).bind(source.get::<i32, _>("memory_gb")).bind(source.get::<String, _>("ecs_type")).bind(source.get::<String, _>("ecs_os")).bind(source.get::<Option<String>, _>("remarks")).bind(&user.username).bind(tenant.id()).bind(synced_at.clone()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed to create discovered cloud asset"))?;
             created += 1;
         }
     }

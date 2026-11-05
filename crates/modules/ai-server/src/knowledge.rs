@@ -6,6 +6,7 @@ use axum::{
     extract::{Query, State},
 };
 use rustset_ai_api::EmbeddingRequest;
+use rustset_framework_database::{BindIn, expand_in_placeholders};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
@@ -80,8 +81,8 @@ async fn k_page(
         q.page_no.unwrap_or(1).max(1),
         q.page_size.unwrap_or(10).clamp(1, 100),
     );
-    let rows=sqlx::query("SELECT * FROM ai.knowledge_bases WHERE ($1::text IS NULL OR name ILIKE '%'||$1||'%') ORDER BY id DESC LIMIT $2 OFFSET $3").bind(&q.name).bind(n).bind((p-1)*n).fetch_all(&s.pool).await.map_err(|_|AppError::internal("读取知识库失败"))?;
-    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.knowledge_bases WHERE ($1::text IS NULL OR name ILIKE '%'||$1||'%')").bind(&q.name).fetch_one(&s.pool).await.map_err(|_|AppError::internal("读取知识库失败"))?;
+    let rows=sqlx::query("SELECT * FROM ai.knowledge_bases WHERE ($1::text IS NULL OR UPPER(name) LIKE UPPER('%'||$1||'%')) ORDER BY id DESC LIMIT $2 OFFSET $3").bind(&q.name).bind(n).bind((p-1)*n).fetch_all(&s.pool).await.map_err(|_|AppError::internal("读取知识库失败"))?;
+    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.knowledge_bases WHERE ($1::text IS NULL OR UPPER(name) LIKE UPPER('%'||$1||'%'))").bind(&q.name).fetch_one(&s.pool).await.map_err(|_|AppError::internal("读取知识库失败"))?;
     Ok(Json(ApiResponse::new(
         json!({"list":rows.into_iter().map(kv).collect::<Vec<_>>(),"total":total}),
     )))
@@ -475,7 +476,19 @@ async fn s_process(
         .split(',')
         .filter_map(|x| x.parse().ok())
         .collect::<Vec<i64>>();
-    let rows=sqlx::query("SELECT d.id document_id,count(s.id)::bigint count,count(s.embedding)::bigint embedding_count FROM ai.knowledge_documents d LEFT JOIN ai.knowledge_segments s ON s.document_id=d.id WHERE d.id=ANY($1) GROUP BY d.id").bind(ids).fetch_all(&s.pool).await.map_err(|_|AppError::internal("读取处理进度失败"))?;
+    // `= ANY('{}')` returned no rows; an empty IN list is not valid SQL.
+    let rows = if ids.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT d.id document_id,count(s.id)::bigint count,count(s.embedding)::bigint embedding_count FROM ai.knowledge_documents d LEFT JOIN ai.knowledge_segments s ON s.document_id=d.id WHERE d.id IN ({}) GROUP BY d.id",
+            expand_in_placeholders(&ids, 1)
+        )))
+        .bind_in(&ids)
+        .fetch_all(&s.pool)
+        .await
+        .map_err(|_| AppError::internal("读取处理进度失败"))?
+    };
     Ok(Json(ApiResponse::new(rows.into_iter().map(|r|json!({"documentId":r.get::<i64,_>("document_id"),"count":r.get::<i64,_>("count"),"embeddingCount":r.get::<i64,_>("embedding_count")})).collect())))
 }
 #[derive(Deserialize, JsonSchema)]
@@ -544,10 +557,11 @@ pub(crate) async fn retrieve(
         .filter_map(|v| v["id"].as_i64())
         .collect::<Vec<_>>();
     if !ids.is_empty() {
-        sqlx::query(
-            "UPDATE ai.knowledge_segments SET retrieval_count=retrieval_count+1 WHERE id=ANY($1)",
-        )
-        .bind(ids)
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "UPDATE ai.knowledge_segments SET retrieval_count=retrieval_count+1 WHERE id IN ({})",
+            expand_in_placeholders(&ids, 1)
+        )))
+        .bind_in(&ids)
         .execute(&state.pool)
         .await
         .ok();
@@ -600,10 +614,11 @@ async fn s_search(
     scored.truncate(q.top_k.unwrap_or(k.get::<i32, _>("top_k") as usize));
     let ids = scored.iter().map(|x| x.0).collect::<Vec<_>>();
     if !ids.is_empty() {
-        sqlx::query(
-            "UPDATE ai.knowledge_segments SET retrieval_count=retrieval_count+1 WHERE id=ANY($1)",
-        )
-        .bind(ids)
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "UPDATE ai.knowledge_segments SET retrieval_count=retrieval_count+1 WHERE id IN ({})",
+            expand_in_placeholders(&ids, 1)
+        )))
+        .bind_in(&ids)
         .execute(&s.pool)
         .await
         .ok();

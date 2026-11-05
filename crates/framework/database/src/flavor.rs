@@ -78,6 +78,32 @@ impl DatabaseFlavor {
     pub fn supports_any_array(&self) -> bool {
         self.is_pg_family()
     }
+
+    /// 从 URL scheme 识别方言（未知 scheme 返回 `None`）。
+    pub fn from_url_scheme(scheme: &str) -> Option<Self> {
+        match scheme {
+            "postgres" | "postgresql" => Some(Self::Postgres),
+            "kingbase" | "kingbase8" => Some(Self::Kingbase),
+            "opengauss" => Some(Self::OpenGauss),
+            "dm" | "dameng" => Some(Self::Dameng),
+            _ => None,
+        }
+    }
+
+    /// 归一化为 sqlx 可解析的连接 URL：金仓 / openGauss 与 PostgreSQL
+    /// 共用 PG 线协议，非 postgres scheme 改写为 `postgres://`；
+    /// 达梦走 ODBC，URL 原样返回。
+    pub fn normalize_url(&self, url: &str) -> String {
+        match self {
+            Self::Dameng => url.to_owned(),
+            _ => match url.split_once("://") {
+                Some((scheme, rest)) if scheme != "postgres" && scheme != "postgresql" => {
+                    format!("postgres://{rest}")
+                }
+                _ => url.to_owned(),
+            },
+        }
+    }
 }
 
 impl FromStr for DatabaseFlavor {
@@ -130,6 +156,56 @@ pub fn next_placeholder_index(existing_binds: usize) -> usize {
     existing_binds + 1
 }
 
+/// `IN (…)` 展开的链式绑定：配合 [`expand_in_placeholders`] 使用。
+///
+/// ```ignore
+/// let placeholders = expand_in_placeholders(ids, 1);
+/// let query = sqlx::query(&format!(
+///     "UPDATE t SET deleted=1 WHERE id IN ({placeholders}) AND tenant_id=${n}",
+///     n = ids.len() + 1,
+/// ));
+/// bind_in(query, ids).bind(tenant_id).execute(pool).await?;
+/// ```
+///
+/// 空列表是调用方契约错误：`IN ()` 不是合法 SQL，且空列表与
+/// `= ANY('{}')`（匹配零行）和 `NOT IN`（匹配全部行）的等价形式各不相同，
+/// 必须在调用点显式处理后再展开。
+pub trait BindIn<'q>: Sized {
+    /// 依次绑定列表值，与 [`expand_in_placeholders`] 生成的占位符一一对应。
+    fn bind_in<T>(self, values: &'q [T]) -> Self
+    where
+        T: 'q + sqlx::Encode<'q, sqlx::Postgres> + sqlx::types::Type<sqlx::Postgres>;
+}
+
+impl<'q> BindIn<'q> for sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments> {
+    fn bind_in<T>(self, values: &'q [T]) -> Self
+    where
+        T: 'q + sqlx::Encode<'q, sqlx::Postgres> + sqlx::types::Type<sqlx::Postgres>,
+    {
+        values.iter().fold(self, |query, value| query.bind(value))
+    }
+}
+
+impl<'q, O> BindIn<'q>
+    for sqlx::query::QueryScalar<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments>
+{
+    fn bind_in<T>(self, values: &'q [T]) -> Self
+    where
+        T: 'q + sqlx::Encode<'q, sqlx::Postgres> + sqlx::types::Type<sqlx::Postgres>,
+    {
+        values.iter().fold(self, |query, value| query.bind(value))
+    }
+}
+
+/// [`BindIn`] 的函数形式（`bind_in(query, values)`）。
+pub fn bind_in<'q, Q, T>(query: Q, values: &'q [T]) -> Q
+where
+    Q: BindIn<'q>,
+    T: 'q + sqlx::Encode<'q, sqlx::Postgres> + sqlx::types::Type<sqlx::Postgres>,
+{
+    query.bind_in(values)
+}
+
 /// 生成三库通用的模糊搜索条件（替代 PG 专有 `ILIKE`）。
 ///
 /// PG: `name ILIKE '%keyword%'`
@@ -161,6 +237,35 @@ mod tests {
     fn pg_family() {
         assert!(DatabaseFlavor::Kingbase.is_pg_family());
         assert!(!DatabaseFlavor::Dameng.is_pg_family());
+    }
+
+    #[test]
+    fn url_scheme_detection_and_normalization() {
+        assert_eq!(
+            DatabaseFlavor::from_url_scheme("kingbase8"),
+            Some(DatabaseFlavor::Kingbase)
+        );
+        assert_eq!(
+            DatabaseFlavor::from_url_scheme("opengauss"),
+            Some(DatabaseFlavor::OpenGauss)
+        );
+        assert_eq!(DatabaseFlavor::from_url_scheme("mysql"), None);
+        // 金仓 / openGauss scheme 归一化为 postgres://（PG 线协议直连）
+        assert_eq!(
+            DatabaseFlavor::Kingbase.normalize_url("kingbase8://u:p@h:54321/db"),
+            "postgres://u:p@h:54321/db"
+        );
+        assert_eq!(
+            DatabaseFlavor::OpenGauss.normalize_url("opengauss://h/db"),
+            "postgres://h/db"
+        );
+        // postgres scheme 原样保留
+        assert_eq!(
+            DatabaseFlavor::Postgres.normalize_url("postgres://h/db"),
+            "postgres://h/db"
+        );
+        // 达梦不经 PG 归一化
+        assert_eq!(DatabaseFlavor::Dameng.normalize_url("dm://h/db"), "dm://h/db");
     }
 
     #[test]

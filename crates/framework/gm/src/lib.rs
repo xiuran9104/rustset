@@ -5,6 +5,12 @@
 //! exception is [`legacy_v1_open`], reserved for the one-shot startup re-seal
 //! pass that converts surviving `enc:v1:` rows to SM4.
 
+//! The `secrets` module layers the xinchuang v3 upgrade (plan §4.4.2) on top
+//! of these primitives: versioned master keys, authenticated `enc:sm4:v3:`
+//! sealing and the unified provider — see [`secrets`].
+
+pub mod secrets;
+
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use libsm::sm4::cipher_mode::{CipherMode, Sm4CipherMode};
 
@@ -218,6 +224,20 @@ pub fn legacy_v1_open(sealed: &str, secret: &str) -> Option<String> {
 /// True when the value is already in the current SM4 sealed format.
 pub fn is_sm4_sealed(value: &str) -> bool {
     value.starts_with(SM4_SEALED_PREFIX)
+}
+
+/// Test helper: produce a legacy XOR `enc:v1:` value (mirrors the encoding
+/// [`legacy_v1_open`] decodes) so re-seal paths can be exercised in tests.
+#[cfg(test)]
+pub(crate) fn legacy_sealed_for_test(plain: &str, secret: &str) -> String {
+    let key = secret.as_bytes();
+    let sealed: Vec<u8> = plain
+        .as_bytes()
+        .iter()
+        .enumerate()
+        .map(|(index, byte)| byte ^ key[index % key.len()])
+        .collect();
+    format!("{LEGACY_SEALED_PREFIX}{}", BASE64.encode(sealed))
 }
 
 fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {

@@ -1,3 +1,4 @@
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 use crate::{AiState, require};
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -15,23 +16,24 @@ use serde_json::{Value, json};
 use sqlx::Row;
 
 pub(crate) async fn load_definitions(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     ids: &[i64],
 ) -> Result<Vec<Value>, AppError> {
     if ids.is_empty() {
         return Ok(vec![]);
     }
-    let rows = sqlx::query(
-        "SELECT name,description,input_schema FROM ai.tools WHERE id=ANY($1) AND status=1",
-    )
-    .bind(ids)
+    let placeholders = expand_in_placeholders(ids, 1);
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT name,description,input_schema FROM ai.tools WHERE id IN ({placeholders}) AND status=1",
+    )))
+    .bind_in(ids)
     .fetch_all(pool)
     .await
     .map_err(|_| AppError::internal("读取对话工具失败"))?;
     Ok(rows.into_iter().map(|r|json!({"type":"function","function":{"name":r.get::<String,_>("name"),"description":r.get::<String,_>("description"),"parameters":r.get::<Value,_>("input_schema")}})).collect())
 }
 pub(crate) async fn execute(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     user: &CurrentUser,
     name: &str,
     args: &Value,
@@ -120,7 +122,7 @@ pub(crate) async fn execute(
             let rows = sqlx::query(
                 "SELECT attributes, update_time FROM cmdb_instance
                  WHERE model_id=$1 AND tenant_id=$4 AND deleted=0
-                   AND ($2::text = '' OR attributes::text ILIKE '%'||$2||'%')
+                   AND ($2::text = '' OR UPPER(attributes::text) LIKE UPPER('%'||$2||'%'))
                  ORDER BY id DESC LIMIT $3",
             )
             .bind(model_id)
@@ -150,9 +152,9 @@ pub(crate) async fn execute(
                 "SELECT name, ip, zone, device_type, os, owner, organization_name,
                         application_name, classified_protection_level, status
                  FROM infra_asset
-                 WHERE tenant_id=$3 AND deleted=0 AND ($1::text = '' OR name ILIKE '%'||$1||'%' OR ip ILIKE '%'||$1||'%'
-                                      OR coalesce(organization_name,'') ILIKE '%'||$1||'%'
-                                      OR coalesce(application_name,'') ILIKE '%'||$1||'%')
+                 WHERE tenant_id=$3 AND deleted=0 AND ($1::text = '' OR UPPER(name) LIKE UPPER('%'||$1||'%') OR UPPER(ip) LIKE UPPER('%'||$1||'%')
+                                      OR UPPER(coalesce(organization_name,'')) LIKE UPPER('%'||$1||'%')
+                                      OR UPPER(coalesce(application_name,'')) LIKE UPPER('%'||$1||'%'))
                  ORDER BY id DESC LIMIT $2",
             )
             .bind(keyword)
@@ -194,8 +196,8 @@ pub(crate) async fn execute(
                  FROM infra_resource_ticket
                  WHERE tenant_id=$4 AND deleted=0
                    AND ($1::text = '' OR ticket_status=$1)
-                   AND ($2::text = '' OR coalesce(ecs_name,'') ILIKE '%'||$2||'%'
-                        OR coalesce(application_name,'') ILIKE '%'||$2||'%')
+                   AND ($2::text = '' OR UPPER(coalesce(ecs_name,'')) LIKE UPPER('%'||$2||'%')
+                        OR UPPER(coalesce(application_name,'')) LIKE UPPER('%'||$2||'%'))
                  ORDER BY id DESC LIMIT $3",
             )
             .bind(status)
@@ -369,8 +371,8 @@ async fn page(
     require(&u, "ai:tool:query")?;
     let p = q.page_no.unwrap_or(1).max(1);
     let n = q.page_size.unwrap_or(10).clamp(1, 200);
-    let rows=sqlx::query("SELECT * FROM ai.tools WHERE ($1::text IS NULL OR name ILIKE '%'||$1||'%') AND ($2::int IS NULL OR status=$2) ORDER BY id DESC LIMIT $3 OFFSET $4").bind(&q.name).bind(q.status).bind(n).bind((p-1)*n).fetch_all(&s.pool).await.map_err(|_|AppError::internal("读取工具失败"))?;
-    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.tools WHERE ($1::text IS NULL OR name ILIKE '%'||$1||'%') AND ($2::int IS NULL OR status=$2)").bind(&q.name).bind(q.status).fetch_one(&s.pool).await.map_err(|_|AppError::internal("读取工具失败"))?;
+    let rows=sqlx::query("SELECT * FROM ai.tools WHERE ($1::text IS NULL OR UPPER(name) LIKE UPPER('%'||$1||'%')) AND ($2::int IS NULL OR status=$2) ORDER BY id DESC LIMIT $3 OFFSET $4").bind(&q.name).bind(q.status).bind(n).bind((p-1)*n).fetch_all(&s.pool).await.map_err(|_|AppError::internal("读取工具失败"))?;
+    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.tools WHERE ($1::text IS NULL OR UPPER(name) LIKE UPPER('%'||$1||'%')) AND ($2::int IS NULL OR status=$2)").bind(&q.name).bind(q.status).fetch_one(&s.pool).await.map_err(|_|AppError::internal("读取工具失败"))?;
     Ok(Json(ApiResponse::new(
         json!({"list":rows.into_iter().map(value).collect::<Vec<_>>(),"total":total}),
     )))
@@ -444,6 +446,8 @@ async fn remove(
     Query(q): Query<Id>,
 ) -> Result<Json<ApiResponse<bool>>, AppError> {
     require(&u, "ai:tool:delete")?;
+    // Column-level array membership (PG-family dialect branch; the Dameng
+    // adapter translates array columns to TEXT and rewrites this predicate).
     let used: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM ai.chat_conversations WHERE $1=ANY(tool_ids))",
     )

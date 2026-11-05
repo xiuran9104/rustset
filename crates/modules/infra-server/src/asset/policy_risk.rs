@@ -1,7 +1,8 @@
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 use super::*;
 use schemars::JsonSchema;
 use serde::Serialize;
-use sqlx::{Postgres, Transaction};
+use rustset_framework_database::DbTransaction;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -111,7 +112,7 @@ fn matches(rule: &RiskRule, range: &PortRange) -> bool {
 }
 
 pub(super) async fn create(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     payload: Value,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -137,7 +138,7 @@ pub(super) async fn create(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "INSERT INTO {table} ({}) SELECT {values} FROM jsonb_populate_record(NULL::{table}, $1::jsonb) r RETURNING id",
+        "INSERT INTO {table} ({}) SELECT {values} FROM jsonb_populate_record(NULL::{table}, $1) r RETURNING id",
         columns.join(", "),
         table = NETWORK_POLICY.table
     );
@@ -159,7 +160,7 @@ pub(super) async fn create(
 }
 
 pub(super) async fn update(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     payload: Value,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -197,7 +198,7 @@ pub(super) async fn update(
             .collect::<Vec<_>>()
             .join(", ");
         let sql = format!(
-            "UPDATE {table} t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::{table}, $2::jsonb) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0",
+            "UPDATE {table} t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::{table}, $2) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0",
             table = NETWORK_POLICY.table
         );
         sqlx::query(sqlx::AssertSqlSafe(sql))
@@ -232,7 +233,7 @@ fn validate_payload(payload: &Value, require_fields: bool) -> Result<(), AppErro
 }
 
 pub(super) async fn delete(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     ids: &[i64],
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -243,11 +244,15 @@ pub(super) async fn delete(
         .begin()
         .await
         .map_err(|_| AppError::internal("failed to start network-policy transaction"))?;
+    let placeholders = expand_in_placeholders(ids, 1);
     let deleted: Vec<i64> = sqlx::query_scalar(
-        "UPDATE infra_network_policy SET deleted=1, update_time=now()
-         WHERE id=ANY($1) AND tenant_id=$2 AND deleted=0 RETURNING id",
-    )
-    .bind(ids)
+        sqlx::AssertSqlSafe(format!(
+            "UPDATE infra_network_policy SET deleted=1, update_time=now()
+             WHERE id IN ({placeholders}) AND tenant_id=${index} AND deleted=0 RETURNING id",
+            index = ids.len() + 1,
+        ),
+    ))
+    .bind_in(ids)
     .bind(tenant.id())
     .fetch_all(&mut *tx)
     .await
@@ -262,7 +267,7 @@ pub(super) async fn delete(
 }
 
 pub(super) async fn recheck(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
 ) -> Result<Json<ApiResponse<RiskMatchSummary>>, AppError> {
     let mut tx = pool
@@ -290,7 +295,7 @@ pub(super) async fn recheck(
 }
 
 async fn sync_policy(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut DbTransaction<'_>,
     tenant_id: i64,
     policy_id: i64,
 ) -> Result<usize, AppError> {
@@ -364,15 +369,18 @@ async fn sync_policy(
     if active_keys.is_empty() {
         close_policy_risks(tx, tenant_id, &[policy_id]).await?;
     } else {
+        let placeholders = expand_in_placeholders(&active_keys, 3);
         sqlx::query(
-            "UPDATE infra_risk SET status='resolved',update_time=now()
-             WHERE tenant_id=$1 AND source_type='network_policy' AND source_id=$2
-               AND deleted=0 AND NOT(inspection_key=ANY($3))
-               AND status NOT IN ('resolved','ignored','false_positive')",
-        )
+            sqlx::AssertSqlSafe(format!(
+                "UPDATE infra_risk SET status='resolved',update_time=now()
+                 WHERE tenant_id=$1 AND source_type='network_policy' AND source_id=$2
+                   AND deleted=0 AND inspection_key NOT IN ({placeholders})
+                   AND status NOT IN ('resolved','ignored','false_positive')",
+            ),
+        ))
         .bind(tenant_id)
         .bind(policy_id)
-        .bind(&active_keys)
+        .bind_in(&active_keys)
         .execute(&mut **tx)
         .await
         .map_err(|_| AppError::internal("failed to close stale network-policy risks"))?;
@@ -381,17 +389,24 @@ async fn sync_policy(
 }
 
 async fn close_policy_risks(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut DbTransaction<'_>,
     tenant_id: i64,
     policy_ids: &[i64],
 ) -> Result<(), AppError> {
+    // `= ANY('{}')` matched no rows; an empty IN list is not valid SQL — no-op.
+    if policy_ids.is_empty() {
+        return Ok(());
+    }
+    let placeholders = expand_in_placeholders(policy_ids, 2);
     sqlx::query(
-        "UPDATE infra_risk SET status='resolved',update_time=now()
-         WHERE tenant_id=$1 AND source_type='network_policy' AND source_id=ANY($2)
-           AND deleted=0 AND status NOT IN ('resolved','ignored','false_positive')",
-    )
+        sqlx::AssertSqlSafe(format!(
+            "UPDATE infra_risk SET status='resolved',update_time=now()
+             WHERE tenant_id=$1 AND source_type='network_policy' AND source_id IN ({placeholders})
+               AND deleted=0 AND status NOT IN ('resolved','ignored','false_positive')",
+        ),
+    ))
     .bind(tenant_id)
-    .bind(policy_ids)
+    .bind_in(policy_ids)
     .execute(&mut **tx)
     .await
     .map_err(|_| AppError::internal("failed to close network-policy risks"))?;
@@ -399,7 +414,7 @@ async fn close_policy_risks(
 }
 
 pub(super) async fn list(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     let rows = sqlx::query_scalar::<_, Value>(
@@ -420,7 +435,7 @@ pub(super) async fn list(
 }
 
 pub(super) async fn page(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     params: QueryParams,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
@@ -533,7 +548,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires TEST_DATABASE_URL with the latest migrations"]
     async fn policy_changes_create_and_close_tenant_scoped_risks() {
-        let pool = sqlx::PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
+        let pool = DbPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap())
             .await
             .unwrap();
         let tenant = TenantContext::from_persisted_id(Some(1)).unwrap();

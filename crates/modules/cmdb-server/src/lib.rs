@@ -18,7 +18,7 @@ use rustset_cmdb_api::{
     UpdateModelRequest,
 };
 use rustset_framework_common::ApiResponse;
-use rustset_framework_database::PgPool;
+use rustset_framework_database::DbPool;
 use rustset_framework_security::{CurrentUser, Permission};
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
@@ -33,7 +33,7 @@ pub use relation::routes as relation_routes;
 
 #[derive(Clone)]
 pub struct CmdbState {
-    pub pool: PgPool,
+    pub pool: DbPool,
 }
 
 /// Same semantics as system_server's require: super_admin passes, everyone
@@ -100,7 +100,7 @@ fn page_bounds(page_no: Option<i64>, page_size: Option<i64>) -> (i64, i64) {
     (size, (no - 1) * size)
 }
 
-async fn load_model_row(pool: &PgPool, id: i64) -> Result<Value, AppError> {
+async fn load_model_row(pool: &DbPool, id: i64) -> Result<Value, AppError> {
     let row = sqlx::query(
         "SELECT m.id, m.name, m.code, m.description, m.icon, m.unique_key, m.sort, m.status,
                 m.create_time,
@@ -134,7 +134,7 @@ fn model_row(row: &sqlx::postgres::PgRow) -> Value {
     })
 }
 
-async fn model_count(pool: &PgPool, tenant: &TenantContext, model_id: i64) -> i64 {
+async fn model_count(pool: &DbPool, tenant: &TenantContext, model_id: i64) -> i64 {
     sqlx::query_scalar::<_, i64>(
         "SELECT count(*) FROM cmdb_instance WHERE model_id = $1 AND tenant_id = $2 AND deleted = 0",
     )
@@ -145,7 +145,7 @@ async fn model_count(pool: &PgPool, tenant: &TenantContext, model_id: i64) -> i6
     .unwrap_or(0)
 }
 
-async fn attribute_count(pool: &PgPool, model_id: i64) -> i64 {
+async fn attribute_count(pool: &DbPool, model_id: i64) -> i64 {
     sqlx::query_scalar::<_, i64>(
         "SELECT count(*) FROM cmdb_attribute WHERE model_id = $1 AND deleted = 0",
     )
@@ -210,7 +210,7 @@ async fn model_page(
     let pattern = model_keyword_pattern(&params.keyword);
     let total: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM cmdb_model m
-         WHERE m.deleted = 0 AND ($1::text IS NULL OR m.name ILIKE $1 OR m.code ILIKE $1)",
+         WHERE m.deleted = 0 AND ($1::text IS NULL OR UPPER(m.name) LIKE UPPER($1) OR UPPER(m.code) LIKE UPPER($1))",
     )
     .bind(&pattern)
     .fetch_one(&state.pool)
@@ -224,7 +224,7 @@ async fn model_page(
                 (SELECT count(*) FROM cmdb_attribute a
                  WHERE a.model_id = m.id AND a.deleted = 0) AS attribute_count
          FROM cmdb_model m
-         WHERE m.deleted = 0 AND ($1::text IS NULL OR m.name ILIKE $1 OR m.code ILIKE $1)
+         WHERE m.deleted = 0 AND ($1::text IS NULL OR UPPER(m.name) LIKE UPPER($1) OR UPPER(m.code) LIKE UPPER($1))
          ORDER BY m.sort, m.id LIMIT $2 OFFSET $3",
     )
     .bind(&pattern)

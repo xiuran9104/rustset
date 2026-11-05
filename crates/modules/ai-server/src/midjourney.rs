@@ -2,6 +2,7 @@ use crate::{AiModelFactory, AiState};
 use aide::axum::ApiRouter;
 use aide::axum::routing::post;
 use axum::{Json, extract::State};
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 use rustset_framework_common::ApiResponse;
 use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
@@ -17,7 +18,7 @@ pub(crate) fn routes() -> ApiRouter<AiState> {
         .api_route("/ai/image/midjourney/poll", post(poll))
 }
 
-pub(crate) fn spawn_sync(pool: sqlx::PgPool, factory: AiModelFactory) {
+pub(crate) fn spawn_sync(pool: DbPool, factory: AiModelFactory) {
     let Ok(handle) = tokio::runtime::Handle::try_current() else {
         return;
     };
@@ -161,7 +162,7 @@ async fn action(
 }
 
 async fn finish_submission(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     id: i64,
     result: Result<rustset_ai_api::MediaResponse, AppError>,
 ) -> Result<(), AppError> {
@@ -208,12 +209,31 @@ async fn poll(
     )))
 }
 pub(crate) async fn sync_pending(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     factory: &AiModelFactory,
     ids: Option<&[i64]>,
 ) -> Result<Vec<i64>, AppError> {
-    let rows = sqlx::query("SELECT id,model_id,task_id,poll_count FROM ai.images WHERE status=10 AND task_id IS NOT NULL AND platform='Midjourney' AND ($1::bigint[] IS NULL OR id=ANY($1)) ORDER BY COALESCE(last_poll_time,0) LIMIT 50")
-        .bind(ids).fetch_all(pool).await.map_err(|_| AppError::internal("读取 Midjourney 待同步任务失败"))?;
+    // Portable replacement for `($1::bigint[] IS NULL OR id=ANY($1))`; an
+    // empty slice keeps `id = ANY('{}')` semantics (matches nothing) via the
+    // never-matching `IN (NULL)`.
+    let (id_filter, bind_ids) = match ids {
+        None => (String::new(), None),
+        Some([]) => (" AND id IN (NULL)".to_owned(), None),
+        Some(list) => (
+            format!(" AND id IN ({})", expand_in_placeholders(list, 1)),
+            Some(list),
+        ),
+    };
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT id,model_id,task_id,poll_count FROM ai.images WHERE status=10 AND task_id IS NOT NULL AND platform='Midjourney'{id_filter} ORDER BY COALESCE(last_poll_time,0) LIMIT 50"
+    )));
+    if let Some(list) = bind_ids {
+        query = query.bind_in(list);
+    }
+    let rows = query
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::internal("读取 Midjourney 待同步任务失败"))?;
     let mut synced = Vec::new();
     for row in rows {
         let id: i64 = row.get("id");

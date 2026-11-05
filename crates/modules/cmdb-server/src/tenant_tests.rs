@@ -1,3 +1,4 @@
+use rustset_framework_database::{DbConnectOptions, DbPool, DbPoolOptions};
 use super::*;
 use axum::{
     Router,
@@ -71,13 +72,12 @@ async fn json_request(
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
 async fn all_instance_paths_enforce_tenant_and_quarantine() {
-    use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
     use std::{
         str::FromStr,
         time::{SystemTime, UNIX_EPOCH},
     };
     let url = std::env::var("TEST_DATABASE_URL").unwrap();
-    let admin = PgPool::connect(&url).await.unwrap();
+    let admin = DbPool::connect(&url).await.unwrap();
     let schema = format!(
         "tenant_test_{}",
         SystemTime::now()
@@ -89,9 +89,9 @@ async fn all_instance_paths_enforce_tenant_and_quarantine() {
         .execute(&admin)
         .await
         .unwrap();
-    let pool = PgPoolOptions::new()
+    let pool = DbPoolOptions::new()
         .connect_with(
-            PgConnectOptions::from_str(&url)
+            DbConnectOptions::from_str(&url)
                 .unwrap()
                 .options([("search_path", schema.as_str())]),
         )

@@ -1,6 +1,7 @@
 use sha2::Digest;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
+use crate::flavor::DatabaseFlavor;
 use crate::DatabaseConfig;
 
 // SQLx embeds the migration directory at compile time.
@@ -27,6 +28,22 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
         MIGRATOR.run(pool).await?;
     }
     Ok(())
+}
+
+/// 按方言执行迁移（§4.1.8）。金仓 / openGauss 以 PG 兼容模式直连，
+/// 沿用 `sql/postgresql` 迁移链；`sql/{kingbase,opengauss}` 翻译链产出后
+/// 在此按 flavor 切换目录。达梦显式拒绝——ODBC 适配器与 `sql/dm` 链
+/// 未实装（M3），不允许静默落到 PostgreSQL。
+pub async fn migrate_with_flavor(pool: &PgPool, flavor: DatabaseFlavor) -> anyhow::Result<()> {
+    match flavor {
+        DatabaseFlavor::Dameng => anyhow::bail!(
+            "Dameng adapter is not implemented yet (M3): requires the ODBC pool \
+             and the translated sql/dm chain"
+        ),
+        DatabaseFlavor::Postgres | DatabaseFlavor::Kingbase | DatabaseFlavor::OpenGauss => {
+            migrate(pool).await
+        }
+    }
 }
 
 pub async fn ping(pool: &PgPool) -> Result<(), sqlx::Error> {

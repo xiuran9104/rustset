@@ -6,7 +6,7 @@
 //! - 续期工单审批通过：新有效期回写台账与原工单（见 provisioning 模块）
 
 use chrono::{NaiveDate, NaiveDateTime, Utc};
-use sqlx::PgPool;
+use rustset_framework_database::DbPool;
 use std::time::Duration;
 use tokio::time;
 
@@ -15,7 +15,7 @@ const TEMPLATE_CODE: &str = "ticket_expire_reminder";
 const ACTIVE_STATUSES: &str =
     "'approved','pending_provision','provisioning','pending_delivery','delivered'";
 
-pub(crate) fn start(pool: PgPool) {
+pub(crate) fn start(pool: DbPool) {
     tokio::spawn(async move {
         let mut tick = time::interval(Duration::from_secs(30 * 60));
         loop {
@@ -36,7 +36,7 @@ struct ExpiringTicket {
     resource_type: String,
 }
 
-async fn scan(pool: &PgPool) -> Result<(), sqlx::Error> {
+async fn scan(pool: &DbPool) -> Result<(), sqlx::Error> {
     let rows = sqlx::query_as::<_, (i64, i64, String, String, i16, Option<i64>, String)>(sqlx::AssertSqlSafe(format!(
         "SELECT id, tenant_id, ecs_name, expire_at, expiry_remind_stage, applicant_user_id, resource_type
          FROM infra_resource_ticket
@@ -89,7 +89,7 @@ fn days_left(expire_at: &str) -> Option<i64> {
     Some((parsed.date() - now.date()).num_days())
 }
 
-async fn remind(pool: &PgPool, ticket: &ExpiringTicket, days_left: i64, stage: i16) {
+async fn remind(pool: &DbPool, ticket: &ExpiringTicket, days_left: i64, stage: i16) {
     if let Err(error) = send_reminders(pool, ticket, days_left).await {
         tracing::warn!(ticket = ticket.id, %error, "failed to send expiry reminders");
         return;
@@ -108,7 +108,7 @@ async fn remind(pool: &PgPool, ticket: &ExpiringTicket, days_left: i64, stage: i
 }
 
 async fn send_reminders(
-    pool: &PgPool,
+    pool: &DbPool,
     ticket: &ExpiringTicket,
     days_left: i64,
 ) -> Result<(), sqlx::Error> {
@@ -175,7 +175,7 @@ async fn send_reminders(
 /// 到期未续期：工单转 `expired`，并自动生成回收工单进入审批流。
 /// 云资源的交付台账以 resource_id 记录原工单号，可链接回收目标；
 /// 物理资源无此链接，回收工单由运维人工指定范围。
-async fn expire_ticket(pool: &PgPool, ticket: &ExpiringTicket) -> Result<(), sqlx::Error> {
+async fn expire_ticket(pool: &DbPool, ticket: &ExpiringTicket) -> Result<(), sqlx::Error> {
     let updated = sqlx::query(
         "UPDATE infra_resource_ticket
          SET ticket_status='expired', expiry_remind_stage=3, update_time=now()
@@ -240,7 +240,7 @@ async fn expire_ticket(pool: &PgPool, ticket: &ExpiringTicket) -> Result<(), sql
 /// 供 provisioning 模块在续期审批通过后调用：新有效期回写台账，
 /// 并把由交付生成的原工单（云资源 instance_id 记录了原工单号）恢复授权。
 pub(super) async fn apply_renewal(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     target: i64,
     physical: bool,

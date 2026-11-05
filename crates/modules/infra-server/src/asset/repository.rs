@@ -1,10 +1,10 @@
 //! Tenant-scoped asset and network-policy CRUD. Callers use static table specs.
 use super::*;
 use rustset_framework_tenant::TenantContext;
-use sqlx::PgPool;
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 
 pub(super) async fn get(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     tenant: &TenantContext,
     id: i64,
@@ -23,7 +23,7 @@ pub(super) async fn get(
 }
 
 pub(super) async fn page(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     tenant: &TenantContext,
     params: QueryParams,
@@ -45,7 +45,7 @@ pub(super) async fn page(
 }
 
 pub(super) async fn create(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     tenant: &TenantContext,
     payload: Value,
@@ -72,7 +72,7 @@ pub(super) async fn create(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "INSERT INTO {table} ({}) SELECT {values} FROM jsonb_populate_record(NULL::{table}, $1::jsonb) r RETURNING id",
+        "INSERT INTO {table} ({}) SELECT {values} FROM jsonb_populate_record(NULL::{table}, $1) r RETURNING id",
         columns.join(", "),
         table = spec.table
     );
@@ -85,7 +85,7 @@ pub(super) async fn create(
 }
 
 pub(super) async fn update(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     tenant: &TenantContext,
     payload: Value,
@@ -110,7 +110,7 @@ pub(super) async fn update(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "UPDATE {table} t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::{table}, $2::jsonb) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0",
+        "UPDATE {table} t SET {set}, update_time=now() FROM jsonb_populate_record(NULL::{table}, $2) r WHERE t.id=$1 AND t.tenant_id=$3 AND t.deleted=0",
         table = spec.table
     );
     let result = sqlx::query(sqlx::AssertSqlSafe(sql))
@@ -127,7 +127,7 @@ pub(super) async fn update(
 }
 
 pub(super) async fn delete(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     tenant: &TenantContext,
     ids: &[i64],
@@ -135,13 +135,23 @@ pub(super) async fn delete(
     if ids.is_empty() || ids.iter().any(|id| *id <= 0) {
         return Err(AppError::bad_request("ids are required"));
     }
-    sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE {table} SET deleted=1, update_time=now() WHERE id=ANY($1) AND tenant_id=$2 AND deleted=0", table=spec.table)))
-        .bind(ids).bind(tenant.id()).execute(pool).await.map_err(|_| AppError::internal("failed to delete records"))?;
+    let placeholders = expand_in_placeholders(ids, 1);
+    let sql = format!(
+        "UPDATE {table} SET deleted=1, update_time=now() WHERE id IN ({placeholders}) AND tenant_id=${index} AND deleted=0",
+        table = spec.table,
+        index = ids.len() + 1,
+    );
+    sqlx::query(sqlx::AssertSqlSafe(sql))
+        .bind_in(ids)
+        .bind(tenant.id())
+        .execute(pool)
+        .await
+        .map_err(|_| AppError::internal("failed to delete records"))?;
     Ok(Json(ApiResponse::new(())))
 }
 
 pub(super) async fn list(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: TableSpec,
     tenant: &TenantContext,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {

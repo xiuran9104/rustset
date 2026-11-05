@@ -3,6 +3,8 @@ mod provisioning;
 mod repository;
 pub(crate) use provisioning::load_platform_target;
 
+use rustset_framework_database::{DbPool};
+use rustset_framework_database::DbTransaction;
 use crate::{
     InfraState, QueryParams, TableSpec, id_param, tenant_soft_delete, tenant_table_create,
     tenant_table_list, tenant_table_page, tenant_table_update,
@@ -38,13 +40,13 @@ const APPROVAL_RULE: TableSpec = TableSpec {
     seq: "infra_approval_rule_seq",
 };
 
-pub(crate) fn start_expiry_scanner(pool: sqlx::PgPool) {
+pub(crate) fn start_expiry_scanner(pool: DbPool) {
     expiry::start(pool);
 }
 
 /// 供资源写入路径调用：绑定了已归档业务应用时复活（含名下网络策略）。
 pub(crate) async fn resurrect_bound_application(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant_id: i64,
     application_id: i64,
 ) {
@@ -640,7 +642,7 @@ async fn attachments(
 /// 把一张已交付的新建工单按资源类型写进对应台账
 /// （`infra_cloud_resource` 或 `infra_physical_resource`）。
 async fn insert_delivered_ledger_row(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut DbTransaction<'_>,
     tenant: &TenantContext,
     ticket: &Value,
     operator: &str,

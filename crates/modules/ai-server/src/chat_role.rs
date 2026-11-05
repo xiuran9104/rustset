@@ -78,9 +78,9 @@ async fn list(
 ) -> Result<Value, AppError> {
     let page = query.page_no.unwrap_or(1).max(1);
     let size = query.page_size.unwrap_or(10).clamp(1, 100);
-    let rows=sqlx::query("SELECT * FROM ai.chat_roles WHERE ($1::text IS NULL OR user_id=$1) AND (NOT $2 OR public_status=true) AND ($3::text IS NULL OR name ILIKE '%'||$3||'%') AND ($4::text IS NULL OR category=$4) AND ($5::bool IS NULL OR public_status=$5) ORDER BY sort,id DESC LIMIT $6 OFFSET $7")
+    let rows=sqlx::query("SELECT * FROM ai.chat_roles WHERE ($1::text IS NULL OR user_id=$1) AND (NOT $2 OR public_status=true) AND ($3::text IS NULL OR UPPER(name) LIKE UPPER('%'||$3||'%')) AND ($4::text IS NULL OR category=$4) AND ($5::bool IS NULL OR public_status=$5) ORDER BY sort,id DESC LIMIT $6 OFFSET $7")
         .bind(owner).bind(public_only).bind(&query.name).bind(&query.category).bind(query.public_status).bind(size).bind((page-1)*size).fetch_all(&state.pool).await.map_err(|_|AppError::internal("读取聊天角色失败"))?;
-    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.chat_roles WHERE ($1::text IS NULL OR user_id=$1) AND (NOT $2 OR public_status=true) AND ($3::text IS NULL OR name ILIKE '%'||$3||'%') AND ($4::text IS NULL OR category=$4) AND ($5::bool IS NULL OR public_status=$5)")
+    let total:i64=sqlx::query_scalar("SELECT count(*) FROM ai.chat_roles WHERE ($1::text IS NULL OR user_id=$1) AND (NOT $2 OR public_status=true) AND ($3::text IS NULL OR UPPER(name) LIKE UPPER('%'||$3||'%')) AND ($4::text IS NULL OR category=$4) AND ($5::bool IS NULL OR public_status=$5)")
         .bind(owner).bind(public_only).bind(&query.name).bind(&query.category).bind(query.public_status).fetch_one(&state.pool).await.map_err(|_|AppError::internal("读取聊天角色失败"))?;
     Ok(json!({"list":rows.into_iter().map(value).collect::<Vec<_>>(),"total":total}))
 }

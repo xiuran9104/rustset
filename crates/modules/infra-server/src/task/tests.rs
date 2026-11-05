@@ -1,3 +1,4 @@
+use rustset_framework_database::{DbConnectOptions, DbPool, DbPoolOptions};
 use super::*;
 
 #[test]
@@ -33,18 +34,17 @@ fn scan_submission_normalizes_targets_ports_and_policies() {
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
 async fn bulk_delete_is_atomic_and_retryable() {
-    use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
     use std::str::FromStr;
     let url = std::env::var("TEST_DATABASE_URL").unwrap();
-    let admin = sqlx::PgPool::connect(&url).await.unwrap();
+    let admin = DbPool::connect(&url).await.unwrap();
     let schema = format!("task_test_{}", Uuid::new_v4().simple());
     sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
         .execute(&admin)
         .await
         .unwrap();
-    let pool = PgPoolOptions::new()
+    let pool = DbPoolOptions::new()
         .connect_with(
-            PgConnectOptions::from_str(&url)
+            DbConnectOptions::from_str(&url)
                 .unwrap()
                 .options([("search_path", schema.as_str())]),
         )

@@ -1345,3 +1345,47 @@ async fn applies_all_migrations_to_empty_postgres() {
     .expect("inspect user-level naming residue");
     assert_eq!(user_level_branding_residue, 0);
 }
+
+/// 四方言迁移目录一致性（§4.1.8、AGENTS.md「四目录同交」）。
+///
+/// `sql/postgresql` 是唯一手写源头；`sql/{kingbase,opengauss,dm}` 由翻译
+/// 工具产出 + 人工评审。目录尚未产出（仅有 README）时允许为空；一旦出现
+/// `.sql` 文件，编号集合必须与 `sql/postgresql` 完全一致——多迁移、少
+/// 迁移或改号都在此测试阻断。
+#[test]
+fn flavor_migration_directories_stay_in_sync_with_postgresql() {
+    let sql_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../sql");
+    let source = migration_versions(&sql_root.join("postgresql"));
+    assert!(
+        !source.is_empty(),
+        "sql/postgresql must contain the hand-written migration chain"
+    );
+
+    for flavor in ["kingbase", "opengauss", "dm"] {
+        let directory = sql_root.join(flavor);
+        let versions = migration_versions(&directory);
+        if versions.is_empty() {
+            continue; // 翻译链尚未产出；README 记录翻译规则与验证流程
+        }
+        assert_eq!(
+            versions, source,
+            "sql/{flavor} migration set is out of sync with sql/postgresql"
+        );
+    }
+}
+
+fn migration_versions(directory: &std::path::Path) -> Vec<i64> {
+    let mut versions: Vec<i64> = std::fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| {
+            let name = entry.file_name().into_string().ok()?;
+            if !name.ends_with(".sql") {
+                return None;
+            }
+            name.split('_').next()?.parse().ok()
+        })
+        .collect();
+    versions.sort_unstable();
+    versions
+}

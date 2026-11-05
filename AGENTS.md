@@ -18,11 +18,23 @@ Whenever a database schema or baseline-data change is made:
 
 1. Add a new numbered migration under `sql/postgresql`; never edit a migration that has already been released or applied.
 2. Make the migration idempotent so both upgraded databases and empty-database bootstrap are supported.
-3. Run `bash script/test-database-migrations.sh` to prove an empty PostgreSQL instance reaches the latest schema and baseline data without importing `current.sql`.
+3. Run `bash script/test-database-migrations.sh` to prove an empty PostgreSQL instance reaches the latest schema and baseline data without importing `current.sql`. The script accepts `--db <postgres|kingbase|opengauss|dm>`; the non-PostgreSQL flavors require vendor-licensed containers (see `sql/<flavor>/README.md`).
 4. After applying all migrations to a clean reference database, export a fresh `sql/bootstrap/current.sql` with `pg_dump` for review and comparison. The gateway must remain fully functional when this snapshot is absent.
 5. Update the expected migration count and relevant baseline assertions in `crates/framework/database/tests/migrations.rs`.
 
 The migration history was intentionally reset to the consolidated `0001_initial.sql`; existing databases must be recreated once. After this reset is released, do not rewrite `0001` or any subsequently applied migration.
+
+### Xinchuang (信创) multi-database rules
+
+`docs/xinchuang-adaptation-plan.md` is the governing adaptation plan. Current rules for code and migrations:
+
+- Business code must reference the database facade only (`DbPool`, `DbTransaction`, `DbQueryBuilder`, `DbError`, `BindIn`) — never `sqlx::PgPool`/`Postgres`/`Transaction` directly. The facade lives in `crates/framework/database`.
+- Runtime SQL stays in the portable subset shared by PostgreSQL / KingbaseES / openGauss / DM8: use `IN (…)` expansion via `expand_in_placeholders` + `bind_in` instead of `= ANY($n)`, `UPPER(col) LIKE UPPER(pattern)` instead of `ILIKE`, chrono-computed timestamps instead of SQL `interval`/`to_char`/`EXTRACT`, and no `$n::jsonb`/`$n::uuid` parameter casts (bind `serde_json::Value`/`Uuid` instead). Remaining PG-family dialect branches (`ON CONFLICT`, jsonb functions, column-level array predicates) must carry a comment naming the flavor branch.
+- Empty-list semantics differ between `= ANY('{}')` (matches nothing), `IN ()` (invalid SQL), and `NOT IN` (matches everything): handle empty lists explicitly before expanding.
+- `DB_FLAVOR` and the `DATABASE_URL` scheme must agree (plan §3.3): conflicting combos and Dameng (ODBC adapter pending, M3) fail at startup. KingbaseES/openGauss URLs use their own scheme and are normalized to the PG wire protocol automatically; until `sql/<flavor>` chains are produced, Kingbase/openGauss run the `sql/postgresql` chain via PG-compatible mode.
+- Database errors are classified through `DbError` (unique/FK/check violations, deadlock, lock timeout, connection interrupted); do not match raw sqlx/ODBC error codes in business code.
+- Migration directories `sql/{kingbase,opengauss,dm}` are generated+reviewed translations of `sql/postgresql` (see each `README.md`); until the `script/sql-translate` pipeline is operational, a new migration must at minimum state in its PR whether it uses portable SQL only or needs translation rules, and update those READMEs when rules change. `sql/postgresql` remains the sole hand-written source.
+
 
 ## Local Development Startup
 
@@ -70,6 +82,24 @@ Default local bootstrap account (seeded by the RustSet migration baseline):
 - When the named account exists with an empty password column, startup sets the password from `BOOTSTRAP_ADMIN_PASSWORD` (conditional update on `password = ''`; a changed password is never overwritten).
 
 Change the seeded password after first login on any real deployment.
+
+## Secret Sealing (国密 SM4, xinchuang §4.4.2)
+
+Sealed secret columns (mail/SMS/OAuth/social credentials, data-source and cloud/automation credentials) use the unified sealing provider in `crates/framework/gm` (`secrets::SealingSecrets`):
+
+- With `SECRET_MASTER_KEY_FILE` set, new seals use the authenticated `enc:sm4:v3:<key-version>:` format (SM4-CBC + HMAC-SM3 tag, versioned keys derived from the 0600 master key file). Tampering is detectable; v3 values fail closed when the ring is missing.
+- Without it, sealing stays on the legacy `enc:sm4:v2:` format derived from `SECRET_ENCRYPTION_KEY` (or `JWT_SECRET`) — acceptable for development only; production logs a warning at startup.
+
+Key management commands:
+
+```bash
+# generate a master key ring (mode 0600)
+./target/release/rustset-gateway gen-master-key /etc/rustset/sealing.keys
+# after setting SECRET_MASTER_KEY_FILE and restarting once:
+./target/release/rustset-gateway reseal-secrets --batch 200
+```
+
+The startup re-seal pass converts surviving `enc:v1:` rows on every boot, and `enc:sm4:v2:` rows once a master key is configured (batched, idempotent, resumable; undecodable rows are counted, never dropped). Re-sealing a database migration and the cipher upgrade are deliberately decoupled: never change storage location and cipher format at the same time.
 
 ## Local Verification
 

@@ -1,3 +1,4 @@
+use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 use crate::{InfraState, QueryParams, bool_field};
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete, get, post, put};
@@ -19,7 +20,7 @@ use uuid::Uuid;
 pub(crate) mod repository;
 pub(crate) mod worker;
 
-pub(crate) fn start_worker(pool: sqlx::PgPool) {
+pub(crate) fn start_worker(pool: DbPool) {
     worker::start(pool);
 }
 
@@ -256,7 +257,7 @@ async fn retry(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn enqueue(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     operator: &str,
     name: &str,
@@ -378,16 +379,24 @@ fn parse_task_ids(raw: &str) -> Result<Vec<String>, AppError> {
 }
 
 async fn delete_tasks(
-    pool: &sqlx::PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     ids: &[String],
 ) -> Result<(), AppError> {
     // One statement is atomic: any database failure rolls back the whole batch.
     // Missing/already deleted IDs are successful no-ops, making retries safe.
+    // `= ANY('{}')` matched no rows; an empty IN list is not valid SQL — no-op.
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let placeholders = expand_in_placeholders(ids, 1);
     sqlx::query(
-        "UPDATE infra_task SET deleted=1,cancel_requested=true,update_time=now() WHERE id = ANY($1) AND tenant_id=$2 AND deleted=0",
-    )
-    .bind(ids)
+        sqlx::AssertSqlSafe(format!(
+            "UPDATE infra_task SET deleted=1,cancel_requested=true,update_time=now() WHERE id IN ({placeholders}) AND tenant_id=${index} AND deleted=0",
+            index = ids.len() + 1,
+        ),
+    ))
+    .bind_in(ids)
     .bind(tenant.id())
     .execute(pool)
     .await

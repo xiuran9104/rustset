@@ -1,5 +1,5 @@
 use schemars::JsonSchema;
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use crate::{
     SystemState,
@@ -15,7 +15,8 @@ use rustset_framework_security::CurrentUser;
 use rustset_framework_web::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow};
+use rustset_framework_database::{DbPool};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -982,7 +983,7 @@ fn current_tenant_id(user: &CurrentUser) -> Result<i64, AppError> {
         .ok_or_else(|| AppError::forbidden("tenant is required"))
 }
 
-async fn identity_uuid_for_user(pool: &PgPool, user_id: i64) -> Result<Uuid, AppError> {
+async fn identity_uuid_for_user(pool: &DbPool, user_id: i64) -> Result<Uuid, AppError> {
     sqlx::query_scalar("SELECT identity_uuid FROM system_users WHERE id = $1 AND deleted = 0")
         .bind(user_id)
         .fetch_one(pool)
@@ -991,7 +992,7 @@ async fn identity_uuid_for_user(pool: &PgPool, user_id: i64) -> Result<Uuid, App
 }
 
 async fn generic_page(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     params: QueryParams,
 ) -> Result<Json<ApiResponse<Page<Value>>>, AppError> {
@@ -1005,7 +1006,7 @@ async fn generic_page(
 }
 
 async fn generic_list(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     _params: QueryParams,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
@@ -1019,7 +1020,7 @@ async fn generic_list(
 }
 
 async fn generic_get(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
@@ -1033,7 +1034,7 @@ async fn generic_get(
 }
 
 async fn generic_create(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     payload: Value,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -1047,7 +1048,7 @@ async fn generic_create(
 }
 
 async fn generic_update(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     payload: Value,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1061,7 +1062,7 @@ async fn generic_update(
 }
 
 async fn generic_delete(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1075,7 +1076,7 @@ async fn generic_delete(
 }
 
 async fn generic_delete_list(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1129,7 +1130,7 @@ fn yudao_spec(kind: &str) -> Option<YudaoSpec> {
 }
 
 async fn yudao_page(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: YudaoSpec,
     params: QueryParams,
 ) -> Result<Json<ApiResponse<Page<Value>>>, AppError> {
@@ -1158,7 +1159,7 @@ async fn yudao_page(
 }
 
 async fn yudao_list(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: YudaoSpec,
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     let sql = format!(
@@ -1175,7 +1176,7 @@ async fn yudao_list(
 }
 
 async fn yudao_get(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: YudaoSpec,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
@@ -1194,7 +1195,7 @@ async fn yudao_get(
 }
 
 async fn yudao_create(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: YudaoSpec,
     payload: Value,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -1210,7 +1211,7 @@ async fn yudao_create(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "INSERT INTO {} (id, {}) SELECT nextval('{}'), {} FROM jsonb_populate_record(NULL::{}, $1::jsonb) AS r RETURNING id",
+        "INSERT INTO {} (id, {}) SELECT nextval('{}'), {} FROM jsonb_populate_record(NULL::{}, $1) AS r RETURNING id",
         spec.table, column_sql, spec.seq, record_sql, spec.table
     );
     let id = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(sql))
@@ -1222,7 +1223,7 @@ async fn yudao_create(
 }
 
 async fn yudao_update(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: YudaoSpec,
     payload: Value,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1238,7 +1239,7 @@ async fn yudao_update(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "UPDATE {} t SET {}, update_time = now() FROM jsonb_populate_record(NULL::{}, $2::jsonb) AS r WHERE t.id = $1 AND t.deleted = 0",
+        "UPDATE {} t SET {}, update_time = now() FROM jsonb_populate_record(NULL::{}, $2) AS r WHERE t.id = $1 AND t.deleted = 0",
         spec.table, set_sql, spec.table
     );
     let result = sqlx::query(sqlx::AssertSqlSafe(sql))
@@ -1254,7 +1255,7 @@ async fn yudao_update(
 }
 
 async fn yudao_delete(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: YudaoSpec,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1272,7 +1273,7 @@ async fn yudao_delete(
 }
 
 async fn yudao_delete_list(
-    pool: &PgPool,
+    pool: &DbPool,
     spec: YudaoSpec,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1291,7 +1292,7 @@ async fn yudao_delete_list(
 }
 
 async fn writable_columns(
-    pool: &PgPool,
+    pool: &DbPool,
     table: &str,
     payload: &Value,
     include_id: bool,
@@ -1393,15 +1394,12 @@ fn mask_secret_value(value: Value) -> Value {
 }
 
 fn seal_secret(value: &str) -> String {
-    if value.is_empty() || rustset_framework_gm::is_sm4_sealed(value) {
-        return value.to_owned();
+    // 统一密码服务入口（信创方案 §4.4.2）：主密钥文件存在时写 v3 认证
+    // 密文，否则保持 v2；已密封值与空值不重复加密。
+    match rustset_framework_gm::secrets::SealingSecrets::from_env() {
+        Ok(provider) => provider.seal(value),
+        Err(_) => value.to_owned(),
     }
-    let secret = env::var("SECRET_ENCRYPTION_KEY")
-        .or_else(|_| env::var("JWT_SECRET"))
-        .unwrap_or_else(|_| "rustset-local-secret".to_owned());
-    // SM4-CBC with a random IV (国密); legacy XOR values only survive until the
-    // startup re-seal pass rewrites them.
-    rustset_framework_gm::sm4_seal(value, &secret).unwrap_or_else(|_| value.to_owned())
 }
 
 fn snake_to_camel(value: &str) -> String {
@@ -1451,7 +1449,7 @@ fn is_core_kind(kind: &str) -> bool {
 }
 
 async fn core_page(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     params: QueryParams,
 ) -> Result<Json<ApiResponse<Page<Value>>>, AppError> {
@@ -1472,7 +1470,7 @@ async fn core_page(
     Ok(Json(ApiResponse::new(Page { list: rows, total })))
 }
 
-async fn core_list(pool: &PgPool, kind: &str) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+async fn core_list(pool: &DbPool, kind: &str) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     let select_sql = core_select_sql(kind, false)?;
     let rows = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(select_sql))
         .fetch_all(pool)
@@ -1482,7 +1480,7 @@ async fn core_list(pool: &PgPool, kind: &str) -> Result<Json<ApiResponse<Vec<Val
 }
 
 async fn core_get(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
@@ -1497,7 +1495,7 @@ async fn core_get(
 }
 
 async fn core_create(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     payload: Value,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -1600,7 +1598,7 @@ async fn core_create(
 }
 
 async fn core_update(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     payload: Value,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1648,7 +1646,7 @@ async fn core_update(
 }
 
 async fn core_delete(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -1662,7 +1660,7 @@ async fn core_delete(
 }
 
 async fn core_delete_list(
-    pool: &PgPool,
+    pool: &DbPool,
     kind: &str,
     params: HashMap<String, String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
@@ -2401,7 +2399,7 @@ async fn role_delete_list(
     Ok(Json(ApiResponse::new(())))
 }
 
-async fn role_values(pool: &PgPool, tenant_id: i64) -> Result<Vec<Value>, AppError> {
+async fn role_values(pool: &DbPool, tenant_id: i64) -> Result<Vec<Value>, AppError> {
     sqlx::query_scalar::<_, Value>(
         "SELECT jsonb_build_object(
             'id', id,

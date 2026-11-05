@@ -5,8 +5,10 @@
 //! soft-deletes intentionally do not delete CMDB instances because they may
 //! already participate in relations or operational workflows.
 
+#[cfg(test)]
+use rustset_framework_database::{DbConnectOptions, DbPoolOptions};
 use rustset_cmdb_api::AttrType;
-use rustset_framework_database::PgPool;
+use rustset_framework_database::DbPool;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use schemars::JsonSchema;
@@ -147,7 +149,7 @@ struct AttributeDefinition {
 }
 
 pub(crate) async fn sync_assets(
-    pool: &PgPool,
+    pool: &DbPool,
     tenant: &TenantContext,
     actor: &str,
 ) -> Result<SyncSummary, AppError> {
@@ -579,20 +581,19 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires TEST_DATABASE_URL pointing at PostgreSQL"]
     async fn sync_is_concurrent_safe_idempotent_and_preserves_extensions() {
-        use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
         use std::str::FromStr;
 
         let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
-        let admin = sqlx::PgPool::connect(&url).await.unwrap();
+        let admin = DbPool::connect(&url).await.unwrap();
         let schema = format!("asset_cmdb_sync_test_{}", uuid::Uuid::new_v4().simple());
         sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
             .execute(&admin)
             .await
             .unwrap();
-        let options = PgConnectOptions::from_str(&url)
+        let options = DbConnectOptions::from_str(&url)
             .unwrap()
             .options([("search_path", schema.as_str())]);
-        let pool = PgPoolOptions::new()
+        let pool = DbPoolOptions::new()
             .max_connections(5)
             .connect_with(options)
             .await
@@ -667,7 +668,7 @@ mod tests {
         .unwrap();
         sqlx::query(
             "UPDATE cmdb_instance
-             SET attributes = jsonb_set(attributes, '{operations_note}', $1::jsonb)",
+             SET attributes = jsonb_set(attributes, '{operations_note}', $1)",
         )
         .bind(json!("manual"))
         .execute(&pool)
