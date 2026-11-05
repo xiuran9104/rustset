@@ -13,6 +13,9 @@
 `0001_initial.sql` 由"PG 参考库 → 金仓逻辑导出 → 比对"流水线生成。
 `0002+` 如完全兼容则直接复制 `sql/postgresql/` 对应文件。
 
+openGauss 翻译链（`sql/opengauss`）已在真机完成端到端验证；金仓走同样的
+`sql-translate` 流水线，介质到位后按其兼容矩阵补充规则并验证。
+
 ## 验收
 `bash script/test-database-migrations.sh --db kingbase` 在金仓容器中
 执行空库到最新 schema + 基线数据验收。

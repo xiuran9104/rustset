@@ -19,3 +19,5 @@
 
 ## 验收
 `0001_initial.sql`（34.6万行）走流水线：PG 参考库导出 → 翻译 → DM 导入 → 行数+checksum 比对。
+流水线脚本已就绪（`script/sql-translate/verify-pipeline.sh`，在 openGauss 上
+端到端实测通过）；达梦侧等 ODBC spike（社区镜像不可得，需厂商介质）。
