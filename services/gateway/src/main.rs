@@ -75,6 +75,11 @@ async fn main() -> anyhow::Result<()> {
             "production runs without a sealing master key file; sealed secrets stay              on the env-derived v2 key (信创方案 §4.4.2 整改项 3)"
         );
     }
+    // 密码提供方组合校验（§3.3/§4.4.3 #2）：不支持的取值启动失败，
+    // 不静默回退到软件实现。
+    rustset_framework_gm::provider::resolve_crypto_provider(
+        std::env::var("CRYPTO_PROVIDER").ok().as_deref(),
+    )?;
     let object_storage_configured = std::env::var_os("RUSTFS_ENDPOINT").is_some();
     let object_storage_required = env_bool(
         "READINESS_REQUIRE_OBJECT_STORAGE",

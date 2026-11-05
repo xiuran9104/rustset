@@ -9,6 +9,7 @@
 //! of these primitives: versioned master keys, authenticated `enc:sm4:v3:`
 //! sealing and the unified provider — see [`secrets`].
 
+pub mod provider;
 pub mod secrets;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
