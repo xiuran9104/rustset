@@ -18,7 +18,7 @@ use rustset_framework_database::DbPool;
 use rustset_framework_database::DbQueryBuilder;
 use tokio::sync::mpsc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct AuditEntry {
     trace_id: String,
     method: String,
@@ -251,6 +251,31 @@ async fn prune_expired(pool: &DbPool, retention_days: i64, metrics: &AuditMetric
     }
 }
 
+/// 审计行完整性摘要（§4.4.3 #6）：SM3 over 以 0x1f 分隔的规范字段序。
+/// 校验方按同一字段序重算即可检测字段篡改；行删除检测需要哈希链或
+/// WORM 存储（迁移 0059 注释已登记边界）。
+fn audit_record_digest(entry: &AuditEntry) -> String {
+    let mut canonical = String::with_capacity(256);
+    for field in [
+        &entry.trace_id,
+        &entry.method,
+        &entry.path,
+        &entry.user_agent,
+        &entry.module,
+    ] {
+        canonical.push_str(field);
+        canonical.push('\x1f');
+    }
+    canonical.push_str(&entry.started_at.format("%Y-%m-%dT%H:%M:%S%.6f").to_string());
+    canonical.push('\x1f');
+    canonical.push_str(&entry.ended_at.format("%Y-%m-%dT%H:%M:%S%.6f").to_string());
+    canonical.push('\x1f');
+    canonical.push_str(&entry.duration_ms.to_string());
+    canonical.push('\x1f');
+    canonical.push_str(&entry.status.to_string());
+    rustset_framework_gm::sm3_hex(canonical.as_bytes())
+}
+
 async fn flush(pool: &DbPool, metrics: &AuditMetrics, batch: &mut Vec<AuditEntry>) {
     if batch.is_empty() {
         return;
@@ -259,7 +284,8 @@ async fn flush(pool: &DbPool, metrics: &AuditMetrics, batch: &mut Vec<AuditEntry
     let mut query = DbQueryBuilder::new(
         "INSERT INTO infra_api_access_log(
             trace_id,application_name,request_method,request_url,user_agent,
-            operate_module,begin_time,end_time,duration,result_code,result_msg) ",
+            operate_module,begin_time,end_time,duration,result_code,result_msg,
+            integrity_alg,record_digest) ",
     );
     query.push_values(batch.iter(), |mut row, entry| {
         row.push_bind(&entry.trace_id)
@@ -272,7 +298,9 @@ async fn flush(pool: &DbPool, metrics: &AuditMetrics, batch: &mut Vec<AuditEntry
             .push_bind(entry.ended_at)
             .push_bind(entry.duration_ms)
             .push_bind(entry.status)
-            .push_bind(if entry.status >= 400 { "failed" } else { "ok" });
+            .push_bind(if entry.status >= 400 { "failed" } else { "ok" })
+            .push_bind("SM3")
+            .push_bind(audit_record_digest(entry));
     });
     let result = query.build().execute(pool).await;
     metrics.inner.queued.fetch_sub(count, Ordering::Relaxed);
@@ -318,6 +346,33 @@ fn env_i64(name: &str, default: i64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audit_digest_is_stable_and_field_sensitive() {
+        let now = chrono::Utc::now().naive_utc();
+        let entry = AuditEntry {
+            trace_id: "trace-1".into(),
+            method: "GET".into(),
+            path: "/system/auth/login".into(),
+            user_agent: "test".into(),
+            module: "system".into(),
+            started_at: now,
+            ended_at: now,
+            duration_ms: 5,
+            status: 200,
+        };
+        let first = audit_record_digest(&entry);
+        let second = audit_record_digest(&entry);
+        assert_eq!(first, second, "same fields must produce the same digest");
+        assert_eq!(first.len(), 64, "SM3 hex digest");
+        // 任一字段变化都会改变摘要（篡改可检测）
+        let mut tampered = entry.clone();
+        tampered.status = 404;
+        assert_ne!(audit_record_digest(&tampered), first);
+        let mut tampered = entry.clone();
+        tampered.duration_ms = 6;
+        assert_ne!(audit_record_digest(&tampered), first);
+    }
 
     #[test]
     fn metric_snapshot_reports_queue_outcomes() {

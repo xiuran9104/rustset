@@ -216,7 +216,7 @@ async fn lock_wait_timeout_maps_to_db_error() {
             sqlx::query_scalar("SELECT n FROM contract_lt WHERE id = 1 FOR UPDATE")
                 .fetch_one(&mut *tx)
                 .await;
-        result.err().expect("waiter must fail with lock timeout")
+        result.expect_err("waiter must fail with lock timeout")
     }
     .await;
 
@@ -248,8 +248,7 @@ async fn unique_violation_classifies_as_client_error() {
     let error = sqlx::query("INSERT INTO contract_uq VALUES (2, 'same')")
         .execute(&pool)
         .await
-        .err()
-        .expect("duplicate insert must fail");
+        .expect_err("duplicate insert must fail");
 
     let classified = DbError::from(error);
     assert!(matches!(classified, DbError::UniqueViolation { .. }));
@@ -281,8 +280,7 @@ async fn foreign_key_violation_classifies_as_client_error() {
     let error = sqlx::query("INSERT INTO contract_fk_child VALUES (1, 999)")
         .execute(&pool)
         .await
-        .err()
-        .expect("orphan insert must fail");
+        .expect_err("orphan insert must fail");
 
     let classified = DbError::from(error);
     assert!(matches!(classified, DbError::ForeignKeyViolation { .. }));
