@@ -647,8 +647,13 @@ fn translate_dameng(source: &str) -> Translation {
         }
 
         // 部分索引：剥离 WHERE 谓词并登记（达梦无部分索引）。
+        // 保留语句末尾分号——谓词后就是 `;`，一起剥掉会让后续语句粘连。
         if let Some(position) = index_where_clause(&line) {
+            let had_semicolon = line[position..].trim().ends_with(';');
             line = line[..position].trim_end().to_owned();
+            if had_semicolon {
+                line.push(';');
+            }
             findings.push(Finding {
                 line: line_number,
                 category: Category::PartialIndex,
@@ -660,8 +665,44 @@ fn translate_dameng(source: &str) -> Translation {
         for (from, to) in TYPE_MAP {
             line = replace_word(&line, from, to);
         }
+        // character varying(n) → VARCHAR(n)（两词类型名）。
+        line = regex_varying().replace_all(&line, "VARCHAR").into_owned();
+        // `'<literal>'::<TYPE>(n)?` cast：达梦无 :: 语法，剥 cast 保留字面量。
+        line = regex_string_cast().replace_all(&line, "'").into_owned();
+        // timestamp 变体：达梦无 "without time zone" 词组。
+        line = regex_ts_without_tz().replace_all(&line, "TIMESTAMP").into_owned();
+        line = regex_ts_with_tz().replace_all(&line, "TIMESTAMP WITH TIME ZONE").into_owned();
+        // `public` 是达梦保留字且无此 schema：剥限定前缀（对象落在默认
+        // schema；其余自定义 schema 如 ai/infra/toonflow 保留限定）。
+        line = line.replace("public.", "");
+        // `WITH x(cols…) AS (VALUES …), y AS (VALUES …) SELECT …`：
+        // 达梦不支持 VALUES 作为语句级行集构造（实测 -2007）。
+        // 改写为 `WITH x AS (SELECT … UNION ALL SELECT …) SELECT …`。
+        // 单行级 CTE 仅在本行闭合时才可逐行处理；多行 VALUES 统一在
+        // 语句级预处理（statement_level_rewrites）完成。
+        if line.to_uppercase().contains(" AS (") && line.to_uppercase().contains("VALUES (") {
+            findings.push(Finding {
+                line: line_number,
+                category: Category::Other,
+                detail: "VALUES-as-rowset CTE detected; rewritten at statement level".into(),
+            });
+        }
+
+        // 达梦保留字作为标识符（列名等）：加引号。仅登记实测命中项——
+        // 像 type/comment 这类会误伤 TYPE 关键字与 COMMENT ON 语法，
+        // 命中时用更窄的列位置规则处理。
+        line = regex_dm_reserved_domain().replace_all(&line, "\"domain\"").into_owned();
 
         // cast 与函数改写。
+        // 序列语法（实测）：PG 的 NO MINVALUE/NO MAXVALUE 被拒；
+        // START WITH/INCREMENT BY/CACHE n 原样可用；AS <type> 剥离。
+        if line.to_uppercase().contains("CREATE SEQUENCE") {
+            line = regex_no_minvalue().replace_all(&line, "").into_owned();
+            line = regex_no_maxvalue().replace_all(&line, "").into_owned();
+            line = regex_seq_as_type().replace_all(&line, "").into_owned();
+            // CACHE n 实测为非法序列属性（-3602）；缺省缓存即可。
+            line = regex_seq_cache().replace_all(&line, "").into_owned();
+        }
         line = line.replace("::regclass", "");
         line = rewrite_nextval(&line);
         line = rewrite_ilike(&line);
@@ -676,7 +717,111 @@ fn translate_dameng(source: &str) -> Translation {
     if source.ends_with('\n') {
         sql.push('\n');
     }
+    // 语句级改写：WITH … AS (VALUES …) 行集 → UNION ALL SELECT 列表。
+    let (rewritten, count) = rewrite_values_cte(&sql);
+    if count > 0 {
+        sql = rewritten;
+        findings.push(Finding {
+            line: 0,
+            category: Category::Other,
+            detail: format!("{count} VALUES-rowset CTEs rewritten to UNION ALL SELECT"),
+        });
+    }
     Translation { sql, findings }
+}
+
+/// `name(col1, col2) AS (VALUES (v1, v2), (v3, v4))` →
+/// `name AS (SELECT 'v1', 'v2' FROM DUAL UNION ALL SELECT 'v3', 'v4' FROM DUAL)`。
+/// 列名列表丢弃（达梦 WITH 列重命名支持未验证，SELECT 列即语义）；
+/// 行内字面量保持原样（`''::type` cast 已在行级剥离）。
+fn rewrite_values_cte(sql: &str) -> (String, usize) {
+    let mut result = sql.to_owned();
+    let mut count = 0usize;
+    // 改写本身会移动后续字节，find 必须每轮重扫（clippy while-let 建议不适用：
+    // 迭代变量随替换变化）。
+    #[allow(clippy::while_let_loop)]
+    while let Some(open_byte) = find_values_cte_start(&result) {
+        // 从 open_byte 起做配对深度扫描，找闭括号字节位置。
+        let Some(close_byte) = matching_paren(&result, open_byte) else {
+            break;
+        };
+        let inner = result[open_byte + 1..close_byte].trim().to_owned();
+        let Some(values_part) = inner.strip_prefix("VALUES") else {
+            break;
+        };
+        let rows = split_top_level_commas(values_part);
+        let mut selects = Vec::new();
+        for row in &rows {
+            let row_inner = row.trim();
+            let Some(stripped) = row_inner.strip_prefix('(') else {
+                continue;
+            };
+            let row_body = stripped.trim_end_matches(')').trim().to_owned();
+            if row_body.is_empty() {
+                continue;
+            }
+            selects.push(format!("SELECT {} FROM DUAL", row_body));
+        }
+        if selects.is_empty() {
+            break;
+        }
+        // open 指向 "AS (" 的 "("；只替换括号段，"AS" 关键字保留在原文中。
+        let replacement = format!("({});", selects.join(" UNION ALL "));
+        // 替换 [open_byte, close_byte]（含括号本身），分号跟在语句尾。
+        result.replace_range(open_byte..=close_byte, &replacement);
+        count += 1;
+    }
+    (result, count)
+}
+
+/// `position` 处 `(` 的配对闭括号字节索引（忽略引号内内容）。
+fn matching_paren(sql: &str, open: usize) -> Option<usize> {
+    let bytes = sql.as_bytes();
+    let mut depth = 0i32;
+    // SQL 字符串：单引号包裹，'' 为转义引号（状态不变）。
+    let mut in_string = false;
+    let mut index = open;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if in_string {
+            if byte == b'\'' {
+                if index + 1 < bytes.len() && bytes[index + 1] == b'\'' {
+                    index += 2; // 转义引号
+                    continue;
+                }
+                in_string = false;
+            }
+        } else {
+            match byte {
+                b'\'' => in_string = true,
+                b'(' => depth += 1,
+                b')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(index);
+                    }
+                }
+                _ => {}
+            }
+        }
+        index += 1;
+    }
+    None
+}
+
+/// 找下一个 `AS (` 后紧跟 `VALUES` 的 `(` 字节索引。
+fn find_values_cte_start(sql: &str) -> Option<usize> {
+    let upper = sql.to_uppercase();
+    let mut search_from = 0usize;
+    loop {
+        let offset = upper[search_from..].find(" AS (")? + search_from;
+        let open = offset + " AS (".len() - 1;
+        let rest = upper[open + 1..].trim_start();
+        if rest.starts_with("VALUES") {
+            return Some(open);
+        }
+        search_from = open + 1;
+    }
 }
 
 /// DDL 类型映射表（§4.1.6.2）。顺序无关：均为互不前缀重叠的完整词。
@@ -715,6 +860,42 @@ fn is_word_byte(byte: u8) -> bool {
 }
 
 /// `nextval('public.x_seq'::regclass)` → `x_seq.NEXTVAL`（::regclass 已剥离）。
+fn regex_string_cast() -> regex::Regex {
+    regex::Regex::new(r"(?i)'::[a-z_\[\]]+(\(\d+\))?").unwrap()
+}
+
+fn regex_ts_without_tz() -> regex::Regex {
+    regex::Regex::new(r"(?i)timestamp\s+without\s+time\s+zone").unwrap()
+}
+
+fn regex_ts_with_tz() -> regex::Regex {
+    regex::Regex::new(r"(?i)timestamp\s+with\s+time\s+zone").unwrap()
+}
+
+fn regex_dm_reserved_domain() -> regex::Regex {
+    regex::Regex::new(r#"(?i)\bdomain\b"#).unwrap()
+}
+
+fn regex_no_minvalue() -> regex::Regex {
+    regex::Regex::new(r"(?i)\s+NO\s+MINVALUE").unwrap()
+}
+
+fn regex_no_maxvalue() -> regex::Regex {
+    regex::Regex::new(r"(?i)\s+NO\s+MAXVALUE").unwrap()
+}
+
+fn regex_seq_as_type() -> regex::Regex {
+    regex::Regex::new(r"(?i)\s+AS\s+(bigint|integer|int|smallint)").unwrap()
+}
+
+fn regex_seq_cache() -> regex::Regex {
+    regex::Regex::new(r"(?i)\s+CACHE\s+\d+").unwrap()
+}
+
+fn regex_varying() -> regex::Regex {
+    regex::Regex::new(r"(?i)character\s+varying").unwrap()
+}
+
 fn rewrite_nextval(line: &str) -> String {
     if !line.contains("nextval(") {
         return line.to_owned();
@@ -914,6 +1095,40 @@ mod tests {
             .findings
             .iter()
             .any(|finding| finding.category == Category::PartialIndex));
+    }
+
+    #[test]
+    fn dameng_rewrites_values_cte() {
+        // 0003 的真实形态：WITH defs(cols) AS (VALUES rows) SELECT
+        let source = "WITH defs(name, path, sort) AS (\n    VALUES ('A', 'a', 10),\n    ('B', 'b', 20)\n) SELECT * FROM defs;\n";
+        let translation = translate(Target::Dameng, source);
+        assert!(translation.sql.contains("AS (SELECT 'A', 'a', 10 FROM DUAL UNION ALL SELECT 'B', 'b', 20 FROM DUAL)"));
+        assert!(!translation.sql.contains("VALUES"));
+        assert!(translation
+            .findings
+            .iter()
+            .any(|finding| finding.detail.contains("VALUES-rowset")));
+    }
+
+    #[test]
+    fn dameng_preserves_index_where_semicolon() {
+        let source = "CREATE INDEX idx_t ON t(col) WHERE deleted = 0;\nCREATE INDEX idx_u ON u(col);\n";
+        let translation = translate(Target::Dameng, source);
+        assert_eq!(
+            translation.sql.matches(';').count(),
+            2,
+            "partial-index strip must keep the trailing semicolon: {}",
+            translation.sql
+        );
+    }
+
+    #[test]
+    fn dameng_strips_sequence_cache_and_casts() {
+        let source = "CREATE SEQUENCE s START WITH 1 INCREMENT BY 1 CACHE 1;\nCREATE TABLE t(v VARCHAR(64) DEFAULT ''::VARCHAR NOT NULL);\nCREATE TABLE u(ts timestamp without time zone DEFAULT CURRENT_TIMESTAMP);\n";
+        let translation = translate(Target::Dameng, source);
+        assert!(!translation.sql.contains("CACHE 1"));
+        assert!(translation.sql.contains("DEFAULT '' NOT NULL"), "{}", translation.sql);
+        assert!(translation.sql.contains("ts TIMESTAMP DEFAULT"), "{}", translation.sql);
     }
 
     #[test]
