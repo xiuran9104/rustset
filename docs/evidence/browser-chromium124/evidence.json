@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-08",
+  "engine": "HeadlessChrome/124.0.6367.78（容器，zenika/alpine-chrome）",
+  "target": "http://127.0.0.1:5667/#/auth/login（生产构建产物 + /api 反代）",
+  "result": {
+    "app-shell-rendered": true,
+    "login-page-text-rendered": true,
+    "login-form-inputs-rendered": false,
+    "input_count": 0
+  },
+  "error": "'get' on proxy: property '_zod' is a read-only and non-configurable data property on the proxy target but the proxy did not return its actual value (expected '#<Object>' but got '#<Object>')",
+  "analysis": "zod v4（catalog ^4.6.7，最新版即此）的惰性代理模式在 Chromium 124 引擎上触发 Proxy 不变量 TypeError，登录表单组件挂载失败。dev 模式与生产构建产物在同引擎下均复现 → 排除构建管线因素，为引擎版本相关缺陷。",
+  "reproduction": [
+    "docker run -d --network host zenika/alpine-chrome --no-sandbox --headless --remote-debugging-address=0.0.0.0 --remote-debugging-port=9222",
+    "puppeteer-core 连接 → goto http://127.0.0.1:5667/#/auth/login → 等待 12s → 统计 input 数量 = 0"
+  ],
+  "baseline-impact": "browserslist 声明 Chromium ≥ 88，实际可行下限被 zod v4 抬高——需在目标环境（麒麟/UOS 自带浏览器）实测确定真实下限，或升级 zod（当前 4.6.7 已为最新）后的版本修复。",
+  "screenshots": [
+    "login-page-rendered-no-form.png"
+  ]
+}

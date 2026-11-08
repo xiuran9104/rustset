@@ -370,8 +370,8 @@ TLS_PROFILE=standard|gm
 | M2 openGauss | **✅ 真机验证完成** | openGauss 7.0.0-RC2 容器端到端：R3 认证处置实测、`DBCOMPATIBILITY='PG'` 建库、59 个迁移（含 34.6 万行基线）全链导入、迁移+合同套件（7/7）+ 幂等重跑全绿；翻译规则全部由真机兼容矩阵探测驱动；PG 回归不劣化 |
 | M3 达梦 | 前置大部分完成 | `sql-translate` 规则引擎 + 评审报告 + CI 固化；**0001 流水线（R2）已实现并在 PG→openGauss 上端到端验证**（全表行数 + 抽样 checksum 一致）；达梦备份脚本就绪；剩余：ODBC 适配器（需厂商介质，社区镜像不可得）、达梦侧流水线验证 |
 | M4 双架构与离线交付 | **基本完成（认证脚本化）** | 离线 tarball + install.sh、容器镜像（运行冒烟通过）、vendor + SBOM、浏览器基线 + 兼容声明均已落地；**aarch64 交叉构建实测通过（ELF AArch64 确认）**；麒麟/UOS 真机安装认证待环境 |
-| M5 TLCP 与密钥管理 | 软件侧完成 | 密钥管理、审计整改完成；**TLCP 已实现（2026-11-08）：SM2 双证书生成脚本 + 铜锁 NTLS 验证镜像 + Tengine 配置，端到端握手验证 PASS（NTLSv1.1 + 链校验）**；KMS/SDF 硬件依赖采购（trait 已预留） |
-| M6 联调与测评支撑 | 未开始 | 依赖 M1–M5 真机验证 |
+| M5 TLCP 与密钥管理 | 软件侧完成 | 密钥管理、审计整改完成；**TLCP 已实现（2026-11-08）：SM2 双证书生成脚本 + 铜锁 NTLS 验证镜像 + Tengine 配置，端到端握手验证 PASS（NTLSv1.1 + 链校验）**；KMS/SDF：**模拟实现完成（2026-11-08，SdfSim 句柄语义 + KmsHttp 信封加密 + roundtrip 测试），硬件到位后同接口替换** |
+| M6 联调与测评支撑 | 部分（浏览器轮） | **容器 Chromium 124 互操作首轮完成（2026-11-08）：发现登录表单不渲染缺陷（zod v4 代理不变量，证据归档 `docs/evidence/browser-chromium124/`）**；其余真机联调待环境 |
 
 M0 六项决策的建议稿与需求追踪矩阵见 `docs/xinchuang-m0-decisions.md`；剩余外部依赖：金仓/达梦介质许可、aarch64 真机、麒麟/UOS 环境、国密硬件。
 

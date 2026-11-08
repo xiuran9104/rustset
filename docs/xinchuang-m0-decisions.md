@@ -63,10 +63,10 @@ SDF 密码卡（PCIe，单机）vs 加密机（网络，集群共享）。**建�
 | §4.3 消息队列 | `framework/mq` JetStream 总线 + 语义合同套件（6/6） | 合同测试实测（compose NATS --js） | ✅（国产 MQ 替换按同套件验收） |
 | §4.3 缓存 | compose/Redis 零改动 | 语义合同待测 | ⏳ TongRDS 选型 |
 | §4.4.2/4.4.3 #3 密钥管理 | v3 格式 + 钥匙环 + re-seal + CLI | 21 gm 测试 + 端到端 | ✅ |
-| §4.4.3 #2 硬件密码 | `Sm4Provider`/`RandomProvider` trait + CRYPTO_PROVIDER 门禁 | 单测 | ✅（硬件待采购） |
+| §4.4.3 #2 硬件密码 | trait + `CRYPTO_PROVIDER` 门禁 + **SdfSim（GM/T 0018 句柄语义模拟）与 KmsHttp（信封加密）两个 Provider 实现及 roundtrip 测试** | 25 gm 测试（含 mock KMS 端到端信封 roundtrip） | ✅ 模拟实现（硬件替换走同接口） |
 | §4.4.3 #1/#7 TLCP | SM2 双证书脚本 + 铜锁 NTLS 验证镜像 + Tengine 配置 + 端到端握手验证（NTLSv1.1 协商 + 链校验 OK） | `verify-ntls.sh` 真机握手 PASS | ✅ 软件侧（浏览器互操作待真机） |
 | §4.4.3 #6 审计 | 留存 190 天 + SM3 行摘要（迁移 0059） | 单测 + 迁移断言 | ✅ |
-| §4.5 浏览器/WPS | browserslist 基线 + 兼容声明 | 前端构建通过；截图回归待真机 | ⏳ 环境 |
+| §4.5 浏览器/WPS | browserslist 基线 + 兼容声明 | **容器 Chromium 124 实测：发现登录表单不渲染缺陷（zod v4 代理不变量，证据已归档）**；其余页面待登录打通后逐一验证 | 🔴 发现缺陷 D-1（记录在兼容声明） |
 | §4.6.1 离线 tarball | `package-offline.sh` | 打包实测（31M） | ✅ |
 | §4.6.2 容器 | 多阶段 Dockerfile + buildx | 构建 + 运行冒烟实测 | ✅ |
 | §4.6.3/4.6.5 供应链 | vendor 快照 + SBOM 脚本 | vendor 425M 离线验证、SBOM 461 包 | ✅ |
@@ -77,7 +77,7 @@ SDF 密码卡（PCIe，单机）vs 加密机（网络，集群共享）。**建�
 
 1. ~~金仓 V8R6 介质~~（社区许可镜像已验证，`--db kingbase` 一键回归；企业许可镜像可选覆盖 `KINGBASE_IMAGE`）
 1. ~~达梦 DM8 介质~~（社区镜像 sizx/dm8 已真机连通，翻译链 0002–0059 已执行并留存错误清单；`--db dm`/ODBC 适配器收敛待 Rust 侧接入）
-1. SDF 密码卡（按 #2/#3 采购，接口已以 trait 预留：`CRYPTO_PROVIDER` 门禁）
+1. SDF 密码卡（按 #2/#3 采购；采购需求书已出：`docs/sdf-procurement.md`，接口以 trait 预留并含模拟实现验证）
 1. Tengine + 铜锁 + SM2 双证书（TLCP 配置与验证脚本已就绪，证书到位即部署）
 1. 麒麟 V10 / 统信 UOS / aarch64 真机（安装认证脚本已就绪，真机执行即出证据）
 2. aarch64 原生测试机（鲲鹏/飞腾）——交叉构建已验证，缺真机运行认证

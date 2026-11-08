@@ -14,6 +14,15 @@
 | 国密浏览器（密信/奇安信等 TLCP 场景） | Chromium 内核 + 国密 TLS 模块 | 随 §4.4.3 #1/#7 一并验证 |
 | WPS Office | 打开导出的 Excel/CSV/压缩包 | 支持（calamine/zip 导入导出路径，待专项验证 §4.5.4） |
 
+## 已发现缺陷（2026-11-08，容器 Chromium 124 实测）
+
+**D-1：登录表单在 Chromium 124 不渲染**——zod v4（catalog ^4.6.7，当前最新）的
+`_zod` 惰性代理模式在 Chromium 124 触发 Proxy 不变量 TypeError，登录表单组件
+挂载失败（页面文本渲染、输入框数量 0）。dev/生产构建同复现 → 引擎版本相关。
+证据：`docs/evidence/browser-chromium124/`。影响：browserslist 声明下限
+（Chromium ≥ 88）与实际可行下限不一致；处置：目标环境实测真实下限 +
+跟踪 zod 上游修复。其余页面待登录打通后逐一验证。
+
 ## 已验证项（随合同测试与端到端用例持续更新）
 
 - 登录、菜单导航、表格、表单、文件上传下载：全部核心用例基于标准 Web API。
