@@ -1,0 +1,26 @@
+# 铜锁（Tongsuo）NTLS 验证镜像（docs/xinchuang-adaptation-plan.md §4.4.3 #1）。
+#
+# 编译启用 enable-ntls 的铜锁 CLI，用于 TLCP 双证书端到端握手验证
+# （s_server/s_client NTLS）。生产入口网关按方案用 Tengine + 铜锁
+# （见 nginx-tlcp.conf 与 Dockerfile.tengine）。
+FROM debian:bookworm-slim AS build
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential git ca-certificates perl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+# 官方仓库（GitHub 主源；gitee.com/Tongsuo-8/Tongsuo 为备用镜像源）。
+RUN git clone --depth 1 --branch master https://github.com/Tongsuo-Project/Tongsuo.git .
+
+# enable-ntls：NTLS/TLCP 双证书套件（ECC-SM2-SM4-CBC-SM3 等）的编译开关。
+RUN ./config enable-ntls --prefix=/usr/local/tongsuo \
+    && make -j"$(nproc)" \
+    && make install_sw
+
+FROM debian:bookworm-slim
+COPY --from=build /usr/local/tongsuo /usr/local/tongsuo
+# libssl.so.3/libcrypto.so.3（铜锁自编译库）随安装前缀一起携带。
+ENV PATH=/usr/local/tongsuo/bin:$PATH \
+    LD_LIBRARY_PATH=/usr/local/tongsuo/lib64
+ENTRYPOINT ["tongsuo"]

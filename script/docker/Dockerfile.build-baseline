@@ -1,0 +1,28 @@
+# 基线构建容器（docs/xinchuang-adaptation-plan.md §4.2.1）：
+# 在 glibc 2.28（= 麒麟 V10 / 统信 UOS V20 基线）内编译 release 产物，
+# 保证离线包二进制在目标 OS 上直接运行。不在目标机编译。
+#
+# 用法：
+#   docker build -f script/docker/Dockerfile.build-baseline -t rustset-build-baseline .
+#   docker run --rm -v "$PWD/dist-offline:/out" rustset-build-baseline
+#   # 产物：/out/rustset-gateway-baseline
+FROM almalinux:8
+
+RUN dnf install -y gcc gcc-c++ make cmake perl \
+    && dnf clean all
+
+# Rust 官方工具链支持 glibc 2.17+（manylinux 兼容），almalinux:8 可用。
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH=/root/.cargo/bin:$PATH
+
+WORKDIR /src
+# 编译上下文与运行时镜像一致：工作区成员 + 编译期内嵌迁移链。
+COPY Cargo.toml Cargo.lock .cargo/ ./
+COPY crates ./crates
+COPY services ./services
+COPY script/sql-translate ./script/sql-translate
+COPY sql ./sql
+RUN cargo build --release -p rustset-gateway
+
+# 产物导出到挂载目录（宿主侧取出）。
+CMD ["cp", "/src/target/release/rustset-gateway", "/out/rustset-gateway-baseline"]

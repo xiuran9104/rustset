@@ -89,7 +89,15 @@ PKG_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 [[ "$(id -u)" -eq 0 ]] || { echo "需要 root 运行"; exit 1; }
 
-case "${1:-install}" in
+MODE=install
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) MODE=dry-run ;;
+    uninstall) MODE=uninstall ;;
+  esac
+done
+
+case "$MODE" in
   uninstall)
     systemctl stop rustset-gateway 2>/dev/null || true
     systemctl disable rustset-gateway 2>/dev/null || true
@@ -98,8 +106,8 @@ case "${1:-install}" in
     echo "已卸载服务与二进制；保留 ${ENV_FILE}、数据库与 ${DEST}/frontend（证据与回退需要）"
     exit 0
     ;;
-  install) ;;
-  *) echo "usage: install.sh [install|uninstall]"; exit 2 ;;
+  install|dry-run) ;;
+  *) echo "usage: install.sh [install|--dry-run|uninstall]"; exit 2 ;;
 esac
 
 echo "=== 预检（§4.2.3.3）==="
@@ -124,6 +132,27 @@ AVAILABLE_MB="$(df -Pm /opt | awk 'NR==2 {print $4}')"
 [[ "${AVAILABLE_MB:-0}" -ge 2048 ]] || { echo "磁盘空间不足 2GiB（剩余 ${AVAILABLE_MB}MiB）"; exit 1; }
 echo "预检通过（arch=${HOST_ARCH} glibc=${GLIBC_MAJOR}.${GLIBC_MINOR} disk=${AVAILABLE_MB}MiB）"
 
+if [[ "$MODE" == "dry-run" ]]; then
+  # 认证模式：文件落位到临时目录验证，不写系统路径、不碰 systemd。
+  echo "=== DRY-RUN：预检 + 完整性 + 二进制可执行验证 ==="
+  STAGE="$(mktemp -d)"
+  install -m 0755 "$PKG_DIR/rustset-gateway" "$STAGE/rustset-gateway"
+  mkdir -p "$STAGE/frontend"
+  cp -r "$PKG_DIR/frontend/." "$STAGE/frontend/"
+  [[ -x "$STAGE/rustset-gateway" ]] || { echo "二进制不可执行"; rm -rf "$STAGE"; exit 1; }
+  # 输出落文件断言（管道 + grep -q 会 SIGPIPE，pipefail 下误判失败）。
+  "$STAGE/rustset-gateway" >"$STAGE/run.out" 2>&1 || true
+  if grep -q "DATABASE_URL" "$STAGE/run.out"; then
+    echo "二进制在当前 glibc 下正常运行（缺配置报错 = 预期）"
+  else
+    echo "二进制运行失败：$(head -2 "$STAGE/run.out")"
+    rm -rf "$STAGE"; exit 1
+  fi
+  rm -rf "$STAGE"
+  echo "DRY-RUN 认证通过：预检/完整性/落位/二进制全部 OK（未触碰 systemd）"
+  exit 0
+fi
+
 echo "=== 安装 ==="
 mkdir -p "$DEST" /etc/rustset
 install -m 0755 "$PKG_DIR/rustset-gateway" "$DEST/rustset-gateway"
@@ -144,7 +173,7 @@ fi
 
 install -m 0644 "$PKG_DIR/rustset-gateway.service" "$UNIT"
 systemctl daemon-reload
-if [[ "${1:-install}" == "install" ]]; then
+if [[ "$MODE" == "install" ]]; then
   systemctl enable --now rustset-gateway || echo "服务未启动成功：检查 journalctl -u rustset-gateway"
 fi
 
