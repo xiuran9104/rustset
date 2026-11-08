@@ -153,13 +153,12 @@ jobs:
         run: |
           case "$FLAVOR" in
             opengauss)
-              # R3：openGauss 默认 sha256 认证，sqlx/libpq 不支持——
-              # 切 password_encryption_type=1 并重设口令生成 MD5 哈希。
-              docker run -d --name db -e GS_PASSWORD='Rustset_2026' -p 54321:5432 opengauss/opengauss:5.0.1
-              for _ in $(seq 1 60); do docker exec db gsql -U gaussdb -d postgres -c 'SELECT 1' >/dev/null 2>&1 && break; sleep 2; done
-              docker exec db gs_guc set -D /var/lib/opengauss/data -c "password_encryption_type=1" >/dev/null
-              docker exec db gsql -U gaussdb -d postgres -c "ALTER USER gaussdb PASSWORD 'Rustset_2026';"
-              echo "TEST_DATABASE_URL=opengauss://gaussdb:Rustset_2026@127.0.0.1:54321/postgres" >> "$GITHUB_ENV"
+              # 认证机制（实测）：镜像预置 gaussdb 远程用户为 MD5 哈希
+              # （= GS_PASSWORD），libpq/sqlx 直连；口令须满足复杂度（含特殊字符）。
+              docker run -d --name db -e GS_PASSWORD='Rustset@2026' -p 54321:5432 opengauss/opengauss:7.0.0-RC2.B015
+              for _ in $(seq 1 60); do docker exec -u omm db bash -lc 'gsql -d postgres -t -A -c "SELECT 1"' >/dev/null 2>&1 && break; sleep 2; done
+              docker exec -u omm db bash -lc "gsql -d postgres -c \"CREATE DATABASE rustset_ci DBCOMPATIBILITY = 'PG'\""
+              echo "TEST_DATABASE_URL=opengauss://gaussdb:Rustset%402026@127.0.0.1:54321/rustset_ci" >> "$GITHUB_ENV"
               ;;
             kingbase)
               docker run -d --name db -p 54321:5432 "${{ vars.KINGBASE_IMAGE }}"

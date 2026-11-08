@@ -195,7 +195,7 @@ TLS_PROFILE=standard|gm
 
 #### 4.1.5 openGauss（M2）
 
-- **认证是第一坑**：openGauss 默认 `password_encryption_type=2`（sha256），libpq 系客户端（含 sqlx）不支持。方案：建库时为应用账号设 `password_encryption_type=1`（MD5）或 `0`，安装文档写死该步骤。
+- **认证是第一坑（2026-11-08 实测修正）**：openGauss 默认 sha256，libpq 系客户端（含 sqlx）不支持——但官方容器**预置了 md5 哈希的 `gaussdb` 远程用户**（口令 = `GS_PASSWORD`），libpq/sqlx 直连即可，无需改 GUC。陷阱：`gsql` 客户端永远先协商 sha256，用它探测 md5 认证会误报失败；自建应用账号时才需要 `password_encryption_type=1`（注意该参数为 POSTMASTER 级且对 ALTER 可能不生效，需以预置 md5 用户为准）。
 - 其余与 PG 差异（线程池、`enable_opfusion` 等）对应用透明；全量回归 + 压测一轮。
 
 #### 4.1.6 达梦 DM8（M3，最高成本与风险）
@@ -584,7 +584,7 @@ x86_64 执行四库全量测试；aarch64 执行四库核心全量回归及实�
 | --- | --- | --- | --- |
 | R1 | 达梦无官方 Rust 驱动，ODBC 驱动质量/性能未知 | M3 延期或性能不达标 | M0 期间先做 ODBC spike（建表+CRUD+并发压测）；备选 DPI FFI；最坏情况达梦支持期后置一期（需业务确认） |
 | R2 | `0001_initial.sql` 34.6 万行翻译正确性 | 基线数据损坏 | 行数 + 抽样 checksum 自动比对，禁止目检；比对不过即阻断 |
-| R3 | openGauss sha256 认证与 sqlx 不兼容 | 连不上 | 安装文档强制 `password_encryption_type=1/0`；CI 固化该配置 |
+| R3 | openGauss sha256 认证与 sqlx 不兼容 | 连不上 | 实测：容器预置 md5 哈希的 gaussdb 远程用户，libpq 直连；CI 已按真实机制固化（勿用 gsql 探测 md5） |
 | R4 | 四套迁移链长期同步成本 | 每次变更高 | 翻译工具固化进 CI；AGENTS.md 工作流约束"四目录同交" |
 | R5 | jsonb 列上的唯一约束/查询在达梦退化为 TEXT（0025 唯一值约束等） | 功能差异 | M3 专项清单逐条评审，功能降级登记并客户确认 |
 | R6 | 密评硬件（密码卡/加密机）采购与选型周期 | M5 停等 | M0 启动采购；软件主密钥方案先行兜底 |

@@ -6,8 +6,10 @@
 
 ## 验证状态（2026-11-06 实测）
 **已在 openGauss 7.0.0-RC2（容器）端到端验证**：
-- R3 认证处置实测：`password_encryption_type=1` + `ALTER USER` 重哈希为 MD5，
-  sqlx/libpq 直连成功
+- 认证机制实测（修正）：镜像预置 `gaussdb` 远程用户且口令哈希为 **MD5**
+  （= `GS_PASSWORD`）——libpq/sqlx 直连即可，无需 gs_guc 改参；初始超户
+  `omm` 是 sha256 且仅限本地；`gsql` 客户端永远先协商 sha256，**不能**
+  用它探测 md5 认证（会误报 Invalid username/password）
 - 建库必须 `DBCOMPATIBILITY = 'PG'`（默认 A 模式下 `''` 即 NULL，破坏 NOT NULL 语义）
 - 59 个迁移（含 34.6 万行 0001 基线）全部导入成功
 - 迁移 + 合同测试套件在 og 上全绿（幂等重跑含在内）
