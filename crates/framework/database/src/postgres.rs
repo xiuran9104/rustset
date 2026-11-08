@@ -17,6 +17,8 @@ use crate::DatabaseConfig;
 // 生成 + 评审入库，一致性测试把关），这里编译期内嵌后按 flavor 选用。
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../../sql/postgresql");
 static MIGRATOR_OPENGAUSS: sqlx::migrate::Migrator = sqlx::migrate!("../../../sql/opengauss");
+// 金仓链：仅 NULLS NOT DISTINCT 翻译（实测金仓 PG 模式其余原生兼容）。
+static MIGRATOR_KINGBASE: sqlx::migrate::Migrator = sqlx::migrate!("../../../sql/kingbase");
 
 pub async fn connect(config: &DatabaseConfig) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new()
@@ -53,9 +55,16 @@ pub async fn migrate_with_flavor(pool: &PgPool, flavor: DatabaseFlavor) -> anyho
             }
             run_migrations(pool, &MIGRATOR_OPENGAUSS).await
         }
-        DatabaseFlavor::Postgres | DatabaseFlavor::Kingbase => {
-            run_migrations(pool, &MIGRATOR).await
+        DatabaseFlavor::Kingbase => {
+            if MIGRATOR_KINGBASE.iter().count() == 0 {
+                anyhow::bail!(
+                    "sql/kingbase is empty; generate the flavor chain with \
+                     `cargo run -p sql-translate -- --target kingbase --output sql/kingbase`"
+                );
+            }
+            run_migrations(pool, &MIGRATOR_KINGBASE).await
         }
+        DatabaseFlavor::Postgres => run_migrations(pool, &MIGRATOR).await,
     }
 }
 

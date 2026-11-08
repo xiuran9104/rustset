@@ -132,10 +132,10 @@ jobs:
       - run: cargo test --workspace
       - run: bash script/test-database-migrations.sh
 
-  # 国产数据库矩阵（§4.1.8 / 风险 R7）：openGauss 为开源镜像直接验证；
-  # 金仓 / 达梦容器含商业许可条款，镜像地址由仓库变量提供后才运行
-  # （vars.KINGBASE_IMAGE / vars.DM_IMAGE，均为内网许可镜像）。
-  # 整个 job 再受 XINCHUANG_DB_MATRIX=true 门禁，M0 许可确认后开启。
+  # 国产数据库矩阵（§4.1.8 / 风险 R7）：直接复用本地脚本——
+  # opengauss（公开镜像，认证机制已实测固化）与 kingbase（社区许可镜像，
+  # PG 模式卷预初始化）全自动；dm 需 DM_IMAGE + DM_TEST_URL（内网许可），
+  # 未提供时明确退出而非静默跳过。
   database-matrix:
     if: vars.XINCHUANG_DB_MATRIX == 'true'
     runs-on: ubuntu-latest
@@ -143,39 +143,11 @@ jobs:
       fail-fast: false
       matrix:
         flavor: [opengauss, kingbase, dm]
-    env:
-      FLAVOR: ${{ matrix.flavor }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Start database container
-        run: |
-          case "$FLAVOR" in
-            opengauss)
-              # 认证机制（实测）：镜像预置 gaussdb 远程用户为 MD5 哈希
-              # （= GS_PASSWORD），libpq/sqlx 直连；口令须满足复杂度（含特殊字符）。
-              docker run -d --name db -e GS_PASSWORD='Rustset@2026' -p 54321:5432 opengauss/opengauss:7.0.0-RC2.B015
-              for _ in $(seq 1 60); do docker exec -u omm db bash -lc 'gsql -d postgres -t -A -c "SELECT 1"' >/dev/null 2>&1 && break; sleep 2; done
-              docker exec -u omm db bash -lc "gsql -d postgres -c \"CREATE DATABASE rustset_ci DBCOMPATIBILITY = 'PG'\""
-              echo "TEST_DATABASE_URL=opengauss://gaussdb:Rustset%402026@127.0.0.1:54321/rustset_ci" >> "$GITHUB_ENV"
-              ;;
-            kingbase)
-              docker run -d --name db -p 54321:5432 "${{ vars.KINGBASE_IMAGE }}"
-              echo "TEST_DATABASE_URL=kingbase8://system:${{ vars.KINGBASE_PASSWORD }}@127.0.0.1:54321/test" >> "$GITHUB_ENV"
-              ;;
-            dm)
-              docker run -d --name db -p 5236:5236 "${{ vars.DM_IMAGE }}"
-              echo "TEST_DATABASE_URL=dm://SYSDBA:${{ vars.DM_PASSWORD }}@127.0.0.1:5236" >> "$GITHUB_ENV"
-              echo "注意：达梦需 ODBC 适配器（M3），此 job 当前预期失败，用于观测进度"
-              ;;
-          esac
-      - name: Wait for database initialization
-        run: |
-          # 国产库容器首次初始化较慢（建库/参数生效），给足启动窗口。
-          for _ in $(seq 1 12); do
-            if docker logs db 2>&1 | tail -5 | grep -qiE 'ready|started|complete|listening'; then break; fi
-            sleep 10
-          done
-          sleep 30
-      - run: bash script/test-database-migrations.sh --db "$FLAVOR"
+      - run: bash script/test-database-migrations.sh --db "${{ matrix.flavor }}"
+        env:
+          DM_IMAGE: ${{ vars.DM_IMAGE }}
+          DM_TEST_URL: ${{ vars.DM_TEST_URL }}

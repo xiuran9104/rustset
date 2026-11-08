@@ -57,8 +57,8 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect network-policy risk linkage");
     assert_eq!(risk_source_columns, 3);
-    let unique_constraint: bool = if flavor() == DatabaseFlavor::OpenGauss {
-        // og 链把 UNIQUE NULLS NOT DISTINCT 约束改写为表达式唯一索引。
+    let unique_constraint: bool = if matches!(flavor(), DatabaseFlavor::OpenGauss | DatabaseFlavor::Kingbase) {
+        // og / 金仓链把 UNIQUE NULLS NOT DISTINCT 约束改写为表达式唯一索引。
         sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname = 'cmdb_instance_unique_value_key')"
         ).fetch_one(&pool).await.expect("CMDB unique-value index")
@@ -98,7 +98,7 @@ async fn applies_all_migrations_to_empty_postgres() {
             .bind(table).fetch_one(&pool).await.unwrap();
         assert_eq!(nullable, "YES", "historical ownership must not be guessed");
     }
-    let definition: String = if flavor() == DatabaseFlavor::OpenGauss {
+    let definition: String = if matches!(flavor(), DatabaseFlavor::OpenGauss | DatabaseFlavor::Kingbase) {
         sqlx::query_scalar("SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND indexname='cmdb_instance_unique_value_key'")
     } else {
         sqlx::query_scalar("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='cmdb_instance_unique_value'::regclass AND conname='cmdb_instance_unique_value_key'")
@@ -227,7 +227,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .fetch_one(&pool)
     .await
     .expect("inspect tenant cloud discovery uniqueness");
-    if flavor() == DatabaseFlavor::OpenGauss {
+    if matches!(flavor(), DatabaseFlavor::OpenGauss | DatabaseFlavor::Kingbase) {
         assert!(
             discovery_unique_index.contains("COALESCE"),
             "og expression index: {discovery_unique_index}"

@@ -92,6 +92,50 @@ start_opengauss() {
   export TEST_DATABASE_URL="opengauss://gaussdb:Rustset%402026@127.0.0.1:${port}/rustset_test"
 }
 
+start_kingbase() {
+  # 实测路径（2026-11-08，真机 V008R006C005B0013）：社区许可镜像可公开拉取。
+  # 关键点：database_mode 是 initdb 级（默认 oracle，'' 即 NULL 会击穿
+  # NOT NULL 语义）——必须用卷预初始化为 PG 模式，标准入口检测到既有
+  # 数据目录后直接启动。许可限制 max_connections=10（套件连接数内）。
+  local image="${KINGBASE_IMAGE:-liangyaobo/kingbase:v8r6-license}"
+  local port="${TEST_KINGBASE_PORT:-55434}"
+  local user="${KINGBASE_USER:-system}"
+  local password="${KINGBASE_PASSWORD:-123456}"
+  docker volume create "${container}-data" >/dev/null
+  docker run --rm -u 0 -v "${container}-data:/opt/kingbase/data" \
+    --entrypoint bash "$image" -c '
+    chown -R kingbase:kingbase /opt/kingbase/data
+    su kingbase -s /bin/bash -c "
+      echo '"$password"' > /tmp/kbpwd
+      cd /opt/kingbase/Server/bin
+      ./initdb -U'"$user"' --pwfile=/tmp/kbpwd -E UTF8 --case-insensitive -m pg /opt/kingbase/data
+    " >/dev/null 2>&1'
+  docker run -d --name "$container" -v "${container}-data:/opt/kingbase/data" \
+    -p "${port}:54321" "$image" >/dev/null
+  for _ in $(seq 1 30); do
+    (echo > /dev/tcp/127.0.0.1/"$port") >/dev/null 2>&1 && break
+    sleep 2
+  done
+  # 等数据库真正可连（端口先于服务就绪）。
+  local client="${KINGBASE_CLIENT:-pg-client-for-migrations}"
+  docker rm -f "$client" >/dev/null 2>&1 || true
+  docker run -d --name "$client" --network host postgres:18 sleep infinity >/dev/null
+  local ok=0
+  for _ in $(seq 1 30); do
+    if docker exec "$client" bash -c \
+      "PGPASSWORD='$password' psql -h 127.0.0.1 -p $port -U $user -d test -t -A -c 'SHOW database_mode'" 2>/dev/null | grep -q '^pg$'; then
+      ok=1; break
+    fi
+    sleep 2
+  done
+  docker rm -f "$client" >/dev/null 2>&1 || true
+  [[ "$ok" == "1" ]] || { echo "Kingbase 未就绪或 database_mode != pg" >&2; exit 1; }
+  # 用一次性容器建库（幂等容忍已存在）。
+  docker run --rm --network host postgres:18 bash -c \
+    "PGPASSWORD='$password' psql -h 127.0.0.1 -p $port -U $user -d test -c 'CREATE DATABASE rustset_test'" >/dev/null 2>&1 || true
+  export TEST_DATABASE_URL="kingbase://${user}:${password}@127.0.0.1:${port}/rustset_test"
+}
+
 start_licensed() {
   # 金仓 / 达梦：镜像与连接串来自环境（内网许可仓库）。
   local image_var="$1" url_var="$2" port_map="$3"
@@ -109,7 +153,7 @@ start_licensed() {
 case "$DB_FLAVOR" in
   postgres) start_postgres ;;
   opengauss) start_opengauss ;;
-  kingbase) start_licensed KINGBASE_IMAGE KINGBASE_TEST_URL "${TEST_KINGBASE_PORT:-55434}:54321" ;;
+  kingbase) start_kingbase ;;
   dm) start_licensed DM_IMAGE DM_TEST_URL "${TEST_DM_PORT:-55236}:5236" ;;
   *) echo "未知方言：$DB_FLAVOR（postgres|kingbase|opengauss|dm）" >&2; exit 2 ;;
 esac

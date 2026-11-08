@@ -94,15 +94,9 @@ pub struct Translation {
 /// 翻译一段迁移 SQL。
 pub fn translate(target: Target, source: &str) -> Translation {
     match target {
-        // 金仓：PG 兼容模式，逐字复制；仅扫描评审项供报告参考。
-        Target::Kingbase => {
-            let mut findings = Vec::new();
-            scan_review_items(source, &mut findings);
-            Translation {
-                sql: source.to_owned(),
-                findings,
-            }
-        }
+        // 金仓：PG 兼容度高（upsert/DO NOTHING/FILTER/jsonb 实测原生支持），
+        // 仅 NULLS NOT DISTINCT（PG15 语法，金仓内核 PG12 系）需改写。
+        Target::Kingbase => translate_kingbase(source),
         // openGauss：PG 兼容为主，但对内核（源自 PG 9.2）缺失的构造做
         // 实测驱动的改写（2026-11-06 于 openGauss 7.0.0-RC2 探测）。
         Target::OpenGauss => translate_opengauss(source),
@@ -587,6 +581,35 @@ fn regex_nnd_index() -> regex::Regex {
 
 fn regex_nnd_constraint() -> regex::Regex {
     regex::Regex::new(r#"(?is)ALTER\s+TABLE\s+(?P<table>[\w.]+)[^;]*?ADD\s+CONSTRAINT\s+(?P<name>[\w.]+)\s+UNIQUE\s+NULLS\s+NOT\s+DISTINCT\s*\((?P<cols>[^)]*)\)"#).unwrap()
+}
+
+/// 金仓 V8R6（PG 模式，实测 2026-11-08）：唯一不兼容构造是
+/// `NULLS NOT DISTINCT`——改写与 openGauss 相同的逐表达式 COALESCE
+/// 唯一索引（金仓同样接受该形式）；其余方言扫描项仅登记不改写。
+fn translate_kingbase(source: &str) -> Translation {
+    let mut findings = Vec::new();
+    scan_review_items(source, &mut findings);
+    let mut sql = source.to_owned();
+
+    let (rewritten, count) = rewrite_nulls_not_distinct_index(&sql);
+    if count > 0 {
+        sql = rewritten;
+        findings.push(Finding {
+            line: 0,
+            category: Category::NullsNotDistinct,
+            detail: format!("{count} NULLS NOT DISTINCT index rewritten to COALESCE expression index"),
+        });
+    }
+    let (rewritten, count) = rewrite_nulls_not_distinct_constraint(&sql);
+    if count > 0 {
+        sql = rewritten;
+        findings.push(Finding {
+            line: 0,
+            category: Category::NullsNotDistinct,
+            detail: format!("{count} UNIQUE NULLS NOT DISTINCT constraint rewritten to expression index"),
+        });
+    }
+    Translation { sql, findings }
 }
 
 fn translate_dameng(source: &str) -> Translation {
