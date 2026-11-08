@@ -11,7 +11,7 @@ import type {
   FormShape,
 } from '../types';
 
-import { computed } from 'vue';
+import { computed, toRaw } from 'vue';
 
 import { Form } from '@vben-core/shadcn-ui';
 import {
@@ -62,7 +62,10 @@ const shapes = computed(() => {
   const resultShapes: FormShape[] = [];
   props.schema?.forEach((schema) => {
     const { fieldName } = schema;
-    const rules = schema.rules as ZodType;
+    // zod v4 的 _zod 为不可配置属性：经 Vue reactive/readonly 代理访问会
+    // 触发引擎不变量 TypeError（登录表单不渲染的根因，见缺陷 D-1）。
+    // toRaw 解包后整棵 zod 树都是原始对象，后续访问不再经过代理。
+    const rules = toRaw(schema.rules) as ZodType;
 
     const baseRules = getBaseRules(rules) as ZodType;
 

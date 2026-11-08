@@ -204,10 +204,24 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       const responseData = error?.response?.data ?? {};
       const errorMessage =
         responseData?.error ?? responseData?.message ?? responseData.msg ?? '';
-      // 特殊：避免 401 “账号未登录”重复提示；此时会跳转到登录界面，只需提示一次。
-      if (error?.data?.code === 401) {
+      const status = error?.response?.status;
+      const requestUrl: string = error?.config?.url ?? '';
+
+      // 登录接口的 401 = 凭证错误：展示友好提示（后端 message 为英文，
+      // 兜底中文）。只弹这一次，不再落入通用未授权提示。
+      if (status === 401 && requestUrl.includes('/auth/login')) {
+        message.error(errorMessage || '用户名或密码错误');
         return;
       }
+
+      // 其余 401（token 过期/未授权/业务码 401）：re-auth 拦截器已负责
+      // 刷新令牌或跳转登录。这里必须静默——过期会话会触发
+      // permission-info / refresh-token / logout 连锁失败，逐个弹框会形成
+      // 错误风暴（缺陷 D-2，实测连弹三个未授权框）。
+      if (status === 401 || error?.data?.code === 401) {
+        return;
+      }
+
       // 如果没有错误信息，则会根据状态码进行提示
       message.error(errorMessage || msg);
     }),

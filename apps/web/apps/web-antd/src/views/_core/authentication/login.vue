@@ -81,7 +81,25 @@ async function handleLogin(values: any) {
     return;
   }
   // 无验证码，直接登录
-  await authStore.authLogin(values);
+  try {
+    await authStore.authLogin(values);
+  } catch (error: any) {
+    // 拦截器链对 401 已静默（缺陷 D-2），登录失败在提交点给出唯一提示；
+    // 网络等其它错误也在此兜底，避免静默失败。
+    const status = error?.response?.status ?? error?.data?.code;
+    const backendMessage = error?.response?.data?.message;
+    if (status === 401 || /invalid|password|credential/i.test(String(backendMessage ?? ''))) {
+      notification.error({
+        description: backendMessage || '用户名或密码错误，请重试',
+        message: '登录失败',
+      });
+    } else {
+      notification.error({
+        description: error?.message || '登录请求失败，请稍后重试',
+        message: '登录失败',
+      });
+    }
+  }
 }
 
 /** 验证码通过，执行登录 */

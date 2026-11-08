@@ -12,6 +12,7 @@ import {
   nextTick,
   onUnmounted,
   ref,
+  toRaw,
   useTemplateRef,
   watch,
 } from 'vue';
@@ -117,7 +118,11 @@ const labelStyle = computed(() => {
 });
 
 const currentRules = computed(() => {
-  return dynamicRules.value || rules;
+  // zod 规则对象可能经 store/props 的深响应式代理传入：其 _zod 为
+  // 不可配置属性，代理 get 返回新包装会触发引擎不变量 TypeError，
+  // 导致登录表单不渲染（缺陷 D-1）。在此一次性解包，所有下游
+  //（shouldRequired / fieldRules / 校验管线）均拿到原始 zod 对象。
+  return toRaw(dynamicRules.value || rules);
 });
 
 const visible = computed(() => {

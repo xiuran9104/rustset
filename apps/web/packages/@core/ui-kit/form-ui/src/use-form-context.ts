@@ -4,7 +4,7 @@ import type { ComputedRef } from 'vue';
 
 import type { ExtendedFormApi, FormActions, VbenFormProps } from './types';
 
-import { computed, unref, useSlots } from 'vue';
+import { computed, unref, useSlots, toRaw } from 'vue';
 
 import { createContext } from '@vben-core/shadcn-ui';
 import { isString, mergeWithArrayOverride, set } from '@vben-core/shared/utils';
@@ -70,7 +70,10 @@ export function useFormInitial(
     return mergeWithArrayOverride(initialValues, zodDefaults);
   }
   // 自定义默认值提取逻辑
-  function getCustomDefaultValue(rule: any): any {
+  function getCustomDefaultValue(rawInput: any): any {
+    // 入口统一解包：经 reactive/readonly 代理的 zod 对象访问 _zod/shape 会
+    // 触发引擎 Proxy 不变量 TypeError（缺陷 D-1，登录表单不渲染）。
+    const rule = toRaw(rawInput);
     if (rule instanceof ZodString) {
       return ''; // 默认为空字符串
     } else if (rule instanceof ZodNumber) {
@@ -84,8 +87,10 @@ export function useFormInitial(
       return defaultValues;
     } else if (rule instanceof ZodIntersection) {
       // 对于交集类型，从schema 提取默认值
-      // zod 4 将内部结构从 _def 迁到 _zod.def，做兼容访问
-      const def = (rule as any)._def ?? (rule as any)._zod?.def ?? {};
+      // zod 4 将内部结构从 _def 迁到 _zod.def，做兼容访问。
+      // 经 toRaw 解包：代理链上读 _zod 会触发引擎不变量 TypeError（D-1）。
+      const rawRule = toRaw(rule as any);
+      const def = rawRule._def ?? rawRule._zod?.def ?? {};
       const leftDefaultValue = getCustomDefaultValue(def.left);
       const rightDefaultValue = getCustomDefaultValue(def.right);
 
