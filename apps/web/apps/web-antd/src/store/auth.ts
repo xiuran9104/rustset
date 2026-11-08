@@ -18,6 +18,7 @@ import {
   logoutApi,
 } from '#/api';
 import { $t } from '#/locales';
+import { ensureFormCreate } from '#/plugins/form-create';
 
 export const useAuthStore = defineStore('auth', () => {
   const accessStore = useAccessStore();
@@ -52,6 +53,10 @@ export const useAuthStore = defineStore('auth', () => {
         }
         accessStore.setAccessToken(accessToken);
         accessStore.setRefreshToken(refreshToken);
+
+        // 预取全量 antd / form-create 组件（与用户信息加载并行），
+        // 业务页面的全局 a-* 标签依赖它们；路由守卫会兜底 await。
+        void ensureFormCreate();
 
         // 获取用户信息并存储到 userStore、accessStore 中
         // TODO：清理掉 accessCodes 相关的逻辑

@@ -23,6 +23,27 @@
 （Chromium ≥ 88）与实际可行下限不一致；处置：目标环境实测真实下限 +
 跟踪 zod 上游修复。其余页面待登录打通后逐一验证。
 
+**D-3：无头浏览器"卡死"（2026-11-09 定位，测试容器缺陷 + 应用侧放大因素）**
+——症状：chrome-interop 容器（zenika/alpine-chrome，Chromium 124 headless +
+swiftshader 软渲染）内停留/新开标签数分钟后渲染进程"假死"：主线程空闲但
+Runtime.evaluate 超时，新开同站标签同样卡死，仅重启容器可复位。定位过程
+（CDP tracing + 网络域探针）：
+- 直接诱因：登录页冷加载一次性并行扇出 200+ JS/CSS chunk 请求（实测 239 个
+  资源 / 4.6MB），部分请求 `net::ERR_INSUFFICIENT_RESOURCES`、其余永久
+  pending，模块 import 挂起 → 渲染进程阻塞。
+- 容器侧根因：Docker 默认 `--shm-size=64m`，空闲时已用 51%；Chromium 网络
+  缓冲/mojo IPC 走 /dev/shm，多标签并发冷加载即耗尽。容器重建为
+  `--shm-size=1g` 后同一复现脚本 8/8 通过（此前 4 次中 3 次卡死）。
+- 应用侧修复（已提交）：`plugins/form-create`（全量 antd + FcDesigner +
+  tinymce/上传组件）过去在 bootstrap 顶层静态引入，登录页也拉整个组件库。
+  现拆分为懒加载 `ensureFormCreate()`：登录成功后预取、路由守卫首次进入
+  受控页面前 await。登录页 239 资源 / 4.6MB → 158 资源 / 2.26MB。
+- 残余：偶发 Compositor `trap int3` 崩溃（dmesg）为该镜像 headless 软渲染
+  的老毛病，随标签数/负载加重；测试回合间重启容器即可规避。真实浏览器
+  （硬渲染、正常 shm）未复现任何卡死。
+- 回归结论：错误密码提示 / 登录 / 工作台 / vxe 表格页 / 表单设计器均正常，
+  无组件未解析警告（a-* 全局组件由懒加载安装覆盖）。
+
 ## 已验证项（随合同测试与端到端用例持续更新）
 
 - 登录、菜单导航、表格、表单、文件上传下载：全部核心用例基于标准 Web API。

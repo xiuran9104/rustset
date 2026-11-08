@@ -10,6 +10,7 @@ import { message } from 'ant-design-vue';
 
 import { getSimpleDictDataList } from '#/api/system/dict/data';
 import { accessRoutes, coreRouteNames } from '#/router/routes';
+import { ensureFormCreate } from '#/plugins/form-create';
 import { useAuthStore } from '#/store';
 
 import { generateAccess } from './access';
@@ -93,11 +94,13 @@ function setupAccessGuard(router: Router) {
     // 是否已经生成过动态路由
     if (accessStore.isAccessChecked) {
       if (areAccessRoutesRegistered(accessStore.accessRoutes, router)) {
+        // 受控页面大量使用全局注册的 a-* 标签（全量 antd 由 form-create
+        // 插件安装）；首次进入前确保注册完成，后续调用为已缓存 promise。
+        await ensureFormCreate();
         return true;
       }
       accessStore.setIsAccessChecked(false);
     }
-
     // 加载字典数据（不阻塞加载）
     dictStore.setDictCacheByApi(getSimpleDictDataList);
 
