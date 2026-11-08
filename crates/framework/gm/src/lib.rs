@@ -10,6 +10,7 @@
 //! sealing and the unified provider — see [`secrets`].
 
 pub mod provider;
+pub mod provider_kms;
 pub mod secrets;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};

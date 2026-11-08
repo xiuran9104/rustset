@@ -47,14 +47,44 @@ impl Sm4Provider for SoftwareProviders {
     }
 }
 
-/// `CRYPTO_PROVIDER` 取值校验（§3.3：不支持的组合启动失败）。
-/// 硬件提供方（SDF）实装后在此登记取值与构造逻辑。
-pub fn resolve_crypto_provider(env_value: Option<&str>) -> Result<SoftwareProviders, GmError> {
+/// 密码提供方组合（§3.3/§4.4.3 #2）。
+#[derive(Debug, Clone)]
+pub enum CryptoProviders {
+    /// 纯软件（默认，非密评场景）。
+    Software(SoftwareProviders),
+    /// GM/T 0018 SDF 软件模拟器（句柄语义/审计计数真实，运算为软件——
+    /// 硬件 SDF 卡到位后按同接口替换）。
+    SdfSim(crate::provider_kms::SdfSimProvider),
+    /// HTTP KMS 信封加密（主密钥驻留 KMS；测试可用进程内 mock）。
+    Kms(crate::provider_kms::KmsHttpProvider),
+}
+
+impl CryptoProviders {
+    pub fn as_sm4(&self) -> &dyn Sm4Provider {
+        match self {
+            Self::Software(inner) => inner,
+            Self::SdfSim(inner) => inner,
+            Self::Kms(inner) => inner,
+        }
+    }
+
+    pub fn as_random(&self) -> &dyn RandomProvider {
+        match self {
+            Self::Software(inner) => inner,
+            Self::SdfSim(inner) => inner,
+            Self::Kms(inner) => inner,
+        }
+    }
+}
+
+/// `CRYPTO_PROVIDER` 取值校验与构造（§3.3：不支持的组合启动失败）。
+pub fn resolve_crypto_provider(env_value: Option<&str>) -> Result<CryptoProviders, GmError> {
     match env_value.map(str::trim).filter(|value| !value.is_empty()) {
-        None | Some("software") | Some("standard") => Ok(SoftwareProviders),
+        None | Some("software") | Some("standard") => Ok(CryptoProviders::Software(SoftwareProviders)),
+        Some("sdf-sim") => Ok(CryptoProviders::SdfSim(crate::provider_kms::SdfSimProvider::new())),
+        Some("kms") => Ok(CryptoProviders::Kms(crate::provider_kms::KmsHttpProvider::from_env()?)),
         Some(other) => Err(GmError(format!(
-            "CRYPTO_PROVIDER={other} is not supported yet; available: software \
-             (SDF/HSM hardware provider pending, plan §4.4.3 #2)"
+            "CRYPTO_PROVIDER={other} is not supported; available: software | sdf-sim | kms"
         ))),
     }
 }
@@ -88,6 +118,12 @@ mod tests {
         assert!(resolve_crypto_provider(None).is_ok());
         assert!(resolve_crypto_provider(Some("software")).is_ok());
         assert!(resolve_crypto_provider(Some("standard")).is_ok());
+        assert!(matches!(
+            resolve_crypto_provider(Some("sdf-sim")),
+            Ok(CryptoProviders::SdfSim(_))
+        ));
+        // kms 需要 KMS_ENDPOINT，缺失即失败（§3.3）
+        assert!(resolve_crypto_provider(Some("kms")).is_err());
         let error = resolve_crypto_provider(Some("sdf")).unwrap_err();
         assert!(error.0.contains("not supported"), "{}", error.0);
     }
