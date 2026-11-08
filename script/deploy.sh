@@ -88,11 +88,35 @@ SYSTEMD
 # 5) 生成环境变量模板
 cat > "${OUTPUT_DIR}/gateway.env.example" << 'ENV'
 DATABASE_URL=postgres://rustset:CHANGE_ME@127.0.0.1:5432/rustset
+# 数据库方言（信创）：postgresql（默认）| kingbase | opengauss；dm 未实装会拒绝启动。
+# 金仓/openGauss 可用专有 scheme（kingbase8://、opengauss://）或 postgres:// + 本变量声明。
+DB_FLAVOR=postgresql
 REDIS_URL=redis://127.0.0.1:6379
 JWT_SECRET=CHANGE_ME_TO_A_STRONG_SECRET_AT_LEAST_32_BYTES_LONG
 GATEWAY_HOST=0.0.0.0
 GATEWAY_PORT=8080
 RUST_LOG=info
+
+# 任务投递总线（NATS JetStream）：留空/删除 = 纯数据库轮询（可靠性不变，投递延迟 ~1s）。
+# 启用后任务创建即唤醒 worker；compose 内置 nats --js 已就绪。
+NATS_URL=nats://127.0.0.1:4222
+# 可选调优（默认值见 crates/framework/mq/src/lib.rs）：
+# NATS_STREAM=RUSTSET_TASKS
+# NATS_ACK_WAIT_SECONDS=30
+# NATS_MAX_DELIVER=5
+# NATS_STREAM_REPLICAS=1
+
+# 密封主密钥（信创 §4.4.2）：配置后新密封走 enc:sm4:v3 认证格式；
+# 未配置保持 v2（开发可接受，生产启动会告警）。生成：
+#   ./rustset-gateway gen-master-key /etc/rustset/sealing.keys
+#   ./rustset-gateway reseal-secrets --batch 200
+#SECRET_MASTER_KEY_FILE=/etc/rustset/sealing.keys
+
+# 密码提供方（信创 §4.4.3 #2）：software 为默认；sdf/hsm 硬件实装前其他取值拒绝启动。
+#CRYPTO_PROVIDER=software
+
+# 审计留存（等保 ≥6 个月；默认 190 天，钳制 30–3650）
+#AUDIT_RETENTION_DAYS=190
 
 # 对象存储（RustFS / MinIO）
 RUSTFS_ENDPOINT=http://127.0.0.1:9000
@@ -155,7 +179,20 @@ cat > "${OUTPUT_DIR}/DEPLOY.md" << 'DEPLOY'
 ## 首次登录后
 - 修改 admin 密码
 - 删除 gateway.env 中的 BOOTSTRAP_ADMIN_PASSWORD
+- 【生产必做】生成密封主密钥并轮换历史密文：
+  ```bash
+  sudo /opt/rustset/rustset-gateway gen-master-key /etc/rustset/sealing.keys
+  # gateway.env 取消注释 SECRET_MASTER_KEY_FILE=/etc/rustset/sealing.keys
+  sudo systemctl restart rustset-gateway
+  sudo /opt/rustset/rustset-gateway reseal-secrets --batch 200
+  ```
 - 配置自动化开关（运营流程 → 自动化配置）
+
+## 运维要点
+- **任务投递**：启用 NATS_URL 后投递为即时唤醒；NATS 不可用时自动降级 1s 数据库轮询（任务不丢）。堆积监控：`curl http://<nats主机>:8222/jsz`。
+- **审计留存**：默认保留 190 天后自动清理（AUDIT_RETENTION_DAYS 可调）。
+- **数据库方言**：DB_FLAVOR 与 DATABASE_URL scheme 冲突时启动即失败（不会静默跑错库）。
+- **备份**：`bash script/backup/postgres-backup.sh` + 同恢复集对象清单，见 script/backup/README.md。
 DEPLOY
 
 # 7) 打包迁移文件
