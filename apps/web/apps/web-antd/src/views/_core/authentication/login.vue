@@ -10,6 +10,8 @@ import { isCaptchaEnable, isTenantEnable } from '@vben/hooks';
 import { $t } from '@vben/locales';
 import { useAccessStore } from '@vben/stores';
 
+import { notification } from 'ant-design-vue';
+
 import {
   checkCaptcha,
   getCaptcha,
@@ -73,6 +75,24 @@ async function fetchTenantList() {
   }
 }
 
+/** 登录失败的唯一提示点：loginApi 走 baseRequestClient（无错误拦截器），
+ * 401 不会进入 request.ts 的拦截器链，必须在这里兜底，避免静默失败。 */
+function notifyLoginError(error: any) {
+  const status = error?.response?.status ?? error?.data?.code;
+  const backendMessage = error?.response?.data?.message;
+  if (status === 401 || /invalid|password|credential/i.test(String(backendMessage ?? ''))) {
+    notification.error({
+      description: backendMessage || '用户名或密码错误，请重试',
+      message: '登录失败',
+    });
+  } else {
+    notification.error({
+      description: error?.message || '登录请求失败，请稍后重试',
+      message: '登录失败',
+    });
+  }
+}
+
 /** 处理登录 */
 async function handleLogin(values: any) {
   // 如果开启验证码，则先验证验证码
@@ -84,21 +104,7 @@ async function handleLogin(values: any) {
   try {
     await authStore.authLogin(values);
   } catch (error: any) {
-    // 拦截器链对 401 已静默（缺陷 D-2），登录失败在提交点给出唯一提示；
-    // 网络等其它错误也在此兜底，避免静默失败。
-    const status = error?.response?.status ?? error?.data?.code;
-    const backendMessage = error?.response?.data?.message;
-    if (status === 401 || /invalid|password|credential/i.test(String(backendMessage ?? ''))) {
-      notification.error({
-        description: backendMessage || '用户名或密码错误，请重试',
-        message: '登录失败',
-      });
-    } else {
-      notification.error({
-        description: error?.message || '登录请求失败，请稍后重试',
-        message: '登录失败',
-      });
-    }
+    notifyLoginError(error);
   }
 }
 
@@ -110,7 +116,7 @@ async function handleVerifySuccess({ captchaVerification }: any) {
       captchaVerification,
     });
   } catch (error) {
-    console.error('Error in handleLogin:', error);
+    notifyLoginError(error);
   }
 }
 

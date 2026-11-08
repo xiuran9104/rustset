@@ -205,19 +205,13 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       const errorMessage =
         responseData?.error ?? responseData?.message ?? responseData.msg ?? '';
       const status = error?.response?.status;
-      const requestUrl: string = error?.config?.url ?? '';
 
-      // 登录接口的 401 = 凭证错误：展示友好提示（后端 message 为英文，
-      // 兜底中文）。只弹这一次，不再落入通用未授权提示。
-      if (status === 401 && requestUrl.includes('/auth/login')) {
-        message.error(errorMessage || '用户名或密码错误');
-        return;
-      }
-
-      // 其余 401（token 过期/未授权/业务码 401）：re-auth 拦截器已负责
+      // 401（token 过期/未授权/业务码 401）：re-auth 拦截器已负责
       // 刷新令牌或跳转登录。这里必须静默——过期会话会触发
       // permission-info / refresh-token / logout 连锁失败，逐个弹框会形成
       // 错误风暴（缺陷 D-2，实测连弹三个未授权框）。
+      // 注意：登录接口的 401（凭证错误）不经过本拦截器——loginApi 走
+      // baseRequestClient，其唯一提示点在 login.vue 的 notifyLoginError。
       if (status === 401 || error?.data?.code === 401) {
         return;
       }
