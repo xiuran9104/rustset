@@ -26,17 +26,44 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     env:
       TEST_DATABASE_URL: postgres://rustset_test:rustset_test@127.0.0.1:5432/rustset_test
+      TEST_REDIS_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      # 任务投递总线（§4.3）：JetStream 必须显式开启（services 不支持自定义
+      # command，用 docker run 启动后等待监控端口就绪）。
+      - name: Start NATS with JetStream
+        run: |
+          docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2 --js -sd /data
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8222/varz >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo "nats did not become ready" >&2; exit 1
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace
       - run: bash script/test-database-migrations.sh
+      # 中间件语义合同（§4.3/§4.3.1）：替换产品必须原样通过的验收套件。
+      - name: Cache semantic contract (Redis)
+        run: cargo test -p rustset-framework-redis --test cache_contract -- --ignored
+      - name: Task-delivery semantic contract (JetStream)
+        run: cargo test -p rustset-framework-mq --test jetstream_contract -- --ignored
+        env:
+          TEST_NATS_URL: nats://127.0.0.1:4222
 
   frontend:
     runs-on: ubuntu-latest
