@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict JG9JgwS85t144Jq5TRByG3rUM0Q47yCtgv1COnTHAJWxfnEdCOflZUtLT0oB4Xy
+\restrict 57wPQPeCidwdZwzew4uZWso0H6ROZZNrY6LCPmrtIs81MVFawA8GHydLFS8k6xz
 
 -- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
@@ -20,25 +20,21 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: ai; Type: SCHEMA; Schema: -; Owner: rustset_test
+-- Name: ai; Type: SCHEMA; Schema: -; Owner: -
 --
 
 CREATE SCHEMA ai;
 
 
-ALTER SCHEMA ai OWNER TO rustset_test;
-
 --
--- Name: infra; Type: SCHEMA; Schema: -; Owner: rustset_test
+-- Name: infra; Type: SCHEMA; Schema: -; Owner: -
 --
 
 CREATE SCHEMA infra;
 
 
-ALTER SCHEMA infra OWNER TO rustset_test;
-
 --
--- Name: cmdb_rebuild_model_unique_values(); Type: FUNCTION; Schema: public; Owner: rustset_test
+-- Name: cmdb_rebuild_model_unique_values(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.cmdb_rebuild_model_unique_values() RETURNS trigger
@@ -56,10 +52,8 @@ BEGIN
 END $$;
 
 
-ALTER FUNCTION public.cmdb_rebuild_model_unique_values() OWNER TO rustset_test;
-
 --
--- Name: cmdb_sync_instance_unique_value(); Type: FUNCTION; Schema: public; Owner: rustset_test
+-- Name: cmdb_sync_instance_unique_value(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.cmdb_sync_instance_unique_value() RETURNS trigger
@@ -89,10 +83,8 @@ BEGIN
 END $$;
 
 
-ALTER FUNCTION public.cmdb_sync_instance_unique_value() OWNER TO rustset_test;
-
 --
--- Name: cmdb_unique_value(jsonb, text); Type: FUNCTION; Schema: public; Owner: rustset_test
+-- Name: cmdb_unique_value(jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.cmdb_unique_value(attributes jsonb, key text) RETURNS jsonb
@@ -107,10 +99,8 @@ CREATE FUNCTION public.cmdb_unique_value(attributes jsonb, key text) RETURNS jso
 $$;
 
 
-ALTER FUNCTION public.cmdb_unique_value(attributes jsonb, key text) OWNER TO rustset_test;
-
 --
--- Name: require_resource_tenant(); Type: FUNCTION; Schema: public; Owner: rustset_test
+-- Name: require_resource_tenant(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.require_resource_tenant() RETURNS trigger
@@ -130,14 +120,12 @@ BEGIN
 END $$;
 
 
-ALTER FUNCTION public.require_resource_tenant() OWNER TO rustset_test;
-
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
 --
--- Name: chat_conversations; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: chat_conversations; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.chat_conversations (
@@ -158,10 +146,8 @@ CREATE TABLE ai.chat_conversations (
 );
 
 
-ALTER TABLE ai.chat_conversations OWNER TO rustset_test;
-
 --
--- Name: chat_messages; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: chat_messages; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.chat_messages (
@@ -181,10 +167,8 @@ CREATE TABLE ai.chat_messages (
 );
 
 
-ALTER TABLE ai.chat_messages OWNER TO rustset_test;
-
 --
--- Name: chat_roles; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: chat_roles; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.chat_roles (
@@ -207,10 +191,8 @@ CREATE TABLE ai.chat_roles (
 );
 
 
-ALTER TABLE ai.chat_roles OWNER TO rustset_test;
-
 --
--- Name: images; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: images; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.images (
@@ -238,10 +220,8 @@ CREATE TABLE ai.images (
 );
 
 
-ALTER TABLE ai.images OWNER TO rustset_test;
-
 --
--- Name: knowledge_bases; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: knowledge_bases; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.knowledge_bases (
@@ -256,10 +236,8 @@ CREATE TABLE ai.knowledge_bases (
 );
 
 
-ALTER TABLE ai.knowledge_bases OWNER TO rustset_test;
-
 --
--- Name: knowledge_documents; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: knowledge_documents; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.knowledge_documents (
@@ -278,10 +256,8 @@ CREATE TABLE ai.knowledge_documents (
 );
 
 
-ALTER TABLE ai.knowledge_documents OWNER TO rustset_test;
-
 --
--- Name: knowledge_segments; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: knowledge_segments; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.knowledge_segments (
@@ -300,10 +276,8 @@ CREATE TABLE ai.knowledge_segments (
 );
 
 
-ALTER TABLE ai.knowledge_segments OWNER TO rustset_test;
-
 --
--- Name: model_catalog; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: model_catalog; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.model_catalog (
@@ -319,10 +293,8 @@ CREATE TABLE ai.model_catalog (
 );
 
 
-ALTER TABLE ai.model_catalog OWNER TO rustset_test;
-
 --
--- Name: model_configs; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: model_configs; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.model_configs (
@@ -341,10 +313,8 @@ CREATE TABLE ai.model_configs (
 );
 
 
-ALTER TABLE ai.model_configs OWNER TO rustset_test;
-
 --
--- Name: model_platforms; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: model_platforms; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.model_platforms (
@@ -357,10 +327,8 @@ CREATE TABLE ai.model_platforms (
 );
 
 
-ALTER TABLE ai.model_platforms OWNER TO rustset_test;
-
 --
--- Name: music; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: music; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.music (
@@ -390,10 +358,8 @@ CREATE TABLE ai.music (
 );
 
 
-ALTER TABLE ai.music OWNER TO rustset_test;
-
 --
--- Name: tools; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: tools; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.tools (
@@ -408,10 +374,8 @@ CREATE TABLE ai.tools (
 );
 
 
-ALTER TABLE ai.tools OWNER TO rustset_test;
-
 --
--- Name: writes; Type: TABLE; Schema: ai; Owner: rustset_test
+-- Name: writes; Type: TABLE; Schema: ai; Owner: -
 --
 
 CREATE TABLE ai.writes (
@@ -434,10 +398,8 @@ CREATE TABLE ai.writes (
 );
 
 
-ALTER TABLE ai.writes OWNER TO rustset_test;
-
 --
--- Name: _sqlx_migrations; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: _sqlx_migrations; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public._sqlx_migrations (
@@ -450,10 +412,8 @@ CREATE TABLE public._sqlx_migrations (
 );
 
 
-ALTER TABLE public._sqlx_migrations OWNER TO rustset_test;
-
 --
--- Name: cmdb_attribute_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: cmdb_attribute_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.cmdb_attribute_seq
@@ -464,10 +424,8 @@ CREATE SEQUENCE public.cmdb_attribute_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.cmdb_attribute_seq OWNER TO rustset_test;
-
 --
--- Name: cmdb_attribute; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: cmdb_attribute; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.cmdb_attribute (
@@ -494,10 +452,8 @@ CREATE TABLE public.cmdb_attribute (
 );
 
 
-ALTER TABLE public.cmdb_attribute OWNER TO rustset_test;
-
 --
--- Name: cmdb_attribute_trigger; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: cmdb_attribute_trigger; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.cmdb_attribute_trigger (
@@ -517,10 +473,8 @@ CREATE TABLE public.cmdb_attribute_trigger (
 );
 
 
-ALTER TABLE public.cmdb_attribute_trigger OWNER TO rustset_test;
-
 --
--- Name: cmdb_attribute_trigger_id_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: cmdb_attribute_trigger_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 ALTER TABLE public.cmdb_attribute_trigger ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
@@ -534,7 +488,7 @@ ALTER TABLE public.cmdb_attribute_trigger ALTER COLUMN id ADD GENERATED BY DEFAU
 
 
 --
--- Name: cmdb_instance_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.cmdb_instance_seq
@@ -545,10 +499,8 @@ CREATE SEQUENCE public.cmdb_instance_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.cmdb_instance_seq OWNER TO rustset_test;
-
 --
--- Name: cmdb_instance; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.cmdb_instance (
@@ -564,10 +516,8 @@ CREATE TABLE public.cmdb_instance (
 );
 
 
-ALTER TABLE public.cmdb_instance OWNER TO rustset_test;
-
 --
--- Name: cmdb_instance_unique_value; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance_unique_value; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.cmdb_instance_unique_value (
@@ -578,10 +528,8 @@ CREATE TABLE public.cmdb_instance_unique_value (
 );
 
 
-ALTER TABLE public.cmdb_instance_unique_value OWNER TO rustset_test;
-
 --
--- Name: cmdb_model_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: cmdb_model_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.cmdb_model_seq
@@ -592,10 +540,8 @@ CREATE SEQUENCE public.cmdb_model_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.cmdb_model_seq OWNER TO rustset_test;
-
 --
--- Name: cmdb_model; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: cmdb_model; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.cmdb_model (
@@ -615,10 +561,8 @@ CREATE TABLE public.cmdb_model (
 );
 
 
-ALTER TABLE public.cmdb_model OWNER TO rustset_test;
-
 --
--- Name: cmdb_net_zone_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: cmdb_net_zone_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.cmdb_net_zone_seq
@@ -629,10 +573,8 @@ CREATE SEQUENCE public.cmdb_net_zone_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.cmdb_net_zone_seq OWNER TO rustset_test;
-
 --
--- Name: cmdb_net_zone; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: cmdb_net_zone; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.cmdb_net_zone (
@@ -652,10 +594,8 @@ CREATE TABLE public.cmdb_net_zone (
 );
 
 
-ALTER TABLE public.cmdb_net_zone OWNER TO rustset_test;
-
 --
--- Name: cmdb_relation_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: cmdb_relation_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.cmdb_relation_seq
@@ -666,10 +606,8 @@ CREATE SEQUENCE public.cmdb_relation_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.cmdb_relation_seq OWNER TO rustset_test;
-
 --
--- Name: cmdb_relation; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: cmdb_relation; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.cmdb_relation (
@@ -686,10 +624,8 @@ CREATE TABLE public.cmdb_relation (
 );
 
 
-ALTER TABLE public.cmdb_relation OWNER TO rustset_test;
-
 --
--- Name: infra_api_access_log_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_api_access_log_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_api_access_log_seq
@@ -700,10 +636,8 @@ CREATE SEQUENCE public.infra_api_access_log_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_api_access_log_seq OWNER TO rustset_test;
-
 --
--- Name: infra_api_access_log; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_api_access_log; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_api_access_log (
@@ -730,14 +664,28 @@ CREATE TABLE public.infra_api_access_log (
     create_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updater character varying(64) DEFAULT ''::character varying NOT NULL,
     update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    deleted smallint DEFAULT 0 NOT NULL
+    deleted smallint DEFAULT 0 NOT NULL,
+    integrity_alg character varying(16) DEFAULT 'SM3'::character varying,
+    record_digest character varying(64)
 );
 
 
-ALTER TABLE public.infra_api_access_log OWNER TO rustset_test;
+--
+-- Name: COLUMN infra_api_access_log.integrity_alg; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.infra_api_access_log.integrity_alg IS '审计行完整性算法标识（SM3，GB/T 32905-2016）';
+
 
 --
--- Name: infra_api_error_log_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: COLUMN infra_api_access_log.record_digest; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.infra_api_access_log.record_digest IS 'SM3(轨迹/方法/路径/UA/模块/起止时间/耗时/状态码/结果) 十六进制摘要';
+
+
+--
+-- Name: infra_api_error_log_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_api_error_log_seq
@@ -748,10 +696,8 @@ CREATE SEQUENCE public.infra_api_error_log_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_api_error_log_seq OWNER TO rustset_test;
-
 --
--- Name: infra_api_error_log; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_api_error_log; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_api_error_log (
@@ -785,10 +731,8 @@ CREATE TABLE public.infra_api_error_log (
 );
 
 
-ALTER TABLE public.infra_api_error_log OWNER TO rustset_test;
-
 --
--- Name: infra_application_endpoint_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_application_endpoint_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_application_endpoint_seq
@@ -799,10 +743,8 @@ CREATE SEQUENCE public.infra_application_endpoint_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_application_endpoint_seq OWNER TO rustset_test;
-
 --
--- Name: infra_application_endpoint; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_application_endpoint; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_application_endpoint (
@@ -823,10 +765,8 @@ CREATE TABLE public.infra_application_endpoint (
 );
 
 
-ALTER TABLE public.infra_application_endpoint OWNER TO rustset_test;
-
 --
--- Name: infra_approval_rule_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_approval_rule_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_approval_rule_seq
@@ -837,10 +777,8 @@ CREATE SEQUENCE public.infra_approval_rule_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_approval_rule_seq OWNER TO rustset_test;
-
 --
--- Name: infra_approval_rule; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_approval_rule; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_approval_rule (
@@ -862,10 +800,8 @@ CREATE TABLE public.infra_approval_rule (
 );
 
 
-ALTER TABLE public.infra_approval_rule OWNER TO rustset_test;
-
 --
--- Name: infra_asset_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_asset_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_asset_seq
@@ -876,10 +812,8 @@ CREATE SEQUENCE public.infra_asset_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_asset_seq OWNER TO rustset_test;
-
 --
--- Name: infra_asset; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_asset; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_asset (
@@ -952,17 +886,15 @@ CREATE TABLE public.infra_asset (
 );
 
 
-ALTER TABLE public.infra_asset OWNER TO rustset_test;
-
 --
--- Name: COLUMN infra_asset.ownership_source; Type: COMMENT; Schema: public; Owner: rustset_test
+-- Name: COLUMN infra_asset.ownership_source; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.infra_asset.ownership_source IS 'manual | segment — how organization_name was assigned';
 
 
 --
--- Name: infra_automation_audit_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_automation_audit_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_automation_audit_seq
@@ -973,10 +905,8 @@ CREATE SEQUENCE public.infra_automation_audit_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_automation_audit_seq OWNER TO rustset_test;
-
 --
--- Name: infra_automation_audit; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_automation_audit; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_automation_audit (
@@ -997,10 +927,8 @@ CREATE TABLE public.infra_automation_audit (
 );
 
 
-ALTER TABLE public.infra_automation_audit OWNER TO rustset_test;
-
 --
--- Name: infra_automation_config_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_automation_config_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_automation_config_seq
@@ -1011,10 +939,8 @@ CREATE SEQUENCE public.infra_automation_config_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_automation_config_seq OWNER TO rustset_test;
-
 --
--- Name: infra_automation_config; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_automation_config; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_automation_config (
@@ -1037,10 +963,8 @@ CREATE TABLE public.infra_automation_config (
 );
 
 
-ALTER TABLE public.infra_automation_config OWNER TO rustset_test;
-
 --
--- Name: infra_automation_credential_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_automation_credential_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_automation_credential_seq
@@ -1051,10 +975,8 @@ CREATE SEQUENCE public.infra_automation_credential_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_automation_credential_seq OWNER TO rustset_test;
-
 --
--- Name: infra_automation_credential; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_automation_credential; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_automation_credential (
@@ -1071,10 +993,8 @@ CREATE TABLE public.infra_automation_credential (
 );
 
 
-ALTER TABLE public.infra_automation_credential OWNER TO rustset_test;
-
 --
--- Name: infra_business_application_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_business_application_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_business_application_seq
@@ -1085,10 +1005,8 @@ CREATE SEQUENCE public.infra_business_application_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_business_application_seq OWNER TO rustset_test;
-
 --
--- Name: infra_business_application; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_business_application; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_business_application (
@@ -1107,17 +1025,15 @@ CREATE TABLE public.infra_business_application (
 );
 
 
-ALTER TABLE public.infra_business_application OWNER TO rustset_test;
-
 --
--- Name: COLUMN infra_business_application.status; Type: COMMENT; Schema: public; Owner: rustset_test
+-- Name: COLUMN infra_business_application.status; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.infra_business_application.status IS '0=在用 1=已归档';
 
 
 --
--- Name: infra_cloud_asset_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_asset_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_cloud_asset_seq
@@ -1128,10 +1044,8 @@ CREATE SEQUENCE public.infra_cloud_asset_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_cloud_asset_seq OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_asset; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_asset; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_cloud_asset (
@@ -1161,10 +1075,8 @@ CREATE TABLE public.infra_cloud_asset (
 );
 
 
-ALTER TABLE public.infra_cloud_asset OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_platform_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_platform_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_cloud_platform_seq
@@ -1175,10 +1087,8 @@ CREATE SEQUENCE public.infra_cloud_platform_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_cloud_platform_seq OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_platform; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_platform; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_cloud_platform (
@@ -1196,10 +1106,8 @@ CREATE TABLE public.infra_cloud_platform (
 );
 
 
-ALTER TABLE public.infra_cloud_platform OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_provider_config_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_provider_config_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_cloud_provider_config_seq
@@ -1210,10 +1118,8 @@ CREATE SEQUENCE public.infra_cloud_provider_config_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_cloud_provider_config_seq OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_provider_config; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_provider_config; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_cloud_provider_config (
@@ -1240,10 +1146,8 @@ CREATE TABLE public.infra_cloud_provider_config (
 );
 
 
-ALTER TABLE public.infra_cloud_provider_config OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_resource_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_cloud_resource_seq
@@ -1254,10 +1158,8 @@ CREATE SEQUENCE public.infra_cloud_resource_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_cloud_resource_seq OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_resource; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_cloud_resource (
@@ -1333,10 +1235,8 @@ CREATE TABLE public.infra_cloud_resource (
 );
 
 
-ALTER TABLE public.infra_cloud_resource OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_zone_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_zone_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_cloud_zone_seq
@@ -1347,10 +1247,8 @@ CREATE SEQUENCE public.infra_cloud_zone_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_cloud_zone_seq OWNER TO rustset_test;
-
 --
--- Name: infra_cloud_zone; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_zone; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_cloud_zone (
@@ -1368,10 +1266,8 @@ CREATE TABLE public.infra_cloud_zone (
 );
 
 
-ALTER TABLE public.infra_cloud_zone OWNER TO rustset_test;
-
 --
--- Name: infra_codegen_column_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_codegen_column_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_codegen_column_seq
@@ -1382,10 +1278,8 @@ CREATE SEQUENCE public.infra_codegen_column_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_codegen_column_seq OWNER TO rustset_test;
-
 --
--- Name: infra_codegen_column; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_codegen_column; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_codegen_column (
@@ -1412,10 +1306,8 @@ CREATE TABLE public.infra_codegen_column (
 );
 
 
-ALTER TABLE public.infra_codegen_column OWNER TO rustset_test;
-
 --
--- Name: infra_codegen_table_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_codegen_table_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_codegen_table_seq
@@ -1426,10 +1318,8 @@ CREATE SEQUENCE public.infra_codegen_table_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_codegen_table_seq OWNER TO rustset_test;
-
 --
--- Name: infra_codegen_table; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_codegen_table; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_codegen_table (
@@ -1454,10 +1344,8 @@ CREATE TABLE public.infra_codegen_table (
 );
 
 
-ALTER TABLE public.infra_codegen_table OWNER TO rustset_test;
-
 --
--- Name: infra_config_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_config_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_config_seq
@@ -1468,10 +1356,8 @@ CREATE SEQUENCE public.infra_config_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_config_seq OWNER TO rustset_test;
-
 --
--- Name: infra_config; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_config; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_config (
@@ -1491,10 +1377,8 @@ CREATE TABLE public.infra_config (
 );
 
 
-ALTER TABLE public.infra_config OWNER TO rustset_test;
-
 --
--- Name: infra_data_source_config_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_data_source_config_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_data_source_config_seq
@@ -1505,10 +1389,8 @@ CREATE SEQUENCE public.infra_data_source_config_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_data_source_config_seq OWNER TO rustset_test;
-
 --
--- Name: infra_data_source_config; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_data_source_config; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_data_source_config (
@@ -1525,10 +1407,8 @@ CREATE TABLE public.infra_data_source_config (
 );
 
 
-ALTER TABLE public.infra_data_source_config OWNER TO rustset_test;
-
 --
--- Name: infra_file_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_file_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_file_seq
@@ -1539,10 +1419,8 @@ CREATE SEQUENCE public.infra_file_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_file_seq OWNER TO rustset_test;
-
 --
--- Name: infra_file; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_file; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_file (
@@ -1561,10 +1439,8 @@ CREATE TABLE public.infra_file (
 );
 
 
-ALTER TABLE public.infra_file OWNER TO rustset_test;
-
 --
--- Name: infra_file_config_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_file_config_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_file_config_seq
@@ -1575,10 +1451,8 @@ CREATE SEQUENCE public.infra_file_config_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_file_config_seq OWNER TO rustset_test;
-
 --
--- Name: infra_file_config; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_file_config; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_file_config (
@@ -1596,10 +1470,8 @@ CREATE TABLE public.infra_file_config (
 );
 
 
-ALTER TABLE public.infra_file_config OWNER TO rustset_test;
-
 --
--- Name: infra_high_risk_port_rule_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_high_risk_port_rule_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_high_risk_port_rule_seq
@@ -1610,10 +1482,8 @@ CREATE SEQUENCE public.infra_high_risk_port_rule_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_high_risk_port_rule_seq OWNER TO rustset_test;
-
 --
--- Name: infra_high_risk_port_rule; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_high_risk_port_rule; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_high_risk_port_rule (
@@ -1637,10 +1507,8 @@ CREATE TABLE public.infra_high_risk_port_rule (
 );
 
 
-ALTER TABLE public.infra_high_risk_port_rule OWNER TO rustset_test;
-
 --
--- Name: infra_inspection_baseline; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_inspection_baseline; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_inspection_baseline (
@@ -1654,10 +1522,8 @@ CREATE TABLE public.infra_inspection_baseline (
 );
 
 
-ALTER TABLE public.infra_inspection_baseline OWNER TO rustset_test;
-
 --
--- Name: infra_inspection_result; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_inspection_result; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_inspection_result (
@@ -1675,10 +1541,8 @@ CREATE TABLE public.infra_inspection_result (
 );
 
 
-ALTER TABLE public.infra_inspection_result OWNER TO rustset_test;
-
 --
--- Name: infra_job_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_job_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_job_seq
@@ -1689,10 +1553,8 @@ CREATE SEQUENCE public.infra_job_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_job_seq OWNER TO rustset_test;
-
 --
--- Name: infra_job; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_job; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_job (
@@ -1713,10 +1575,8 @@ CREATE TABLE public.infra_job (
 );
 
 
-ALTER TABLE public.infra_job OWNER TO rustset_test;
-
 --
--- Name: infra_job_log_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_job_log_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_job_log_seq
@@ -1727,10 +1587,8 @@ CREATE SEQUENCE public.infra_job_log_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_job_log_seq OWNER TO rustset_test;
-
 --
--- Name: infra_job_log; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_job_log; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_job_log (
@@ -1752,10 +1610,8 @@ CREATE TABLE public.infra_job_log (
 );
 
 
-ALTER TABLE public.infra_job_log OWNER TO rustset_test;
-
 --
--- Name: infra_machine_room_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_machine_room_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_machine_room_seq
@@ -1766,10 +1622,8 @@ CREATE SEQUENCE public.infra_machine_room_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_machine_room_seq OWNER TO rustset_test;
-
 --
--- Name: infra_machine_room; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_machine_room; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_machine_room (
@@ -1796,10 +1650,8 @@ CREATE TABLE public.infra_machine_room (
 );
 
 
-ALTER TABLE public.infra_machine_room OWNER TO rustset_test;
-
 --
--- Name: infra_network_policy_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_network_policy_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_network_policy_seq
@@ -1810,10 +1662,8 @@ CREATE SEQUENCE public.infra_network_policy_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_network_policy_seq OWNER TO rustset_test;
-
 --
--- Name: infra_network_policy; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_network_policy; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_network_policy (
@@ -1846,17 +1696,15 @@ CREATE TABLE public.infra_network_policy (
 );
 
 
-ALTER TABLE public.infra_network_policy OWNER TO rustset_test;
-
 --
--- Name: COLUMN infra_network_policy.status; Type: COMMENT; Schema: public; Owner: rustset_test
+-- Name: COLUMN infra_network_policy.status; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.infra_network_policy.status IS '0=在用 1=已归档（记录保留）';
 
 
 --
--- Name: infra_network_zone; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_network_zone; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_network_zone (
@@ -1877,10 +1725,8 @@ CREATE TABLE public.infra_network_zone (
 );
 
 
-ALTER TABLE public.infra_network_zone OWNER TO rustset_test;
-
 --
--- Name: infra_network_zone_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_network_zone_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_network_zone_seq
@@ -1891,10 +1737,8 @@ CREATE SEQUENCE public.infra_network_zone_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_network_zone_seq OWNER TO rustset_test;
-
 --
--- Name: infra_physical_resource_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_physical_resource_seq
@@ -1905,10 +1749,8 @@ CREATE SEQUENCE public.infra_physical_resource_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_physical_resource_seq OWNER TO rustset_test;
-
 --
--- Name: infra_physical_resource; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_physical_resource (
@@ -1977,10 +1819,8 @@ CREATE TABLE public.infra_physical_resource (
 );
 
 
-ALTER TABLE public.infra_physical_resource OWNER TO rustset_test;
-
 --
--- Name: infra_resource_ticket_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_resource_ticket_seq
@@ -1991,10 +1831,8 @@ CREATE SEQUENCE public.infra_resource_ticket_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_resource_ticket_seq OWNER TO rustset_test;
-
 --
--- Name: infra_resource_ticket; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_resource_ticket (
@@ -2090,24 +1928,22 @@ CREATE TABLE public.infra_resource_ticket (
 );
 
 
-ALTER TABLE public.infra_resource_ticket OWNER TO rustset_test;
-
 --
--- Name: COLUMN infra_resource_ticket.apply_status; Type: COMMENT; Schema: public; Owner: rustset_test
+-- Name: COLUMN infra_resource_ticket.apply_status; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.infra_resource_ticket.apply_status IS 'none | planned | applied | failed — OpenTofu run tracking';
 
 
 --
--- Name: COLUMN infra_resource_ticket.expiry_remind_stage; Type: COMMENT; Schema: public; Owner: rustset_test
+-- Name: COLUMN infra_resource_ticket.expiry_remind_stage; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.infra_resource_ticket.expiry_remind_stage IS 'reminder progress: 0 none, 1 three-day, 2 one-day, 3 expired';
 
 
 --
--- Name: infra_resource_ticket_attachment_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_attachment_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_resource_ticket_attachment_seq
@@ -2118,10 +1954,8 @@ CREATE SEQUENCE public.infra_resource_ticket_attachment_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_resource_ticket_attachment_seq OWNER TO rustset_test;
-
 --
--- Name: infra_resource_ticket_attachment; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_attachment; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_resource_ticket_attachment (
@@ -2138,10 +1972,8 @@ CREATE TABLE public.infra_resource_ticket_attachment (
 );
 
 
-ALTER TABLE public.infra_resource_ticket_attachment OWNER TO rustset_test;
-
 --
--- Name: infra_risk; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_risk; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_risk (
@@ -2166,10 +1998,8 @@ CREATE TABLE public.infra_risk (
 );
 
 
-ALTER TABLE public.infra_risk OWNER TO rustset_test;
-
 --
--- Name: infra_risk_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_risk_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_risk_seq
@@ -2180,10 +2010,8 @@ CREATE SEQUENCE public.infra_risk_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_risk_seq OWNER TO rustset_test;
-
 --
--- Name: infra_security_product_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_security_product_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_security_product_seq
@@ -2194,10 +2022,8 @@ CREATE SEQUENCE public.infra_security_product_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_security_product_seq OWNER TO rustset_test;
-
 --
--- Name: infra_security_product; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_security_product; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_security_product (
@@ -2230,10 +2056,8 @@ CREATE TABLE public.infra_security_product (
 );
 
 
-ALTER TABLE public.infra_security_product OWNER TO rustset_test;
-
 --
--- Name: infra_service_provider_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_service_provider_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_service_provider_seq
@@ -2244,10 +2068,8 @@ CREATE SEQUENCE public.infra_service_provider_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_service_provider_seq OWNER TO rustset_test;
-
 --
--- Name: infra_service_provider; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_service_provider; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_service_provider (
@@ -2273,10 +2095,8 @@ CREATE TABLE public.infra_service_provider (
 );
 
 
-ALTER TABLE public.infra_service_provider OWNER TO rustset_test;
-
 --
--- Name: infra_task; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: infra_task; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.infra_task (
@@ -2320,10 +2140,8 @@ CREATE TABLE public.infra_task (
 );
 
 
-ALTER TABLE public.infra_task OWNER TO rustset_test;
-
 --
--- Name: infra_task_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: infra_task_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.infra_task_seq
@@ -2334,10 +2152,8 @@ CREATE SEQUENCE public.infra_task_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.infra_task_seq OWNER TO rustset_test;
-
 --
--- Name: system_dept; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_dept; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_dept (
@@ -2358,10 +2174,8 @@ CREATE TABLE public.system_dept (
 );
 
 
-ALTER TABLE public.system_dept OWNER TO rustset_test;
-
 --
--- Name: system_dept_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_dept_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_dept_seq
@@ -2372,10 +2186,8 @@ CREATE SEQUENCE public.system_dept_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_dept_seq OWNER TO rustset_test;
-
 --
--- Name: system_dict_data; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_dict_data; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_dict_data (
@@ -2396,10 +2208,8 @@ CREATE TABLE public.system_dict_data (
 );
 
 
-ALTER TABLE public.system_dict_data OWNER TO rustset_test;
-
 --
--- Name: system_dict_data_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_dict_data_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_dict_data_seq
@@ -2410,10 +2220,8 @@ CREATE SEQUENCE public.system_dict_data_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_dict_data_seq OWNER TO rustset_test;
-
 --
--- Name: system_dict_type; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_dict_type; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_dict_type (
@@ -2431,10 +2239,8 @@ CREATE TABLE public.system_dict_type (
 );
 
 
-ALTER TABLE public.system_dict_type OWNER TO rustset_test;
-
 --
--- Name: system_dict_type_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_dict_type_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_dict_type_seq
@@ -2445,10 +2251,8 @@ CREATE SEQUENCE public.system_dict_type_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_dict_type_seq OWNER TO rustset_test;
-
 --
--- Name: system_login_log; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_login_log; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_login_log (
@@ -2470,10 +2274,8 @@ CREATE TABLE public.system_login_log (
 );
 
 
-ALTER TABLE public.system_login_log OWNER TO rustset_test;
-
 --
--- Name: system_login_log_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_login_log_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_login_log_seq
@@ -2484,10 +2286,8 @@ CREATE SEQUENCE public.system_login_log_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_login_log_seq OWNER TO rustset_test;
-
 --
--- Name: system_mail_account; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_mail_account; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_mail_account (
@@ -2507,10 +2307,8 @@ CREATE TABLE public.system_mail_account (
 );
 
 
-ALTER TABLE public.system_mail_account OWNER TO rustset_test;
-
 --
--- Name: system_mail_account_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_mail_account_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_mail_account_seq
@@ -2521,10 +2319,8 @@ CREATE SEQUENCE public.system_mail_account_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_mail_account_seq OWNER TO rustset_test;
-
 --
--- Name: system_mail_log; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_mail_log; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_mail_log (
@@ -2554,10 +2350,8 @@ CREATE TABLE public.system_mail_log (
 );
 
 
-ALTER TABLE public.system_mail_log OWNER TO rustset_test;
-
 --
--- Name: system_mail_log_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_mail_log_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_mail_log_seq
@@ -2568,10 +2362,8 @@ CREATE SEQUENCE public.system_mail_log_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_mail_log_seq OWNER TO rustset_test;
-
 --
--- Name: system_mail_template; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_mail_template; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_mail_template (
@@ -2593,10 +2385,8 @@ CREATE TABLE public.system_mail_template (
 );
 
 
-ALTER TABLE public.system_mail_template OWNER TO rustset_test;
-
 --
--- Name: system_mail_template_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_mail_template_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_mail_template_seq
@@ -2607,10 +2397,42 @@ CREATE SEQUENCE public.system_mail_template_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_mail_template_seq OWNER TO rustset_test;
+--
+-- Name: system_mcp_api_key_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.system_mcp_api_key_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
 
 --
--- Name: system_menu; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_mcp_api_key; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.system_mcp_api_key (
+    id bigint DEFAULT nextval('public.system_mcp_api_key_seq'::regclass) NOT NULL,
+    name character varying(64) NOT NULL,
+    api_key_hash character varying(64) NOT NULL,
+    key_prefix character varying(16) NOT NULL,
+    user_id bigint NOT NULL,
+    enabled smallint DEFAULT 1 NOT NULL,
+    expires_time timestamp without time zone,
+    last_used_time timestamp without time zone,
+    creator character varying(64) DEFAULT ''::character varying NOT NULL,
+    create_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updater character varying(64) DEFAULT ''::character varying NOT NULL,
+    update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted smallint DEFAULT 0 NOT NULL,
+    tenant_id bigint NOT NULL
+);
+
+
+--
+-- Name: system_menu; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_menu (
@@ -2637,10 +2459,8 @@ CREATE TABLE public.system_menu (
 );
 
 
-ALTER TABLE public.system_menu OWNER TO rustset_test;
-
 --
--- Name: system_menu_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_menu_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_menu_seq
@@ -2651,10 +2471,8 @@ CREATE SEQUENCE public.system_menu_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_menu_seq OWNER TO rustset_test;
-
 --
--- Name: system_notice; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_notice; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_notice (
@@ -2672,10 +2490,8 @@ CREATE TABLE public.system_notice (
 );
 
 
-ALTER TABLE public.system_notice OWNER TO rustset_test;
-
 --
--- Name: system_notice_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_notice_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_notice_seq
@@ -2686,10 +2502,8 @@ CREATE SEQUENCE public.system_notice_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_notice_seq OWNER TO rustset_test;
-
 --
--- Name: system_notify_message; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_notify_message; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_notify_message (
@@ -2713,10 +2527,8 @@ CREATE TABLE public.system_notify_message (
 );
 
 
-ALTER TABLE public.system_notify_message OWNER TO rustset_test;
-
 --
--- Name: system_notify_message_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_notify_message_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_notify_message_seq
@@ -2727,10 +2539,8 @@ CREATE SEQUENCE public.system_notify_message_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_notify_message_seq OWNER TO rustset_test;
-
 --
--- Name: system_notify_template; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_notify_template; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_notify_template (
@@ -2751,10 +2561,8 @@ CREATE TABLE public.system_notify_template (
 );
 
 
-ALTER TABLE public.system_notify_template OWNER TO rustset_test;
-
 --
--- Name: system_notify_template_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_notify_template_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_notify_template_seq
@@ -2765,10 +2573,8 @@ CREATE SEQUENCE public.system_notify_template_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_notify_template_seq OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_access_token; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_access_token; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_oauth2_access_token (
@@ -2790,10 +2596,8 @@ CREATE TABLE public.system_oauth2_access_token (
 );
 
 
-ALTER TABLE public.system_oauth2_access_token OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_access_token_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_access_token_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_oauth2_access_token_seq
@@ -2804,10 +2608,8 @@ CREATE SEQUENCE public.system_oauth2_access_token_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_oauth2_access_token_seq OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_approve; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_approve; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_oauth2_approve (
@@ -2827,10 +2629,8 @@ CREATE TABLE public.system_oauth2_approve (
 );
 
 
-ALTER TABLE public.system_oauth2_approve OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_approve_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_approve_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_oauth2_approve_seq
@@ -2841,10 +2641,8 @@ CREATE SEQUENCE public.system_oauth2_approve_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_oauth2_approve_seq OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_client; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_client; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_oauth2_client (
@@ -2872,10 +2670,8 @@ CREATE TABLE public.system_oauth2_client (
 );
 
 
-ALTER TABLE public.system_oauth2_client OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_client_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_client_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_oauth2_client_seq
@@ -2886,10 +2682,8 @@ CREATE SEQUENCE public.system_oauth2_client_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_oauth2_client_seq OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_code; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_code; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_oauth2_code (
@@ -2911,10 +2705,8 @@ CREATE TABLE public.system_oauth2_code (
 );
 
 
-ALTER TABLE public.system_oauth2_code OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_code_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_code_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_oauth2_code_seq
@@ -2925,10 +2717,8 @@ CREATE SEQUENCE public.system_oauth2_code_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_oauth2_code_seq OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_refresh_token; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_refresh_token; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_oauth2_refresh_token (
@@ -2948,10 +2738,8 @@ CREATE TABLE public.system_oauth2_refresh_token (
 );
 
 
-ALTER TABLE public.system_oauth2_refresh_token OWNER TO rustset_test;
-
 --
--- Name: system_oauth2_refresh_token_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_refresh_token_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_oauth2_refresh_token_seq
@@ -2962,10 +2750,8 @@ CREATE SEQUENCE public.system_oauth2_refresh_token_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_oauth2_refresh_token_seq OWNER TO rustset_test;
-
 --
--- Name: system_operate_log; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_operate_log; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_operate_log (
@@ -2992,10 +2778,8 @@ CREATE TABLE public.system_operate_log (
 );
 
 
-ALTER TABLE public.system_operate_log OWNER TO rustset_test;
-
 --
--- Name: system_operate_log_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_operate_log_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_operate_log_seq
@@ -3006,10 +2790,8 @@ CREATE SEQUENCE public.system_operate_log_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_operate_log_seq OWNER TO rustset_test;
-
 --
--- Name: system_post; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_post; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_post (
@@ -3028,10 +2810,8 @@ CREATE TABLE public.system_post (
 );
 
 
-ALTER TABLE public.system_post OWNER TO rustset_test;
-
 --
--- Name: system_post_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_post_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_post_seq
@@ -3042,10 +2822,8 @@ CREATE SEQUENCE public.system_post_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_post_seq OWNER TO rustset_test;
-
 --
--- Name: system_role; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_role; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_role (
@@ -3067,10 +2845,8 @@ CREATE TABLE public.system_role (
 );
 
 
-ALTER TABLE public.system_role OWNER TO rustset_test;
-
 --
--- Name: system_role_menu; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_role_menu; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_role_menu (
@@ -3086,10 +2862,8 @@ CREATE TABLE public.system_role_menu (
 );
 
 
-ALTER TABLE public.system_role_menu OWNER TO rustset_test;
-
 --
--- Name: system_role_menu_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_role_menu_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_role_menu_seq
@@ -3100,10 +2874,8 @@ CREATE SEQUENCE public.system_role_menu_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_role_menu_seq OWNER TO rustset_test;
-
 --
--- Name: system_role_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_role_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_role_seq
@@ -3114,10 +2886,8 @@ CREATE SEQUENCE public.system_role_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_role_seq OWNER TO rustset_test;
-
 --
--- Name: system_sms_channel; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_sms_channel; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_sms_channel (
@@ -3137,10 +2907,8 @@ CREATE TABLE public.system_sms_channel (
 );
 
 
-ALTER TABLE public.system_sms_channel OWNER TO rustset_test;
-
 --
--- Name: system_sms_channel_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_sms_channel_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_sms_channel_seq
@@ -3151,10 +2919,8 @@ CREATE SEQUENCE public.system_sms_channel_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_sms_channel_seq OWNER TO rustset_test;
-
 --
--- Name: system_sms_code; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_sms_code; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_sms_code (
@@ -3176,10 +2942,8 @@ CREATE TABLE public.system_sms_code (
 );
 
 
-ALTER TABLE public.system_sms_code OWNER TO rustset_test;
-
 --
--- Name: system_sms_code_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_sms_code_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_sms_code_seq
@@ -3190,10 +2954,8 @@ CREATE SEQUENCE public.system_sms_code_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_sms_code_seq OWNER TO rustset_test;
-
 --
--- Name: system_sms_log; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_sms_log; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_sms_log (
@@ -3227,10 +2989,8 @@ CREATE TABLE public.system_sms_log (
 );
 
 
-ALTER TABLE public.system_sms_log OWNER TO rustset_test;
-
 --
--- Name: system_sms_log_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_sms_log_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_sms_log_seq
@@ -3241,10 +3001,8 @@ CREATE SEQUENCE public.system_sms_log_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_sms_log_seq OWNER TO rustset_test;
-
 --
--- Name: system_sms_template; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_sms_template; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_sms_template (
@@ -3267,10 +3025,8 @@ CREATE TABLE public.system_sms_template (
 );
 
 
-ALTER TABLE public.system_sms_template OWNER TO rustset_test;
-
 --
--- Name: system_sms_template_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_sms_template_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_sms_template_seq
@@ -3281,10 +3037,8 @@ CREATE SEQUENCE public.system_sms_template_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_sms_template_seq OWNER TO rustset_test;
-
 --
--- Name: system_social_client; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_social_client; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_social_client (
@@ -3306,10 +3060,8 @@ CREATE TABLE public.system_social_client (
 );
 
 
-ALTER TABLE public.system_social_client OWNER TO rustset_test;
-
 --
--- Name: system_social_client_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_social_client_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_social_client_seq
@@ -3320,10 +3072,8 @@ CREATE SEQUENCE public.system_social_client_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_social_client_seq OWNER TO rustset_test;
-
 --
--- Name: system_social_user; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_social_user; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_social_user (
@@ -3346,10 +3096,8 @@ CREATE TABLE public.system_social_user (
 );
 
 
-ALTER TABLE public.system_social_user OWNER TO rustset_test;
-
 --
--- Name: system_social_user_bind; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_social_user_bind; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_social_user_bind (
@@ -3367,10 +3115,8 @@ CREATE TABLE public.system_social_user_bind (
 );
 
 
-ALTER TABLE public.system_social_user_bind OWNER TO rustset_test;
-
 --
--- Name: system_social_user_bind_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_social_user_bind_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_social_user_bind_seq
@@ -3381,10 +3127,8 @@ CREATE SEQUENCE public.system_social_user_bind_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_social_user_bind_seq OWNER TO rustset_test;
-
 --
--- Name: system_social_user_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_social_user_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_social_user_seq
@@ -3395,10 +3139,8 @@ CREATE SEQUENCE public.system_social_user_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_social_user_seq OWNER TO rustset_test;
-
 --
--- Name: system_tenant; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_tenant; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_tenant (
@@ -3420,10 +3162,8 @@ CREATE TABLE public.system_tenant (
 );
 
 
-ALTER TABLE public.system_tenant OWNER TO rustset_test;
-
 --
--- Name: system_tenant_package; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_tenant_package; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_tenant_package (
@@ -3440,10 +3180,8 @@ CREATE TABLE public.system_tenant_package (
 );
 
 
-ALTER TABLE public.system_tenant_package OWNER TO rustset_test;
-
 --
--- Name: system_tenant_package_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_tenant_package_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_tenant_package_seq
@@ -3454,10 +3192,8 @@ CREATE SEQUENCE public.system_tenant_package_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_tenant_package_seq OWNER TO rustset_test;
-
 --
--- Name: system_tenant_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_tenant_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_tenant_seq
@@ -3468,10 +3204,8 @@ CREATE SEQUENCE public.system_tenant_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_tenant_seq OWNER TO rustset_test;
-
 --
--- Name: system_user_post; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_user_post; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_user_post (
@@ -3487,10 +3221,8 @@ CREATE TABLE public.system_user_post (
 );
 
 
-ALTER TABLE public.system_user_post OWNER TO rustset_test;
-
 --
--- Name: system_user_post_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_user_post_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_user_post_seq
@@ -3501,10 +3233,8 @@ CREATE SEQUENCE public.system_user_post_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_user_post_seq OWNER TO rustset_test;
-
 --
--- Name: system_user_role; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_user_role; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_user_role (
@@ -3520,10 +3250,8 @@ CREATE TABLE public.system_user_role (
 );
 
 
-ALTER TABLE public.system_user_role OWNER TO rustset_test;
-
 --
--- Name: system_user_role_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_user_role_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_user_role_seq
@@ -3534,10 +3262,8 @@ CREATE SEQUENCE public.system_user_role_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_user_role_seq OWNER TO rustset_test;
-
 --
--- Name: system_users; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: system_users; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.system_users (
@@ -3565,10 +3291,8 @@ CREATE TABLE public.system_users (
 );
 
 
-ALTER TABLE public.system_users OWNER TO rustset_test;
-
 --
--- Name: system_users_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: system_users_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.system_users_seq
@@ -3579,10 +3303,8 @@ CREATE SEQUENCE public.system_users_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.system_users_seq OWNER TO rustset_test;
-
 --
--- Name: yudao_demo01_contact_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo01_contact_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.yudao_demo01_contact_seq
@@ -3593,10 +3315,8 @@ CREATE SEQUENCE public.yudao_demo01_contact_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.yudao_demo01_contact_seq OWNER TO rustset_test;
-
 --
--- Name: yudao_demo01_contact; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo01_contact; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.yudao_demo01_contact (
@@ -3614,10 +3334,8 @@ CREATE TABLE public.yudao_demo01_contact (
 );
 
 
-ALTER TABLE public.yudao_demo01_contact OWNER TO rustset_test;
-
 --
--- Name: yudao_demo02_category_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo02_category_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.yudao_demo02_category_seq
@@ -3628,10 +3346,8 @@ CREATE SEQUENCE public.yudao_demo02_category_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.yudao_demo02_category_seq OWNER TO rustset_test;
-
 --
--- Name: yudao_demo02_category; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo02_category; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.yudao_demo02_category (
@@ -3646,10 +3362,8 @@ CREATE TABLE public.yudao_demo02_category (
 );
 
 
-ALTER TABLE public.yudao_demo02_category OWNER TO rustset_test;
-
 --
--- Name: yudao_demo03_course_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_course_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.yudao_demo03_course_seq
@@ -3660,10 +3374,8 @@ CREATE SEQUENCE public.yudao_demo03_course_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.yudao_demo03_course_seq OWNER TO rustset_test;
-
 --
--- Name: yudao_demo03_course; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_course; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.yudao_demo03_course (
@@ -3679,10 +3391,8 @@ CREATE TABLE public.yudao_demo03_course (
 );
 
 
-ALTER TABLE public.yudao_demo03_course OWNER TO rustset_test;
-
 --
--- Name: yudao_demo03_grade_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_grade_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.yudao_demo03_grade_seq
@@ -3693,10 +3403,8 @@ CREATE SEQUENCE public.yudao_demo03_grade_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.yudao_demo03_grade_seq OWNER TO rustset_test;
-
 --
--- Name: yudao_demo03_grade; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_grade; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.yudao_demo03_grade (
@@ -3712,10 +3420,8 @@ CREATE TABLE public.yudao_demo03_grade (
 );
 
 
-ALTER TABLE public.yudao_demo03_grade OWNER TO rustset_test;
-
 --
--- Name: yudao_demo03_student_seq; Type: SEQUENCE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_student_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.yudao_demo03_student_seq
@@ -3726,10 +3432,8 @@ CREATE SEQUENCE public.yudao_demo03_student_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.yudao_demo03_student_seq OWNER TO rustset_test;
-
 --
--- Name: yudao_demo03_student; Type: TABLE; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_student; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.yudao_demo03_student (
@@ -3746,10 +3450,8 @@ CREATE TABLE public.yudao_demo03_student (
 );
 
 
-ALTER TABLE public.yudao_demo03_student OWNER TO rustset_test;
-
 --
--- Data for Name: chat_conversations; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: chat_conversations; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.chat_conversations (id, user_id, title, pinned, role_id, model_id, temperature, max_tokens, max_contexts, system_message, create_time, update_time, tool_ids, knowledge_ids) FROM stdin;
@@ -3757,7 +3459,7 @@ COPY ai.chat_conversations (id, user_id, title, pinned, role_id, model_id, tempe
 
 
 --
--- Data for Name: chat_messages; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: chat_messages; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.chat_messages (id, conversation_id, user_id, type, model_id, content, reasoning_content, tokens, segment_ids, attachment_urls, tool_calls, create_time) FROM stdin;
@@ -3765,16 +3467,16 @@ COPY ai.chat_messages (id, conversation_id, user_id, type, model_id, content, re
 
 
 --
--- Data for Name: chat_roles; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: chat_roles; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.chat_roles (id, user_id, model_id, name, avatar, category, sort, description, system_message, welcome_message, public_status, status, knowledge_ids, tool_ids, create_time, update_time) FROM stdin;
-1784300000100	1	1784257814114	运维助理		Agent	100	CMDB / 资产台账 / 资源工单的智能运维 Agent	你是 RustSet 的运维助理 Agent。你可以：用 cmdb_model_list 和 cmdb_instance_query 查询 CMDB 模型与配置项；用 asset_query 查询资产采集台账；用 ticket_query 查询资源开通工单；用 ticket_create 创建云主机开通工单（会按自动审批规则流转）。回答保持简洁、基于工具返回的真实数据，不确定时先查询再回答。创建工单前先向用户确认规格（名称/CPU/内存/数量）。	你好，我是运维助理。可以问我“CMDB 里有哪些模型”“查一下 web-prod 相关资产”或“帮我开一台 4 核 8G 的机器”。	t	1	{}	{1784300000001,1784300000002,1784300000003,1784300000004,1784300000005}	1793791357290	1793791357290
+1784300000100	1	1784257814114	运维助理		Agent	100	CMDB / 资产台账 / 资源工单的智能运维 Agent	你是 RustSet 的运维助理 Agent。你可以：用 cmdb_model_list 和 cmdb_instance_query 查询 CMDB 模型与配置项；用 asset_query 查询资产采集台账；用 ticket_query 查询资源开通工单；用 ticket_create 创建云主机开通工单（会按自动审批规则流转）。回答保持简洁、基于工具返回的真实数据，不确定时先查询再回答。创建工单前先向用户确认规格（名称/CPU/内存/数量）。	你好，我是运维助理。可以问我“CMDB 里有哪些模型”“查一下 web-prod 相关资产”或“帮我开一台 4 核 8G 的机器”。	t	1	{}	{1784300000001,1784300000002,1784300000003,1784300000004,1784300000005}	1794182368346	1794182368346
 \.
 
 
 --
--- Data for Name: images; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: images; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.images (id, user_id, model_id, platform, model, prompt, width, height, status, public_status, pic_url, error_message, options, task_id, buttons, create_time, finish_time, parent_id, action_custom_id, poll_count, last_poll_time) FROM stdin;
@@ -3782,7 +3484,7 @@ COPY ai.images (id, user_id, model_id, platform, model, prompt, width, height, s
 
 
 --
--- Data for Name: knowledge_bases; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: knowledge_bases; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.knowledge_bases (id, name, description, embedding_model_id, top_k, similarity_threshold, create_time, update_time) FROM stdin;
@@ -3790,7 +3492,7 @@ COPY ai.knowledge_bases (id, name, description, embedding_model_id, top_k, simil
 
 
 --
--- Data for Name: knowledge_documents; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: knowledge_documents; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.knowledge_documents (id, knowledge_id, name, url, content, content_length, tokens, segment_max_tokens, retrieval_count, status, create_time, update_time) FROM stdin;
@@ -3798,7 +3500,7 @@ COPY ai.knowledge_documents (id, knowledge_id, name, url, content, content_lengt
 
 
 --
--- Data for Name: knowledge_segments; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: knowledge_segments; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.knowledge_segments (id, document_id, knowledge_id, vector_id, content, content_length, tokens, retrieval_count, status, embedding, create_time, update_time) FROM stdin;
@@ -3806,7 +3508,7 @@ COPY ai.knowledge_segments (id, document_id, knowledge_id, vector_id, content, c
 
 
 --
--- Data for Name: model_catalog; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: model_catalog; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.model_catalog (platform, model, type, source, source_url, active, synced_at, missing_count, verified_at) FROM stdin;
@@ -3997,7 +3699,7 @@ DouBao	doubao-seedream-5-0-pro-260628	image	discover	https://ark.cn-beijing.volc
 
 
 --
--- Data for Name: model_configs; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: model_configs; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.model_configs (id, name, key, platform, type, model, api_key, url, status, config, create_time, update_time) FROM stdin;
@@ -4008,7 +3710,7 @@ COPY ai.model_configs (id, name, key, platform, type, model, api_key, url, statu
 
 
 --
--- Data for Name: model_platforms; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: model_platforms; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.model_platforms (platform, label, default_url, supported_types, enabled, update_time) FROM stdin;
@@ -4038,7 +3740,7 @@ OpenAICompatible	OpenAI 兼容平台		{chat,image,video,speech,transcription,mus
 
 
 --
--- Data for Name: music; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: music; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.music (id, user_id, model_id, title, lyric, image_url, audio_url, video_url, status, gpt_description_prompt, prompt, platform, model, generate_mode, tags, duration, public_status, task_id, error_message, create_time, finish_time, poll_count, last_poll_time) FROM stdin;
@@ -4046,22 +3748,22 @@ COPY ai.music (id, user_id, model_id, title, lyric, image_url, audio_url, video_
 
 
 --
--- Data for Name: tools; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: tools; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.tools (id, name, description, status, input_schema, executor, create_time, update_time) FROM stdin;
 1	current_time	获取指定时区的当前时间	1	{"type": "object", "required": ["utcOffset"], "properties": {"utcOffset": {"type": "string"}}}	{"kind": "builtin"}	0	0
 2	weather_query	查询指定地点的天气	1	{"type": "object", "required": ["location"], "properties": {"location": {"type": "string"}}}	{"kind": "builtin"}	0	0
-1784300000001	cmdb_model_list	列出 CMDB 中所有已启用的模型及其属性数和实例数	1	{"type": "object", "required": [], "properties": {}}	{"kind": "rust"}	1793791357290	1793791357290
-1784300000002	cmdb_instance_query	按模型编码查询 CMDB 配置项实例，可带关键词过滤实例属性内容	1	{"type": "object", "required": ["model_code"], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "keyword": {"type": "string", "description": "属性内容关键词，可选"}, "model_code": {"type": "string", "description": "CMDB 模型编码，如 server / cloud_ecs"}}}	{"kind": "rust"}	1793791357290	1793791357290
-1784300000003	asset_query	查询资产采集台账（infra_asset），支持名称/IP/单位/应用关键词	1	{"type": "object", "required": [], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "keyword": {"type": "string", "description": "名称、IP、单位或应用关键词，可选"}}}	{"kind": "rust"}	1793791357290	1793791357290
-1784300000004	ticket_query	查询资源开通工单，可按状态（pending_approval/pending_provision/pending_delivery/delivered/rejected）和关键词过滤	1	{"type": "object", "required": [], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "status": {"type": "string", "description": "工单状态，可选"}, "keyword": {"type": "string", "description": "主机名或应用名关键词，可选"}}}	{"kind": "rust"}	1793791357290	1793791357290
-1784300000005	ticket_create	创建云主机开通工单（ecs）。命中自动审批规则时会直接进入待配置状态；开通执行需在工单页进行或由自动规则触发	1	{"type": "object", "required": ["ecs_name"], "properties": {"ecs_os": {"type": "string", "description": "操作系统镜像，可选"}, "ecs_name": {"type": "string", "description": "主机名"}, "ecs_type": {"type": "string", "description": "规格，可选"}, "applicant": {"type": "string", "description": "申请人，可选"}, "cpu_cores": {"type": "integer", "description": "CPU 核数，默认 4"}, "memory_gb": {"type": "integer", "description": "内存 GB，默认 8"}, "cloud_region": {"type": "string", "description": "地域，可选"}, "cloud_category": {"type": "string", "description": "云类别（demo/aliyun/tencent），可选"}, "resource_count": {"type": "integer", "description": "数量，默认 1"}, "application_name": {"type": "string", "description": "所属应用，可选"}}}	{"kind": "rust"}	1793791357290	1793791357290
+1784300000001	cmdb_model_list	列出 CMDB 中所有已启用的模型及其属性数和实例数	1	{"type": "object", "required": [], "properties": {}}	{"kind": "rust"}	1794182368346	1794182368346
+1784300000002	cmdb_instance_query	按模型编码查询 CMDB 配置项实例，可带关键词过滤实例属性内容	1	{"type": "object", "required": ["model_code"], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "keyword": {"type": "string", "description": "属性内容关键词，可选"}, "model_code": {"type": "string", "description": "CMDB 模型编码，如 server / cloud_ecs"}}}	{"kind": "rust"}	1794182368346	1794182368346
+1784300000003	asset_query	查询资产采集台账（infra_asset），支持名称/IP/单位/应用关键词	1	{"type": "object", "required": [], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "keyword": {"type": "string", "description": "名称、IP、单位或应用关键词，可选"}}}	{"kind": "rust"}	1794182368346	1794182368346
+1784300000004	ticket_query	查询资源开通工单，可按状态（pending_approval/pending_provision/pending_delivery/delivered/rejected）和关键词过滤	1	{"type": "object", "required": [], "properties": {"limit": {"type": "integer", "description": "返回条数，默认 10，最大 20"}, "status": {"type": "string", "description": "工单状态，可选"}, "keyword": {"type": "string", "description": "主机名或应用名关键词，可选"}}}	{"kind": "rust"}	1794182368346	1794182368346
+1784300000005	ticket_create	创建云主机开通工单（ecs）。命中自动审批规则时会直接进入待配置状态；开通执行需在工单页进行或由自动规则触发	1	{"type": "object", "required": ["ecs_name"], "properties": {"ecs_os": {"type": "string", "description": "操作系统镜像，可选"}, "ecs_name": {"type": "string", "description": "主机名"}, "ecs_type": {"type": "string", "description": "规格，可选"}, "applicant": {"type": "string", "description": "申请人，可选"}, "cpu_cores": {"type": "integer", "description": "CPU 核数，默认 4"}, "memory_gb": {"type": "integer", "description": "内存 GB，默认 8"}, "cloud_region": {"type": "string", "description": "地域，可选"}, "cloud_category": {"type": "string", "description": "云类别（demo/aliyun/tencent），可选"}, "resource_count": {"type": "integer", "description": "数量，默认 1"}, "application_name": {"type": "string", "description": "所属应用，可选"}}}	{"kind": "rust"}	1794182368346	1794182368346
 \.
 
 
 --
--- Data for Name: writes; Type: TABLE DATA; Schema: ai; Owner: rustset_test
+-- Data for Name: writes; Type: TABLE DATA; Schema: ai; Owner: -
 --
 
 COPY ai.writes (id, user_id, model_id, type, prompt, original_content, length, format, tone, language, platform, model, generated_content, error_message, create_time, finish_time) FROM stdin;
@@ -4069,73 +3771,75 @@ COPY ai.writes (id, user_id, model_id, type, prompt, original_content, length, f
 
 
 --
--- Data for Name: _sqlx_migrations; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: _sqlx_migrations; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public._sqlx_migrations (version, description, installed_on, success, checksum, execution_time) FROM stdin;
-1	initial	2026-11-04 11:22:36.817293+00	t	\\x8860dd58a2513c79f25b099e1d588be3498805ab6669631aee10cde0fca29f295b9c3034c032e242659903866fcb0692	353860223
-2	asset management	2026-11-04 11:22:37.174032+00	t	\\xe05a530c57ef242cfeea36462a3eea8fb8fbd23632897e6edf94848e30157ff4cc0628ffb2364c007aa0a55c65774a21	20100794
-3	kairos asset permissions	2026-11-04 11:22:37.198133+00	t	\\xc66a44c1446984d92c51f282d1e55f28c56bfd9ef6556bc377303aacbaaaf0d1e4e2d1517673213818dd0d94acdcc342	7682002
-4	remove baseline runtime messages	2026-11-04 11:22:37.208316+00	t	\\x75f1d354d4cfd4101236a4099b430401a5e3223328b6f695b3eb70f804fa2cf42bd1a6ea9174988d80d1b9c7c7fe2913	3542027
-5	kairos ticket workflow fields	2026-11-04 11:22:37.214262+00	t	\\x15445c4f9dd94234ffb3ebfe67028537228d3b0c940848c3c0dca6727e7ba0a4c78e65820e7105e30262dd0dc5746d16	6772241
-6	grant asset ops to super admin	2026-11-04 11:22:37.224047+00	t	\\xaf8d8b195f38d418d2696fb7d43ec43492571bcd668361f6f7f2b3dc4ab0dbcaa9598c90fd4116006da12ab55ccd00c3	8189132
-7	asset inventory and network policy	2026-11-04 11:22:37.234002+00	t	\\x7a7d6850f0c5082ec1b40f22770709cf77b94e76fc6a982cecb37f9dea8ce85bd22faa4437361e040ce89591619505ef	7877365
-8	drop toonflow business	2026-11-04 11:22:37.24453+00	t	\\x5c9e7c3801e2ee15aa0be2d126315084abd2ddddce5960981c4bac67387e7d990face46fbf49a1c98d1b847d69eae796	18660544
-9	cmdb core	2026-11-04 11:22:37.266053+00	t	\\x964cc976706a22a71d731783025e59f01e0974f95b0005c84619699196a744fcde8429ee10abe0b921fd1edc398db195	14302911
-10	tofu provision and approval rules	2026-11-04 11:22:37.282034+00	t	\\x07e0b0b93635741b5e45af5b4a51141ef1b384c68c2f629c794c72f5a64bcc934e671cf4f3d6b9c35b3bdf493bcdd946	4242986
-11	ops agent tools	2026-11-04 11:22:37.290005+00	t	\\x17af5b9061d91050b559037d50909ef5db69b6eef5c39586dd40badd39ace9f085613c44c70ad68a0a4c6fc01be1b7cd	6091645
-12	approval rule menu	2026-11-04 11:22:37.30026+00	t	\\x37aa46690fb6afed5c745d21c502dfdbe37e02c20c3b55e7fc28ba7cbe7345cf707cfa31ff49b0baad6abc35c9b0c202	4028735
-13	cmdb roles and net zones	2026-11-04 11:22:37.306204+00	t	\\x45df944c33090eb9c89ffac693808faa98895ed0d24d3bacf12b1a454e7d648649352dec2f049bb8a54721c8710ebcf3	7869242
-14	fix cmdb permission codes	2026-11-04 11:22:37.316122+00	t	\\xf7960334257fbb6ae9098d0cd9767c97b0de7eb043f0ba9d0e2875a31916b04c23125c7194aae747e4af0feb46c8a158	5960817
-15	split asset operations menu	2026-11-04 11:22:37.324191+00	t	\\xbdc020e1be29c25139ebc1949a8ad93610c7e337e5ffbe204b900716f78f7603d6da90d04c04e6ed284dbd042b8e48d8	6039471
-16	remove bpm and scope tenant net zones	2026-11-04 11:22:37.331937+00	t	\\x02321d041095fdf24d09ec2e7e7a91956f4f537ed03da6284fc5765b3ac50b5022bd0098748fd683510098d6dcc8abea	6037971
-17	rebrand baseline data	2026-11-04 11:22:37.340109+00	t	\\xda12a4845170ff9ed12ebf191e155426723b5e125b782bc66e44be082e18e4f7bfbcc9233502da26b65223e1d4094ad2	3803830
-18	gm crypto and identity	2026-11-04 11:22:37.345907+00	t	\\x7ac129ddfca4d58aa79a57557a14258c30e3865f1d405f6d873455e35873dd47c5cabfdd5ff91281bddccd5f38f76282	6268948
-19	remove demo analytics menu	2026-11-04 11:22:37.356025+00	t	\\xd5694bb55a38446f2217c3818018d59c898b8c2b3b8bbd95d16fa4f9d69a6261e1855f32079d396f72a68643a39c8a09	1882159
-20	split business resource menu	2026-11-04 11:22:37.360142+00	t	\\xdd2c4d9600e424923d3c256dd4c56d281d0a1ac84ef7c749d19006a050c17c3541a2dd59d3eba5f0efc3d21a302b1cbd	3909135
-21	split resource tables	2026-11-04 11:22:37.366151+00	t	\\x7a3109c40576cab6b36ac1e1736d6ef67e3a1bf260080719e93ba0be7b0d607b29b907484a0767712684348c8b697ec6	9989126
-22	asset inspection	2026-11-04 11:22:37.378148+00	t	\\x4c01a6eb663e1bf4d6269e373ebebf14049784cbf8cff77fcd0b44a49c69584f9606ebb44d0e1d69903ab7e34fc64d4d	6080182
-23	retire codegen demo menus	2026-11-04 11:22:37.385958+00	t	\\x14079da493e20ac0f88225d5d3d31841219de31da8653d284b45e1eba126a64713cfd2311f1147c519cdf16f47f64b28	4271714
-24	rename api docs menu	2026-11-04 11:22:37.392123+00	t	\\xe63206d0221c83250952ea7a67a597856e6060dcf1162a6244acf7ddc2ebda878e6b26fd94016ae38a9a3f335d097460	4071049
-25	cmdb instance unique values	2026-11-04 11:22:37.397881+00	t	\\x7906d8d2d2cb9e2f35f3cebfc10e8facc24524d20cd56b06d55ff4caf2fac58c3b86ee3672287240f11ad25ba5e01fc9	4506118
-26	cmdb tenant isolation	2026-11-04 11:22:37.403987+00	t	\\xcee55302d791554220b47bbc9eaf69bd5c919233c0f13bfc432f71e95b53518bc521ca7176cc00d813deaafb96e5d4a1	6123083
-27	asset policy tenants	2026-11-04 11:22:37.41177+00	t	\\x38e8de9796c33ac2eb60e20c3ad2f1d47d6be3f4d3d87780c933d1142a9a68a34ae521eaf092af501941c9a819c6a070	6347398
-28	network policy port risk	2026-11-04 11:22:37.420286+00	t	\\x4e753d6453de580ffcf03fdc31017e391ff138a7947ed2865c6a1d74bdbf1c82bef17176d1c956ce04d1340fe6a1a3a8	6275775
-29	asset tenant unique ip	2026-11-04 11:22:37.429988+00	t	\\x2d8f6ad857dace6e18957d630c8b65ba618230a9a3815c63368269342008244f2458b2debf68ccf4c435c1521d6b68ac	4353689
-30	recoverable scan tasks	2026-11-04 11:22:37.435916+00	t	\\x4f7980409db12c481c63eb474da1890adf58ac4d2c16621121e91faef755227ba774738899d035172f99c7e2797120b3	6068616
-31	cmdb computed attributes	2026-11-04 11:22:37.444648+00	t	\\x39225cb162f5393738ce76f6144b6bda0a4ed15284f34992f03708843286c925b3c743703474426b59dbe39a51e3fba7	3356814
-32	cmdb attribute color	2026-11-04 11:22:37.450664+00	t	\\xb4a504d600009baa4157f0a2468fc1bb5f45aee358145ce8e21ae7e49853a295f1ab40d2b0138eac77354876584e82c6	3231090
-33	cmdb attribute triggers	2026-11-04 11:22:37.456319+00	t	\\x82b00a4373c70688a910e4a8d872f022d57cba798f6a861cf5719c576d9dab0a378af1d31eac6039752a87f2c9a11ef9	3613042
-34	provider room tenants	2026-11-04 11:22:37.462885+00	t	\\xa8494ea7cf451975d04456c09e2f322a542cd77e1eb0ea1ed5acc2f805d076bf2e4c0f825a05fa927e9893625c01c04c	7591522
-35	cloud security tenants	2026-11-04 11:22:37.471967+00	t	\\x6dbe5f24ccc85ed5f629504c9a6688d953e967d20502af795939b8dae37b0dc6a9e69d0026d00cc0e05cfc77b23c8552	8412542
-36	business application tenants	2026-11-04 11:22:37.483942+00	t	\\xf71100815d5a3ebbaa6d45fbddc528d018ca06c4e5689eeb3b98dbda9b4c29bb1d679c478968b84b78ba4d6ce9c5ed6b	6070128
-37	resource ledger tenants	2026-11-04 11:22:37.492133+00	t	\\x881925d6889ef3029ae7233fb54315f01c78c1df293bcf1b9ba2c5adeef24e6f531335471126058b1015ffd9a418d44e	8038345
-38	approval rule tenants	2026-11-04 11:22:37.501862+00	t	\\xbaa71b650d995485edd81a25ad497a42d2cf29fc3555725489a996c0aa2b860efbaf885c2f60a83a9df92f4ff10e767e	4214582
-39	ticket idempotency	2026-11-04 11:22:37.507968+00	t	\\x8176ec2e38901f34bdfc1e7e55f51bfde62586046ac8c3bf631c2143405c09fa2ba07b66b8ec7ec5e6aa6b02556dddb7	4210693
-40	network zone tenants	2026-11-04 11:22:37.513909+00	t	\\x9bc6713c11fe25e6703d89594b86028bd30bb8dbcbf7043f80413aa78bb2e94ef68bfcb4e6b8c90d73febfccf0dc686d	6122823
-41	cloud zone provider room zone	2026-11-04 11:22:37.522033+00	t	\\xaa5362f2b48bc2403d02ddb65d8e6b693d5852a415ad8b30ad200c26ebd4da8aa95477f028eca5bbb1fe618df95f5e21	6286332
-42	physical resource rack platform	2026-11-04 11:22:37.531969+00	t	\\x1552666acea4611619bfc25cd8cdd18a90d983b819c6fd956f3ec027f559956e843cad7feb71ab24ace2571834908213	4248287
-43	physical resource supplier	2026-11-04 11:22:37.537916+00	t	\\x98ada8c233b0691fb2b264a290a510d1defb00e567b8555311dabbea13cab65a4350208c000be735e38df3724816fd88	1856861
-44	cloud resource platform	2026-11-04 11:22:37.542209+00	t	\\x566f0f78864da1fb018cdf2962e637151e19562dee7d16e4df49f8b981092e15ef62349a1400852bdc86091d14c4eadc	3624579
-45	drop cloud category required	2026-11-04 11:22:37.548271+00	t	\\x451489e507985a4a998a0013d4f28b077ccc84d0683e8bc5a4b36a2e942d09769198a88cd33a911c01a86f20251aa688	3591353
-46	user bindings	2026-11-04 11:22:37.554272+00	t	\\xaa230a48bc88db7da10564fac3122cfcaca377023365e6be928ed9ab36aac7b3d4302f6187e84f1eb58c6c92b8c547a3	6161174
-47	ticket project customer	2026-11-04 11:22:37.563824+00	t	\\x8da88724a6f925d3fee3c99053a1d1b1d18444a568e2b5b8bb8fc365d1811d7c3f105ebdf1907c466858cc933283e2b4	4146979
-48	ticket attachments	2026-11-04 11:22:37.569793+00	t	\\x52950297fd2110d96b1cef6dcbe7c2458f63e0c2f1a561a0b0706bf00fc39e370816a515fd9bf6075778d941d49bc079	6144037
-49	ticket expiry	2026-11-04 11:22:37.578624+00	t	\\xd3d1c26977cb33f78f142b5d83593037bd6ad8f2f826112c7749fd413f42e780a7cd3aa4f16b3dd285063301248cab28	3324156
-50	menu supply ledger split	2026-11-04 11:22:37.584386+00	t	\\x8472a5ff896209ac7a7b99f40b4c2e6df6989c859cf2fdb3be2523ece1393d0b15e008ea9bfbf7379f101aa7a46751b8	3683700
-51	business application to asset center	2026-11-04 11:22:37.590263+00	t	\\xf0ef35707d9741755a2e7b0eb28d8e924a1a8bb15ec0f02b1cad6d6e6fd4bee9edbe961a68e349c99347d46eaf633bf4	3825084
-52	application ownership	2026-11-04 11:22:37.59639+00	t	\\x8b67f9084354d4c96d3f28b3b79ba6649c44127fc46727d87b715cdf9bdc574776cc7d731c0032b8538e22d10b79d87a	7923989
-53	application lifecycle	2026-11-04 11:22:37.608528+00	t	\\x510adb454325b8265f32115e80646483a01e6cdf16a7725f89c207ec3a5ad8eaf9ee66000cd6fc59fc435fed0418b13d	5730229
-54	network ticket menu	2026-11-04 11:22:37.61593+00	t	\\xbfa1f2c91992edd9e57c532d8f98faec81f521fcf6a96235cee834875799dd1e77d8ebfd1be5453340a490c73143e846	4658987
-55	network ticket menu order	2026-11-04 11:22:37.62407+00	t	\\x6423f8fb045cebfb7454d068081f148814d8e6f7146688dd26db7799536cd65f6b2772ee9aa3ad869e419a3b131879ea	4058765
-56	automation config	2026-11-04 11:22:37.629856+00	t	\\xa4c1a23000d3fea233eafb3d113542e5f69963da33a4c8d85b7e8b87f26659b0f051b31c6fd86c12a628e7179d7708cf	6160979
-57	automation config menu	2026-11-04 11:22:37.638191+00	t	\\x2c638a484950afd7986eaeee5bc6dfcd2b4dce551905c7a8bd245c427d6ed255f3d9248923ccb8156af9db894a3d130f	3741497
-58	firewall credential	2026-11-04 11:22:37.644472+00	t	\\xc427be59d0106f08be1a0762a2fc2562286eac923d033ce9e85f7cd85df778202df1137d115fb875f1b6dc58c98b5b92	3595970
+1	initial	2026-11-08 23:59:27.908255+00	t	\\x8860dd58a2513c79f25b099e1d588be3498805ab6669631aee10cde0fca29f295b9c3034c032e242659903866fcb0692	330905046
+2	asset management	2026-11-08 23:59:28.242223+00	t	\\xe05a530c57ef242cfeea36462a3eea8fb8fbd23632897e6edf94848e30157ff4cc0628ffb2364c007aa0a55c65774a21	20202438
+3	kairos asset permissions	2026-11-08 23:59:28.264527+00	t	\\xc66a44c1446984d92c51f282d1e55f28c56bfd9ef6556bc377303aacbaaaf0d1e4e2d1517673213818dd0d94acdcc342	7909635
+4	remove baseline runtime messages	2026-11-08 23:59:28.274194+00	t	\\x75f1d354d4cfd4101236a4099b430401a5e3223328b6f695b3eb70f804fa2cf42bd1a6ea9174988d80d1b9c7c7fe2913	4125624
+5	kairos ticket workflow fields	2026-11-08 23:59:28.28025+00	t	\\x15445c4f9dd94234ffb3ebfe67028537228d3b0c940848c3c0dca6727e7ba0a4c78e65820e7105e30262dd0dc5746d16	4021832
+6	grant asset ops to super admin	2026-11-08 23:59:28.286229+00	t	\\xaf8d8b195f38d418d2696fb7d43ec43492571bcd668361f6f7f2b3dc4ab0dbcaa9598c90fd4116006da12ab55ccd00c3	5997293
+7	asset inventory and network policy	2026-11-08 23:59:28.294671+00	t	\\x7a7d6850f0c5082ec1b40f22770709cf77b94e76fc6a982cecb37f9dea8ce85bd22faa4437361e040ce89591619505ef	7749861
+8	drop toonflow business	2026-11-08 23:59:28.304264+00	t	\\x5c9e7c3801e2ee15aa0be2d126315084abd2ddddce5960981c4bac67387e7d990face46fbf49a1c98d1b847d69eae796	18788907
+9	cmdb core	2026-11-08 23:59:28.326446+00	t	\\x964cc976706a22a71d731783025e59f01e0974f95b0005c84619699196a744fcde8429ee10abe0b921fd1edc398db195	11998590
+10	tofu provision and approval rules	2026-11-08 23:59:28.340309+00	t	\\x07e0b0b93635741b5e45af5b4a51141ef1b384c68c2f629c794c72f5a64bcc934e671cf4f3d6b9c35b3bdf493bcdd946	4208477
+11	ops agent tools	2026-11-08 23:59:28.346219+00	t	\\x17af5b9061d91050b559037d50909ef5db69b6eef5c39586dd40badd39ace9f085613c44c70ad68a0a4c6fc01be1b7cd	4083726
+12	approval rule menu	2026-11-08 23:59:28.352162+00	t	\\x37aa46690fb6afed5c745d21c502dfdbe37e02c20c3b55e7fc28ba7cbe7345cf707cfa31ff49b0baad6abc35c9b0c202	4304390
+13	cmdb roles and net zones	2026-11-08 23:59:28.358178+00	t	\\x45df944c33090eb9c89ffac693808faa98895ed0d24d3bacf12b1a454e7d648649352dec2f049bb8a54721c8710ebcf3	6077933
+14	fix cmdb permission codes	2026-11-08 23:59:28.366507+00	t	\\xf7960334257fbb6ae9098d0cd9767c97b0de7eb043f0ba9d0e2875a31916b04c23125c7194aae747e4af0feb46c8a158	3751268
+15	split asset operations menu	2026-11-08 23:59:28.372167+00	t	\\xbdc020e1be29c25139ebc1949a8ad93610c7e337e5ffbe204b900716f78f7603d6da90d04c04e6ed284dbd042b8e48d8	6440803
+16	remove bpm and scope tenant net zones	2026-11-08 23:59:28.380284+00	t	\\x02321d041095fdf24d09ec2e7e7a91956f4f537ed03da6284fc5765b3ac50b5022bd0098748fd683510098d6dcc8abea	3984300
+17	rebrand baseline data	2026-11-08 23:59:28.38645+00	t	\\xda12a4845170ff9ed12ebf191e155426723b5e125b782bc66e44be082e18e4f7bfbcc9233502da26b65223e1d4094ad2	3815371
+18	gm crypto and identity	2026-11-08 23:59:28.392374+00	t	\\x7ac129ddfca4d58aa79a57557a14258c30e3865f1d405f6d873455e35873dd47c5cabfdd5ff91281bddccd5f38f76282	3845636
+19	remove demo analytics menu	2026-11-08 23:59:28.398519+00	t	\\xd5694bb55a38446f2217c3818018d59c898b8c2b3b8bbd95d16fa4f9d69a6261e1855f32079d396f72a68643a39c8a09	1713431
+20	split business resource menu	2026-11-08 23:59:28.402207+00	t	\\xdd2c4d9600e424923d3c256dd4c56d281d0a1ac84ef7c749d19006a050c17c3541a2dd59d3eba5f0efc3d21a302b1cbd	3993331
+21	split resource tables	2026-11-08 23:59:28.408156+00	t	\\x7a3109c40576cab6b36ac1e1736d6ef67e3a1bf260080719e93ba0be7b0d607b29b907484a0767712684348c8b697ec6	10440395
+22	asset inspection	2026-11-08 23:59:28.420236+00	t	\\x4c01a6eb663e1bf4d6269e373ebebf14049784cbf8cff77fcd0b44a49c69584f9606ebb44d0e1d69903ab7e34fc64d4d	6095312
+23	retire codegen demo menus	2026-11-08 23:59:28.428379+00	t	\\x14079da493e20ac0f88225d5d3d31841219de31da8653d284b45e1eba126a64713cfd2311f1147c519cdf16f47f64b28	3838957
+24	rename api docs menu	2026-11-08 23:59:28.434397+00	t	\\xe63206d0221c83250952ea7a67a597856e6060dcf1162a6244acf7ddc2ebda878e6b26fd94016ae38a9a3f335d097460	1824119
+25	cmdb instance unique values	2026-11-08 23:59:28.438193+00	t	\\x7906d8d2d2cb9e2f35f3cebfc10e8facc24524d20cd56b06d55ff4caf2fac58c3b86ee3672287240f11ad25ba5e01fc9	3971403
+26	cmdb tenant isolation	2026-11-08 23:59:28.44413+00	t	\\xcee55302d791554220b47bbc9eaf69bd5c919233c0f13bfc432f71e95b53518bc521ca7176cc00d813deaafb96e5d4a1	6169571
+27	asset policy tenants	2026-11-08 23:59:28.452481+00	t	\\x38e8de9796c33ac2eb60e20c3ad2f1d47d6be3f4d3d87780c933d1142a9a68a34ae521eaf092af501941c9a819c6a070	6222171
+28	network policy port risk	2026-11-08 23:59:28.460286+00	t	\\x4e753d6453de580ffcf03fdc31017e391ff138a7947ed2865c6a1d74bdbf1c82bef17176d1c956ce04d1340fe6a1a3a8	6268857
+29	asset tenant unique ip	2026-11-08 23:59:28.468229+00	t	\\x2d8f6ad857dace6e18957d630c8b65ba618230a9a3815c63368269342008244f2458b2debf68ccf4c435c1521d6b68ac	2481369
+30	recoverable scan tasks	2026-11-08 23:59:28.472228+00	t	\\x4f7980409db12c481c63eb474da1890adf58ac4d2c16621121e91faef755227ba774738899d035172f99c7e2797120b3	4283236
+31	cmdb computed attributes	2026-11-08 23:59:28.478247+00	t	\\x39225cb162f5393738ce76f6144b6bda0a4ed15284f34992f03708843286c925b3c743703474426b59dbe39a51e3fba7	1940640
+32	cmdb attribute color	2026-11-08 23:59:28.482446+00	t	\\xb4a504d600009baa4157f0a2468fc1bb5f45aee358145ce8e21ae7e49853a295f1ab40d2b0138eac77354876584e82c6	3784476
+33	cmdb attribute triggers	2026-11-08 23:59:28.488374+00	t	\\x82b00a4373c70688a910e4a8d872f022d57cba798f6a861cf5719c576d9dab0a378af1d31eac6039752a87f2c9a11ef9	3903840
+34	provider room tenants	2026-11-08 23:59:28.494468+00	t	\\xa8494ea7cf451975d04456c09e2f322a542cd77e1eb0ea1ed5acc2f805d076bf2e4c0f825a05fa927e9893625c01c04c	5933350
+35	cloud security tenants	2026-11-08 23:59:28.502304+00	t	\\x6dbe5f24ccc85ed5f629504c9a6688d953e967d20502af795939b8dae37b0dc6a9e69d0026d00cc0e05cfc77b23c8552	7950597
+36	business application tenants	2026-11-08 23:59:28.512408+00	t	\\xf71100815d5a3ebbaa6d45fbddc528d018ca06c4e5689eeb3b98dbda9b4c29bb1d679c478968b84b78ba4d6ce9c5ed6b	3868547
+37	resource ledger tenants	2026-11-08 23:59:28.518431+00	t	\\x881925d6889ef3029ae7233fb54315f01c78c1df293bcf1b9ba2c5adeef24e6f531335471126058b1015ffd9a418d44e	6068798
+38	approval rule tenants	2026-11-08 23:59:28.526313+00	t	\\xbaa71b650d995485edd81a25ad497a42d2cf29fc3555725489a996c0aa2b860efbaf885c2f60a83a9df92f4ff10e767e	4001620
+39	ticket idempotency	2026-11-08 23:59:28.532413+00	t	\\x8176ec2e38901f34bdfc1e7e55f51bfde62586046ac8c3bf631c2143405c09fa2ba07b66b8ec7ec5e6aa6b02556dddb7	3998470
+40	network zone tenants	2026-11-08 23:59:28.538303+00	t	\\x9bc6713c11fe25e6703d89594b86028bd30bb8dbcbf7043f80413aa78bb2e94ef68bfcb4e6b8c90d73febfccf0dc686d	3924420
+41	cloud zone provider room zone	2026-11-08 23:59:28.544362+00	t	\\xaa5362f2b48bc2403d02ddb65d8e6b693d5852a415ad8b30ad200c26ebd4da8aa95477f028eca5bbb1fe618df95f5e21	4153794
+42	physical resource rack platform	2026-11-08 23:59:28.550328+00	t	\\x1552666acea4611619bfc25cd8cdd18a90d983b819c6fd956f3ec027f559956e843cad7feb71ab24ace2571834908213	3923715
+43	physical resource supplier	2026-11-08 23:59:28.556437+00	t	\\x98ada8c233b0691fb2b264a290a510d1defb00e567b8555311dabbea13cab65a4350208c000be735e38df3724816fd88	1806330
+44	cloud resource platform	2026-11-08 23:59:28.56023+00	t	\\x566f0f78864da1fb018cdf2962e637151e19562dee7d16e4df49f8b981092e15ef62349a1400852bdc86091d14c4eadc	4026258
+45	drop cloud category required	2026-11-08 23:59:28.56623+00	t	\\x451489e507985a4a998a0013d4f28b077ccc84d0683e8bc5a4b36a2e942d09769198a88cd33a911c01a86f20251aa688	3960778
+46	user bindings	2026-11-08 23:59:28.572157+00	t	\\xaa230a48bc88db7da10564fac3122cfcaca377023365e6be928ed9ab36aac7b3d4302f6187e84f1eb58c6c92b8c547a3	4062800
+47	ticket project customer	2026-11-08 23:59:28.578215+00	t	\\x8da88724a6f925d3fee3c99053a1d1b1d18444a568e2b5b8bb8fc365d1811d7c3f105ebdf1907c466858cc933283e2b4	4005813
+48	ticket attachments	2026-11-08 23:59:28.584172+00	t	\\x52950297fd2110d96b1cef6dcbe7c2458f63e0c2f1a561a0b0706bf00fc39e370816a515fd9bf6075778d941d49bc079	4087618
+49	ticket expiry	2026-11-08 23:59:28.590192+00	t	\\xd3d1c26977cb33f78f142b5d83593037bd6ad8f2f826112c7749fd413f42e780a7cd3aa4f16b3dd285063301248cab28	4138566
+50	menu supply ledger split	2026-11-08 23:59:28.596193+00	t	\\x8472a5ff896209ac7a7b99f40b4c2e6df6989c859cf2fdb3be2523ece1393d0b15e008ea9bfbf7379f101aa7a46751b8	4173111
+51	business application to asset center	2026-11-08 23:59:28.602162+00	t	\\xf0ef35707d9741755a2e7b0eb28d8e924a1a8bb15ec0f02b1cad6d6e6fd4bee9edbe961a68e349c99347d46eaf633bf4	2256782
+52	application ownership	2026-11-08 23:59:28.606189+00	t	\\x8b67f9084354d4c96d3f28b3b79ba6649c44127fc46727d87b715cdf9bdc574776cc7d731c0032b8538e22d10b79d87a	6122525
+53	application lifecycle	2026-11-08 23:59:28.614153+00	t	\\x510adb454325b8265f32115e80646483a01e6cdf16a7725f89c207ec3a5ad8eaf9ee66000cd6fc59fc435fed0418b13d	4156993
+54	network ticket menu	2026-11-08 23:59:28.620149+00	t	\\xbfa1f2c91992edd9e57c532d8f98faec81f521fcf6a96235cee834875799dd1e77d8ebfd1be5453340a490c73143e846	2287514
+55	network ticket menu order	2026-11-08 23:59:28.624292+00	t	\\x6423f8fb045cebfb7454d068081f148814d8e6f7146688dd26db7799536cd65f6b2772ee9aa3ad869e419a3b131879ea	1910462
+56	automation config	2026-11-08 23:59:28.628471+00	t	\\xa4c1a23000d3fea233eafb3d113542e5f69963da33a4c8d85b7e8b87f26659b0f051b31c6fd86c12a628e7179d7708cf	6072849
+57	automation config menu	2026-11-08 23:59:28.63625+00	t	\\x2c638a484950afd7986eaeee5bc6dfcd2b4dce551905c7a8bd245c427d6ed255f3d9248923ccb8156af9db894a3d130f	1940286
+58	firewall credential	2026-11-08 23:59:28.640418+00	t	\\xc427be59d0106f08be1a0762a2fc2562286eac923d033ce9e85f7cd85df778202df1137d115fb875f1b6dc58c98b5b92	3783782
+59	audit integrity	2026-11-08 23:59:28.646379+00	t	\\xbab520eb597a7c7837697557ee7eff73e032923c89deca52116c2afa317a0ce593fd9b5797794b8aa0bb0e51d09f37e6	1936615
+60	mcp api key	2026-11-08 23:59:28.650183+00	t	\\xde7d8d7271237a770e6c43d7a8c690377b97b525f41ff60ab6449270e87266233d60b8b2acccab9db0ea3bfb384d1c35	4141352
 \.
 
 
 --
--- Data for Name: cmdb_attribute; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: cmdb_attribute; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.cmdb_attribute (id, model_id, name, code, attr_type, required, choices, default_value, show_in_list, sort, status, creator, create_time, updater, update_time, deleted, expression, color) FROM stdin;
@@ -4143,7 +3847,7 @@ COPY public.cmdb_attribute (id, model_id, name, code, attr_type, required, choic
 
 
 --
--- Data for Name: cmdb_attribute_trigger; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: cmdb_attribute_trigger; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.cmdb_attribute_trigger (id, model_id, name, condition_code, condition_value, action_code, action_value, enabled, creator, updater, create_time, update_time, deleted) FROM stdin;
@@ -4151,7 +3855,7 @@ COPY public.cmdb_attribute_trigger (id, model_id, name, condition_code, conditio
 
 
 --
--- Data for Name: cmdb_instance; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: cmdb_instance; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.cmdb_instance (id, model_id, attributes, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4159,7 +3863,7 @@ COPY public.cmdb_instance (id, model_id, attributes, creator, create_time, updat
 
 
 --
--- Data for Name: cmdb_instance_unique_value; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: cmdb_instance_unique_value; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.cmdb_instance_unique_value (instance_id, model_id, value, tenant_id) FROM stdin;
@@ -4167,7 +3871,7 @@ COPY public.cmdb_instance_unique_value (instance_id, model_id, value, tenant_id)
 
 
 --
--- Data for Name: cmdb_model; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: cmdb_model; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.cmdb_model (id, name, code, description, icon, unique_key, sort, status, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4175,7 +3879,7 @@ COPY public.cmdb_model (id, name, code, description, icon, unique_key, sort, sta
 
 
 --
--- Data for Name: cmdb_net_zone; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: cmdb_net_zone; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.cmdb_net_zone (id, name, parent_id, zone_type, cidr, sort, description, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4183,7 +3887,7 @@ COPY public.cmdb_net_zone (id, name, parent_id, zone_type, cidr, sort, descripti
 
 
 --
--- Data for Name: cmdb_relation; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: cmdb_relation; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.cmdb_relation (id, source_id, target_id, relation, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4191,15 +3895,15 @@ COPY public.cmdb_relation (id, source_id, target_id, relation, creator, create_t
 
 
 --
--- Data for Name: infra_api_access_log; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_api_access_log; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.infra_api_access_log (id, trace_id, user_id, user_type, application_name, request_method, request_url, request_params, response_body, user_ip, user_agent, operate_module, operate_name, operate_type, begin_time, end_time, duration, result_code, result_msg, creator, create_time, updater, update_time, deleted) FROM stdin;
+COPY public.infra_api_access_log (id, trace_id, user_id, user_type, application_name, request_method, request_url, request_params, response_body, user_ip, user_agent, operate_module, operate_name, operate_type, begin_time, end_time, duration, result_code, result_msg, creator, create_time, updater, update_time, deleted, integrity_alg, record_digest) FROM stdin;
 \.
 
 
 --
--- Data for Name: infra_api_error_log; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_api_error_log; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_api_error_log (id, trace_id, user_id, user_type, application_name, request_method, request_url, request_params, user_ip, user_agent, exception_time, exception_name, exception_message, exception_root_cause_message, exception_stack_trace, exception_class_name, exception_file_name, exception_method_name, exception_line_number, process_status, process_time, process_user_id, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4207,7 +3911,7 @@ COPY public.infra_api_error_log (id, trace_id, user_id, user_type, application_n
 
 
 --
--- Data for Name: infra_application_endpoint; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_application_endpoint; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_application_endpoint (id, business_application_id, protocol, dest_ip, nat_ip, dest_port, domain, created_by, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4215,7 +3919,7 @@ COPY public.infra_application_endpoint (id, business_application_id, protocol, d
 
 
 --
--- Data for Name: infra_approval_rule; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_approval_rule; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_approval_rule (id, name, resource_type, max_cpu_cores, max_memory_gb, max_resource_count, auto_provision, status, remarks, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4223,7 +3927,7 @@ COPY public.infra_approval_rule (id, name, resource_type, max_cpu_cores, max_mem
 
 
 --
--- Data for Name: infra_asset; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_asset; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_asset (id, name, ip, zone, ports, last_scanned, contact_person, contact_phone, created_by, updated_by, owner, weight, labels, os, device_type, creator, create_time, updater, update_time, deleted, city, district, organization_name, business_department, department_contact, application_name, server_name, hardware_configuration, operating_system, database_type, launch_date, decommission_date, application_type, network_environment, internet_ipv4, internet_ipv6, domain_address, internal_network_ip, government_extranet_ip, open_ports, publishing_endpoint, publishes_other_endpoint, other_endpoint_name, security_product_installation, development_vendor, development_vendor_contact, security_vendor, security_vendor_contact, operations_vendor, operations_vendor_contact, classified_protection_level, classified_protection_assessed, classified_protection_assessor, classified_protection_assessment_date, classified_protection_score, classified_protection_filed, classified_protection_filing_date, classified_protection_filing_number, classified_protection_filing_authority, cryptography_assessed, cryptography_assessment_level, cryptography_assessment_date, cryptography_assessment_number, net_zone_id, ownership_source, tenant_id) FROM stdin;
@@ -4231,7 +3935,7 @@ COPY public.infra_asset (id, name, ip, zone, ports, last_scanned, contact_person
 
 
 --
--- Data for Name: infra_automation_audit; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_automation_audit; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_automation_audit (id, automation_type, ticket_id, action, result, detail, duration_ms, executor, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4239,17 +3943,17 @@ COPY public.infra_automation_audit (id, automation_type, ticket_id, action, resu
 
 
 --
--- Data for Name: infra_automation_config; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_automation_config; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_automation_config (id, automation_type, enabled, credential_ref, scope_config, circuit_breaker_threshold, circuit_breaker_count, circuit_breaker_tripped, last_executed_at, last_result, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
-1	cloud_provision	0	\N	\N	3	0	0	\N	\N	system	2026-11-04 11:22:37.629856	system	2026-11-04 11:22:37.629856	0	1
-2	firewall_provision	0	\N	\N	3	0	0	\N	\N	system	2026-11-04 11:22:37.629856	system	2026-11-04 11:22:37.629856	0	1
+1	cloud_provision	0	\N	\N	3	0	0	\N	\N	system	2026-11-08 23:59:28.628471	system	2026-11-08 23:59:28.628471	0	1
+2	firewall_provision	0	\N	\N	3	0	0	\N	\N	system	2026-11-08 23:59:28.628471	system	2026-11-08 23:59:28.628471	0	1
 \.
 
 
 --
--- Data for Name: infra_automation_credential; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_automation_credential; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_automation_credential (id, automation_type, api_username, api_password, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4257,7 +3961,7 @@ COPY public.infra_automation_credential (id, automation_type, api_username, api_
 
 
 --
--- Data for Name: infra_business_application; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_business_application; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_business_application (id, name, description, created_by, creator, create_time, updater, update_time, deleted, tenant_id, owner_user_id, status) FROM stdin;
@@ -4265,7 +3969,7 @@ COPY public.infra_business_application (id, name, description, created_by, creat
 
 
 --
--- Data for Name: infra_cloud_asset; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_cloud_asset; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_cloud_asset (id, cloud_provider_config_id, provider_type, platform_name, region_id, instance_id, name, status, private_ip, public_ip, cpu_cores, memory_gb, instance_type, os_name, expire_time, raw_payload, synced_at, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4273,7 +3977,7 @@ COPY public.infra_cloud_asset (id, cloud_provider_config_id, provider_type, plat
 
 
 --
--- Data for Name: infra_cloud_platform; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_cloud_platform; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_cloud_platform (id, zone_id, platform_name, platform_code, description, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4281,7 +3985,7 @@ COPY public.infra_cloud_platform (id, zone_id, platform_name, platform_code, des
 
 
 --
--- Data for Name: infra_cloud_provider_config; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_cloud_provider_config; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_cloud_provider_config (id, zone_id, platform_id, provider, region_id, region_name, available_zones, account_name, access_key_id, access_key_secret, status, remarks, last_test_time, last_test_result, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4289,7 +3993,7 @@ COPY public.infra_cloud_provider_config (id, zone_id, platform_id, provider, reg
 
 
 --
--- Data for Name: infra_cloud_resource; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_cloud_resource; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_cloud_resource (id, ecs_name, ecs_status, resource_id, cloud_region, cloud_category, cloud_provider_config_id, zone_name, platform_name, county_city, vdc_name, customer_name, application_name, contract_name, instance_id, ecs_type, ecs_os, cpu_cores, memory_gb, system_disk, system_disk_size_gb, data_disk, completion_time, release_time, has_security_product, ip_address, ecs_login_method, ecs_login_username, ecs_initial_password, bastion_address, bastion_admin_account, bastion_initial_password, bandwidth_mbps, bandwidth_type, public_ip_count, network_type, billing_method, purchase_duration, cost_center, project_name, project_code, business_owner, tech_owner, contact_phone, remarks, application_status, delivery_status, delivery_confirmed_at, delivery_confirmed_by, applicant, department, approver, approval_time, approval_remarks, rejection_reason, security_level, data_sensitivity, purpose, expected_delivery_time, creator, create_time, updater, update_time, deleted, tenant_id, cloud_platform_id, customer_user_id, expire_at, application_id) FROM stdin;
@@ -4297,7 +4001,7 @@ COPY public.infra_cloud_resource (id, ecs_name, ecs_status, resource_id, cloud_r
 
 
 --
--- Data for Name: infra_cloud_zone; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_cloud_zone; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_cloud_zone (id, zone_name, zone_code, description, creator, create_time, updater, update_time, deleted, tenant_id, provider_id) FROM stdin;
@@ -4305,7 +4009,7 @@ COPY public.infra_cloud_zone (id, zone_name, zone_code, description, creator, cr
 
 
 --
--- Data for Name: infra_codegen_column; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_codegen_column; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_codegen_column (id, table_id, column_name, data_type, column_comment, nullable, primary_key, ordinal_position, java_type, java_field, create_operation, update_operation, list_operation, list_operation_result, html_type, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4339,7 +4043,7 @@ COPY public.infra_codegen_column (id, table_id, column_name, data_type, column_c
 
 
 --
--- Data for Name: infra_codegen_table; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_codegen_table; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_codegen_table (id, data_source_config_id, scene, table_name, table_comment, module_name, business_name, class_name, class_comment, author, template_type, front_type, parent_menu_id, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4348,7 +4052,7 @@ COPY public.infra_codegen_table (id, data_source_config_id, scene, table_name, t
 
 
 --
--- Data for Name: infra_config; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_config; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_config (id, category, type, name, config_key, value, visible, remark, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4358,7 +4062,7 @@ COPY public.infra_config (id, category, type, name, config_key, value, visible, 
 
 
 --
--- Data for Name: infra_data_source_config; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_data_source_config; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_data_source_config (id, name, url, username, password, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4368,7 +4072,7 @@ COPY public.infra_data_source_config (id, name, url, username, password, creator
 
 
 --
--- Data for Name: infra_file; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_file; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_file (id, config_id, name, path, url, type, size, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4379,7 +4083,7 @@ COPY public.infra_file (id, config_id, name, path, url, type, size, creator, cre
 
 
 --
--- Data for Name: infra_file_config; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_file_config; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_file_config (id, name, storage, master, config, remark, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4390,33 +4094,33 @@ COPY public.infra_file_config (id, name, storage, master, config, remark, creato
 
 
 --
--- Data for Name: infra_high_risk_port_rule; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_high_risk_port_rule; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_high_risk_port_rule (id, name, protocol, port_start, port_end, severity, description, solution, enabled, creator, create_time, updater, update_time, deleted) FROM stdin;
-1	FTP 明文服务	tcp	21	21	High	FTP 使用明文认证与传输，暴露后易造成凭据和数据泄露。	关闭公网访问；确需使用时限制可信源地址并迁移到 SFTP。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-2	SSH 远程管理	tcp	22	22	High	远程管理端口暴露会增加口令爆破和未授权访问风险。	限制到运维网或堡垒机，启用密钥认证和多因素认证。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-3	Telnet 明文管理	tcp	23	23	Critical	Telnet 以明文传输认证信息，不应跨不可信网络开放。	立即关闭 Telnet 并迁移到 SSH，通过管理网或堡垒机访问。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-4	Windows RPC	tcp	135	135	High	RPC 端口暴露可能泄露主机信息并扩大远程攻击面。	限制到必要的管理网段，并通过主机和边界防火墙双重控制。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-5	NetBIOS	any	137	139	High	NetBIOS 服务暴露会泄露名称与共享信息，并增加横向移动风险。	关闭跨安全域访问；无法关闭时仅允许受控内网源地址。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-6	SMB 文件共享	tcp	445	445	Critical	SMB 暴露存在勒索软件传播、凭据窃取和远程利用风险。	禁止公网和非必要跨域访问，限制可信源并及时修补系统。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-7	Microsoft SQL Server	tcp	1433	1433	High	数据库端口暴露会增加爆破、数据泄露和漏洞利用风险。	仅允许应用服务器网段访问，禁止用户网与公网直连。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-8	Oracle Database	tcp	1521	1521	High	数据库监听端口暴露会增加未授权访问和数据泄露风险。	仅允许指定应用源地址访问，并启用数据库访问审计。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-9	NFS 文件共享	any	2049	2049	High	NFS 暴露可能导致未授权挂载和敏感文件泄露。	限制到必要的受控主机，核查导出权限并禁用匿名映射。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-10	Docker Remote API	tcp	2375	2375	Critical	未加密 Docker API 可能允许直接控制主机和容器。	关闭 2375；如需远程管理，使用双向 TLS 的 2376 并限制源地址。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-11	MySQL	tcp	3306	3306	High	数据库端口暴露会增加爆破、数据泄露和漏洞利用风险。	仅允许指定应用网段访问，使用最小权限账号并启用审计。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-12	RDP 远程桌面	tcp	3389	3389	Critical	远程桌面暴露容易遭受口令爆破、凭据攻击和远程利用。	仅通过 VPN 或堡垒机访问，限制源地址并启用网络级认证和多因素认证。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-13	PostgreSQL	tcp	5432	5432	High	数据库端口暴露会增加未授权访问和数据泄露风险。	仅允许指定应用服务器访问，并核查 pg_hba.conf 与账号权限。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-14	VNC 远程控制	tcp	5900	5900	Critical	VNC 暴露可能导致弱口令攻击、会话窃听和远程控制。	关闭直接暴露，通过堡垒机或 VPN 访问并启用强认证。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-15	Redis	tcp	6379	6379	Critical	Redis 暴露可能导致未授权读写、数据泄露或主机命令执行。	绑定内网地址，启用认证和 ACL，仅允许必要应用源地址访问。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-16	Elasticsearch	tcp	9200	9200	High	Elasticsearch 接口暴露可能导致索引数据泄露和未授权操作。	启用认证与 TLS，仅允许受控应用和运维网段访问。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-17	Memcached	any	11211	11211	Critical	Memcached 暴露可能泄露缓存数据，并被用于反射放大攻击。	绑定内网地址，关闭 UDP，并限制为必要应用源地址。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
-18	MongoDB	tcp	27017	27017	Critical	MongoDB 暴露可能导致未授权访问和业务数据泄露。	启用认证与 TLS，仅允许指定应用服务器访问。	t		2026-11-04 11:22:37.420286		2026-11-04 11:22:37.420286	0
+1	FTP 明文服务	tcp	21	21	High	FTP 使用明文认证与传输，暴露后易造成凭据和数据泄露。	关闭公网访问；确需使用时限制可信源地址并迁移到 SFTP。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+2	SSH 远程管理	tcp	22	22	High	远程管理端口暴露会增加口令爆破和未授权访问风险。	限制到运维网或堡垒机，启用密钥认证和多因素认证。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+3	Telnet 明文管理	tcp	23	23	Critical	Telnet 以明文传输认证信息，不应跨不可信网络开放。	立即关闭 Telnet 并迁移到 SSH，通过管理网或堡垒机访问。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+4	Windows RPC	tcp	135	135	High	RPC 端口暴露可能泄露主机信息并扩大远程攻击面。	限制到必要的管理网段，并通过主机和边界防火墙双重控制。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+5	NetBIOS	any	137	139	High	NetBIOS 服务暴露会泄露名称与共享信息，并增加横向移动风险。	关闭跨安全域访问；无法关闭时仅允许受控内网源地址。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+6	SMB 文件共享	tcp	445	445	Critical	SMB 暴露存在勒索软件传播、凭据窃取和远程利用风险。	禁止公网和非必要跨域访问，限制可信源并及时修补系统。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+7	Microsoft SQL Server	tcp	1433	1433	High	数据库端口暴露会增加爆破、数据泄露和漏洞利用风险。	仅允许应用服务器网段访问，禁止用户网与公网直连。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+8	Oracle Database	tcp	1521	1521	High	数据库监听端口暴露会增加未授权访问和数据泄露风险。	仅允许指定应用源地址访问，并启用数据库访问审计。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+9	NFS 文件共享	any	2049	2049	High	NFS 暴露可能导致未授权挂载和敏感文件泄露。	限制到必要的受控主机，核查导出权限并禁用匿名映射。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+10	Docker Remote API	tcp	2375	2375	Critical	未加密 Docker API 可能允许直接控制主机和容器。	关闭 2375；如需远程管理，使用双向 TLS 的 2376 并限制源地址。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+11	MySQL	tcp	3306	3306	High	数据库端口暴露会增加爆破、数据泄露和漏洞利用风险。	仅允许指定应用网段访问，使用最小权限账号并启用审计。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+12	RDP 远程桌面	tcp	3389	3389	Critical	远程桌面暴露容易遭受口令爆破、凭据攻击和远程利用。	仅通过 VPN 或堡垒机访问，限制源地址并启用网络级认证和多因素认证。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+13	PostgreSQL	tcp	5432	5432	High	数据库端口暴露会增加未授权访问和数据泄露风险。	仅允许指定应用服务器访问，并核查 pg_hba.conf 与账号权限。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+14	VNC 远程控制	tcp	5900	5900	Critical	VNC 暴露可能导致弱口令攻击、会话窃听和远程控制。	关闭直接暴露，通过堡垒机或 VPN 访问并启用强认证。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+15	Redis	tcp	6379	6379	Critical	Redis 暴露可能导致未授权读写、数据泄露或主机命令执行。	绑定内网地址，启用认证和 ACL，仅允许必要应用源地址访问。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+16	Elasticsearch	tcp	9200	9200	High	Elasticsearch 接口暴露可能导致索引数据泄露和未授权操作。	启用认证与 TLS，仅允许受控应用和运维网段访问。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+17	Memcached	any	11211	11211	Critical	Memcached 暴露可能泄露缓存数据，并被用于反射放大攻击。	绑定内网地址，关闭 UDP，并限制为必要应用源地址。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
+18	MongoDB	tcp	27017	27017	Critical	MongoDB 暴露可能导致未授权访问和业务数据泄露。	启用认证与 TLS，仅允许指定应用服务器访问。	t		2026-11-08 23:59:28.460286		2026-11-08 23:59:28.460286	0
 \.
 
 
 --
--- Data for Name: infra_inspection_baseline; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_inspection_baseline; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_inspection_baseline (ip, allowed_ports, reason, updated_by, update_time, tenant_id) FROM stdin;
@@ -4424,7 +4128,7 @@ COPY public.infra_inspection_baseline (ip, allowed_ports, reason, updated_by, up
 
 
 --
--- Data for Name: infra_inspection_result; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_inspection_result; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_inspection_result (id, task_id, ip, registered, baseline_ports, open_ports, uncertain_ports, differences, risk_ids, create_time, tenant_id) FROM stdin;
@@ -4432,7 +4136,7 @@ COPY public.infra_inspection_result (id, task_id, ip, registered, baseline_ports
 
 
 --
--- Data for Name: infra_job; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_job; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_job (id, name, status, handler_name, handler_param, cron_expression, retry_count, retry_interval, monitor_timeout, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4443,7 +4147,7 @@ COPY public.infra_job (id, name, status, handler_name, handler_param, cron_expre
 
 
 --
--- Data for Name: infra_job_log; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_job_log; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_job_log (id, job_id, handler_name, handler_param, execute_index, begin_time, end_time, duration, status, result, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -4453,7 +4157,7 @@ COPY public.infra_job_log (id, job_id, handler_name, handler_param, execute_inde
 
 
 --
--- Data for Name: infra_machine_room; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_machine_room; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_machine_room (id, room_name, room_code, facility_type, address, room_type, contact_person, contact_phone, floor, cabinet_count, area_size, remarks, status, creator, create_time, updater, update_time, deleted, tenant_id, zone_id) FROM stdin;
@@ -4461,7 +4165,7 @@ COPY public.infra_machine_room (id, room_name, room_code, facility_type, address
 
 
 --
--- Data for Name: infra_network_policy; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_network_policy; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_network_policy (id, firewall_name, destination_organization, destination_project, source_organization, source_project, source_security_zone, source_ip, destination_security_zone, destination_ip, service_port, applicant, application_date, traffic_direction, action, implementer, implementation_date, delivery_date, creator, create_time, updater, update_time, deleted, tenant_id, application_id, status) FROM stdin;
@@ -4469,7 +4173,7 @@ COPY public.infra_network_policy (id, firewall_name, destination_organization, d
 
 
 --
--- Data for Name: infra_network_zone; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_network_zone; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_network_zone (id, name, cidr, priority, cloud_platform_id, cloud_platform_name, machine_room_id, machine_room_name, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4477,7 +4181,7 @@ COPY public.infra_network_zone (id, name, cidr, priority, cloud_platform_id, clo
 
 
 --
--- Data for Name: infra_physical_resource; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_physical_resource; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_physical_resource (id, ecs_name, ecs_status, cloud_region, cloud_category, customer_name, machine_room_id, deployment_type, management_ip, business_ip, network_cidr, gateway, vlan_id, dns_servers, mac_address, serial_number, hardware_model, rack_location, warranty_expiry, agent_status, ipmi_address, cpu_cores, memory_gb, has_security_product, application_name, contract_name, completion_time, release_time, project_name, project_code, business_owner, tech_owner, contact_phone, remarks, application_status, delivery_status, delivery_confirmed_at, delivery_confirmed_by, applicant, department, approver, approval_time, approval_remarks, rejection_reason, security_level, data_sensitivity, purpose, expected_delivery_time, creator, create_time, updater, update_time, deleted, tenant_id, cloud_platform_id, cabinet_no, rack_start_u, rack_end_u, supplier_name, customer_user_id, expire_at, application_id) FROM stdin;
@@ -4485,7 +4189,7 @@ COPY public.infra_physical_resource (id, ecs_name, ecs_status, cloud_region, clo
 
 
 --
--- Data for Name: infra_resource_ticket; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_resource_ticket; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_resource_ticket (id, resource_type, ecs_name, ticket_status, provider_id, provider_name, cloud_platform_id, cloud_platform_name, machine_room_id, machine_room_name, cloud_region, cloud_category, zone_name, zone_cabinet, rack_units, customer_name, application_name, application_endpoint_id, application_domain, contract_name, ecs_type, ecs_os, resource_count, cpu_cores, memory_gb, system_disk, system_disk_size_gb, data_disk, expire_at, has_security_product, security_products, ip_address, delivery_status, remarks, created_by, applicant_name, organization_id, organization_name, department_id, department_name, approver, approve_time, approve_comment, provisioner, provision_time, provision_details, deliverer, deliver_time, deliver_comment, fw_source_zone, fw_source_address, fw_source_port, fw_dest_zone, fw_dest_address, fw_dest_port, fw_protocol, fw_port, fw_direction, fw_valid_until, fw_firewall_name, creator, create_time, updater, update_time, deleted, ticket_type, risk_level, target_resource_id, target_config, maintenance_window, allow_interruption, backup_confirmed, rollback_plan, retention_until, approval_stage, approval_total, current_approval_role, apply_status, apply_log, tf_outputs, tofu_workspace, target_resource_type, tenant_id, idempotency_key, applicant_user_id, project_name, customer_user_id, expiry_remind_stage, application_id) FROM stdin;
@@ -4493,7 +4197,7 @@ COPY public.infra_resource_ticket (id, resource_type, ecs_name, ticket_status, p
 
 
 --
--- Data for Name: infra_resource_ticket_attachment; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_resource_ticket_attachment; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_resource_ticket_attachment (id, ticket_id, file_id, kind, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4501,7 +4205,7 @@ COPY public.infra_resource_ticket_attachment (id, ticket_id, file_id, kind, crea
 
 
 --
--- Data for Name: infra_risk; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_risk; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_risk (id, asset_ip, port, severity, description, solution, status, assigned_to, creator, create_time, updater, update_time, deleted, inspection_key, tenant_id, source_type, source_id, rule_id) FROM stdin;
@@ -4509,7 +4213,7 @@ COPY public.infra_risk (id, asset_ip, port, severity, description, solution, sta
 
 
 --
--- Data for Name: infra_security_product; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_security_product; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_security_product (id, name, category, vendor, model, version, serial_number, license_type, license_expiry, management_ip, deployment_mode, cloud_platform_id, machine_room_id, provider_id, status, features, throughput, contact_person, contact_phone, remarks, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4517,7 +4221,7 @@ COPY public.infra_security_product (id, name, category, vendor, model, version, 
 
 
 --
--- Data for Name: infra_service_provider; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_service_provider; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_service_provider (id, provider_name, provider_code, short_name, logo_url, contact_person, contact_phone, contact_email, headquarters, service_area, business_license, remarks, status, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4525,7 +4229,7 @@ COPY public.infra_service_provider (id, provider_name, provider_code, short_name
 
 
 --
--- Data for Name: infra_task; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: infra_task; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.infra_task (id, name, target, status, start_time, end_time, found_assets, found_risks, port_policy, domain_brute, service_detection, os_detection, site_identify, created_by, creator, create_time, updater, update_time, deleted, task_kind, scan_ports, total_targets, completed_targets, error_message, tenant_id, payload, idempotency_key, attempt_count, max_attempts, timeout_seconds, next_attempt_at, lease_owner, lease_expires_at, heartbeat_at, cancel_requested) FROM stdin;
@@ -4533,7 +4237,7 @@ COPY public.infra_task (id, name, target, status, start_time, end_time, found_as
 
 
 --
--- Data for Name: system_dept; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_dept; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_dept (id, name, parent_id, sort, leader_user_id, phone, email, status, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -4543,21 +4247,21 @@ COPY public.system_dept (id, name, parent_id, sort, leader_user_id, phone, email
 113	支持部门	102	3	104	\N	\N	1	1	2023-12-02 09:47:38	1	2025-03-29 15:00:56	0	1
 116	某个子部门	0	1	\N	\N	\N	0	1	2025-12-08 14:51:12	1	2025-12-08 14:51:12	0	1
 117	某个子部门 2	0	2	\N	\N	\N	0	1	2025-12-08 14:51:25	1	2025-12-08 14:51:25	0	1
-101	深圳总公司	100	1	104	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-102	长沙分公司	100	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-103	研发部门	101	1	104	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-104	市场部门	101	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-105	测试部门	101	3	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-106	财务部门	101	4	103	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-107	运维部门	101	5	1	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-108	市场部门	102	1	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-109	财务部门	102	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
-100	RustSet	0	0	1	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1
+101	深圳总公司	100	1	104	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+102	长沙分公司	100	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+103	研发部门	101	1	104	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+104	市场部门	101	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+105	测试部门	101	3	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+106	财务部门	101	4	103	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+107	运维部门	101	5	1	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+108	市场部门	102	1	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+109	财务部门	102	2	\N	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
+100	RustSet	0	0	1	15888888888		0	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1
 \.
 
 
 --
--- Data for Name: system_dict_data; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_dict_data; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_dict_data (id, sort, label, value, dict_type, status, color_type, css_class, remark, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -5479,7 +5183,7 @@ COPY public.system_dict_data (id, sort, label, value, dict_type, status, color_t
 
 
 --
--- Data for Name: system_dict_type; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_dict_type; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_dict_type (id, name, type, status, remark, creator, create_time, updater, update_time, deleted, deleted_time) FROM stdin;
@@ -5673,7 +5377,7 @@ COPY public.system_dict_type (id, name, type, status, remark, creator, create_ti
 
 
 --
--- Data for Name: system_login_log; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_login_log; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_login_log (id, log_type, trace_id, user_id, user_type, username, result, user_ip, user_agent, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -5681,7 +5385,7 @@ COPY public.system_login_log (id, log_type, trace_id, user_id, user_type, userna
 
 
 --
--- Data for Name: system_mail_account; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_mail_account; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_mail_account (id, mail, username, password, host, port, ssl_enable, starttls_enable, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -5693,7 +5397,7 @@ COPY public.system_mail_account (id, mail, username, password, host, port, ssl_e
 
 
 --
--- Data for Name: system_mail_log; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_mail_log; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_mail_log (id, user_id, user_type, to_mails, cc_mails, bcc_mails, account_id, from_mail, template_id, template_code, template_nickname, template_title, template_content, template_params, send_status, send_time, send_message_id, send_exception, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -5703,7 +5407,7 @@ COPY public.system_mail_log (id, user_id, user_type, to_mails, cc_mails, bcc_mai
 
 
 --
--- Data for Name: system_mail_template; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_mail_template; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_mail_template (id, name, code, account_id, nickname, title, content, params, status, remark, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -5714,7 +5418,15 @@ COPY public.system_mail_template (id, name, code, account_id, nickname, title, c
 
 
 --
--- Data for Name: system_menu; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_mcp_api_key; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.system_mcp_api_key (id, name, api_key_hash, key_prefix, user_id, enabled, expires_time, last_used_time, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: system_menu; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon, component, component_name, status, visible, keep_alive, always_show, creator, create_time, updater, update_time, deleted, active_menu_id) FROM stdin;
@@ -5905,7 +5617,7 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 2762	API 密钥查询	ai:api-key:query	3	1	2761					0	t	t	t		2024-05-09 14:52:56	system	2026-07-17 01:44:04.417394	1	\N
 2763	API 密钥创建	ai:api-key:create	3	2	2761					0	t	t	t		2024-05-09 14:52:56	system	2026-07-17 01:44:04.417394	1	\N
 2764	API 密钥更新	ai:api-key:update	3	3	2761					0	t	t	t		2024-05-09 14:52:56	system	2026-07-17 01:44:04.417394	1	\N
-2497	主子表（ERP）		2	11	1070	demo03-erp	ep:calendar	infra/demo/demo03/erp/index	Demo03StudentERP	0	t	t	t		2023-11-16 15:50:59	migration	2026-11-04 11:22:37.385958	1	\N
+2497	主子表（ERP）		2	11	1070	demo03-erp	ep:calendar	infra/demo/demo03/erp/index	Demo03StudentERP	0	t	t	t		2023-11-16 15:50:59	migration	2026-11-08 23:59:28.428379	1	\N
 2765	API 密钥删除	ai:api-key:delete	3	4	2761					0	t	t	t		2024-05-09 14:52:56	system	2026-07-17 01:44:04.417394	1	\N
 2794	AI 写作查询	ai:write:query	3	1	2793				\N	0	t	t	t		2024-07-10 13:24:34		2024-07-10 13:24:34	0	\N
 2795	AI 写作删除	ai:write:delete	3	4	2793				\N	0	t	t	t		2024-07-10 13:24:34		2024-07-10 13:24:34	0	\N
@@ -5936,7 +5648,7 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 30007	聊天角色	ai:chat-role:query	2	7	30000	model/chat-role	lucide:bot	ai/model/chatRole/index	AiModelChatRole	0	t	t	t	system	2026-07-16 05:03:23.711366	system	2026-07-16 08:12:35.316268	1	\N
 30008	工具管理	ai:tool:query	2	8	30000	model/tool	lucide:wrench	ai/model/tool/index	AiModelTool	0	t	t	t	system	2026-07-16 05:03:23.711366	system	2026-07-16 08:12:35.316268	1	\N
 2760	控制台		1	100	2758	console	lucide:settings-2			0	t	t	t	1	2024-05-09 22:39:09	system	2026-07-17 01:13:48.097106	0	\N
-2913	流程清理	bpm:model:clean	3	7	1193					0	t	t	t	1	2025-01-17 19:32:06	migration	2026-11-04 11:22:37.331937	1	\N
+2913	流程清理	bpm:model:clean	3	7	1193					0	t	t	t	1	2025-01-17 19:32:06	migration	2026-11-08 23:59:28.380284	1	\N
 2767	模型配置		2	0	2760	model	lucide:brain-circuit	ai/model/model/index.vue	AiModel	0	t	t	t		2024-05-10 14:42:48	system	2026-07-17 01:13:48.097106	0	\N
 2773	聊天角色		2	0	2760	chat-role	lucide:bot	ai/model/chatRole/index.vue	AiChatRole	0	t	t	t		2024-05-13 12:39:28	system	2026-07-17 01:13:48.097106	0	\N
 2778	聊天管理		2	10	2760	chat-conversation	lucide:messages-square	ai/chat/manager/index.vue	AiChatManager	0	t	t	t		2024-05-24 15:39:18	system	2026-07-17 01:13:48.097106	0	\N
@@ -5977,8 +5689,8 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 2151	站内信消息		2	2	30241	/system/notify-message-list	fa:edit	system/notify/message/index	SystemNotifyMessage	0	t	t	t		2023-01-28 04:28:22	1	2026-07-17 01:35:39.386526	0	\N
 2131	邮箱账号		2	3	30241	/system/mail-account	fa:universal-access	system/mail/account/index	SystemMailAccount	0	t	t	t		2023-01-25 09:33:48	1	2026-07-17 01:35:39.386526	0	\N
 2136	邮件模板		2	4	30241	/system/mail-template	fa:tag	system/mail/template/index	SystemMailTemplate	0	t	t	t		2023-01-25 12:05:31	1	2026-07-17 01:35:39.386526	0	\N
-1185	工作流		1	50	0	/bpm	fa:medium	\N	bpm	0	t	t	t	1	2021-12-30 20:26:36	migration	2026-11-04 11:22:37.331937	1	\N
-30202	分析页		2	2	30200	/analytics	lucide:area-chart	dashboard/analytics/index	Analytics	0	t	t	t	system	2026-07-17 01:29:09.910057	migration	2026-11-04 11:22:37.356025	1	\N
+1185	工作流		1	50	0	/bpm	fa:medium	\N	bpm	0	t	t	t	1	2021-12-30 20:26:36	migration	2026-11-08 23:59:28.380284	1	\N
+30202	分析页		2	2	30200	/analytics	lucide:area-chart	dashboard/analytics/index	Analytics	0	t	t	t	system	2026-07-17 01:29:09.910057	migration	2026-11-08 23:59:28.398519	1	\N
 2141	邮件日志		2	5	30241	/system/mail-log	fa:edit	system/mail/log/index	SystemMailLog	0	t	t	t		2023-01-26 02:16:50	1	2026-07-17 01:35:39.386526	0	\N
 1094	短信渠道		2	6	30241	/system/sms-channel	fa:stack-exchange	system/sms/channel/index	SystemSmsChannel	0	t	t	t		2021-04-01 11:07:15	1	2026-07-17 01:35:39.386526	0	\N
 1100	短信模板		2	7	30241	/system/sms-template	ep:connection	system/sms/template/index	SystemSmsTemplate	0	t	t	t		2021-04-01 17:35:17	1	2026-07-17 01:35:39.386526	0	\N
@@ -6017,217 +5729,222 @@ COPY public.system_menu (id, name, permission, type, sort, parent_id, path, icon
 30230	调度日志	infra:job:query	2	90	2	/infra/job/log	lucide:scroll-text	infra/job/logger/index	InfraJobLog	0	f	f	f	system	2026-07-17 01:29:09.910057	system	2026-07-17 02:02:24.52913	0	110
 30231	生成配置修改	infra:codegen:update	2	91	2	/infra/codegen/edit	lucide:file-cog	infra/codegen/edit/index	InfraCodegenEdit	0	f	f	f	system	2026-07-17 01:29:09.910057	system	2026-07-17 02:02:24.52913	0	115
 30232	我的站内信	system:notify-message:query	2	90	1	/system/notify-message	lucide:mail	system/notify/my/index	MyNotifyMessage	0	f	f	f	system	2026-07-17 01:29:09.910057	system	2026-07-17 02:02:24.52913	0	2151
-1189	表单创建	bpm:form:create	3	2	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-04 11:22:37.331937	1	\N
-30256	资产查询	infra:asset:query	3	1	30243					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30257	资产创建	infra:asset:create	3	2	30243					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30258	资产更新	infra:asset:update	3	3	30243					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30259	资产删除	infra:asset:delete	3	4	30243					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30260	服务商查询	infra:service-provider:query	3	1	30244					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30261	服务商创建	infra:service-provider:create	3	2	30244					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30262	服务商更新	infra:service-provider:update	3	3	30244					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30263	服务商删除	infra:service-provider:delete	3	4	30244					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30264	机房查询	infra:machine-room:query	3	1	30245					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30265	机房创建	infra:machine-room:create	3	2	30245					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30266	机房更新	infra:machine-room:update	3	3	30245					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30267	机房删除	infra:machine-room:delete	3	4	30245					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30268	云资源区查询	infra:cloud-zone:query	3	1	30246					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30269	云资源区创建	infra:cloud-zone:create	3	2	30246					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30270	云资源区更新	infra:cloud-zone:update	3	3	30246					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30271	云资源区删除	infra:cloud-zone:delete	3	4	30246					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30272	云平台查询	infra:cloud-platform:query	3	1	30247					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30273	云平台创建	infra:cloud-platform:create	3	2	30247					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30274	云平台更新	infra:cloud-platform:update	3	3	30247					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30275	云平台删除	infra:cloud-platform:delete	3	4	30247					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30276	云对接查询	infra:cloud-provider-config:query	3	1	30248					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30277	云对接创建	infra:cloud-provider-config:create	3	2	30248					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30278	云对接更新	infra:cloud-provider-config:update	3	3	30248					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30279	云对接删除	infra:cloud-provider-config:delete	3	4	30248					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30280	网络区域查询	infra:network-zone:query	3	1	30249					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30281	网络区域创建	infra:network-zone:create	3	2	30249					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30282	网络区域更新	infra:network-zone:update	3	3	30249					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30283	网络区域删除	infra:network-zone:delete	3	4	30249					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30284	安全产品查询	infra:security-product:query	3	1	30250					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30285	安全产品创建	infra:security-product:create	3	2	30250					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30286	安全产品更新	infra:security-product:update	3	3	30250					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30287	安全产品删除	infra:security-product:delete	3	4	30250					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30288	业务应用查询	infra:business-application:query	3	1	30251					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30289	业务应用创建	infra:business-application:create	3	2	30251					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30290	业务应用更新	infra:business-application:update	3	3	30251					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30291	业务应用删除	infra:business-application:delete	3	4	30251					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30296	资源工单查询	infra:resource-ticket:query	3	1	30253					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30297	资源工单创建	infra:resource-ticket:create	3	2	30253					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30298	资源工单更新	infra:resource-ticket:update	3	3	30253					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30299	资源工单删除	infra:resource-ticket:delete	3	4	30253					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30300	资源工单审批	infra:resource-ticket:approve	3	5	30253					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30301	资源工单配置	infra:resource-ticket:provision	3	6	30253					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30302	资源工单交付	infra:resource-ticket:deliver	3	7	30253					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30303	任务查询	infra:task:query	3	1	30254					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30304	任务创建	infra:task:create	3	2	30254					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30305	任务更新	infra:task:update	3	3	30254					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30306	任务删除	infra:task:delete	3	4	30254					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30307	任务执行	infra:task:execute	3	5	30254					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30308	风险查询	infra:risk:query	3	1	30255					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30309	风险更新	infra:risk:update	3	2	30255					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30310	风险处置	infra:risk:resolve	3	3	30255					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.198133	0	\N
-30312	网络策略更新	infra:network-policy:update	3	3	30311					0	t	t	t	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	\N
-30313	网络策略创建	infra:network-policy:create	3	2	30311					0	t	t	t	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	\N
-30314	网络策略查询	infra:network-policy:query	3	1	30311					0	t	t	t	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	\N
-30315	网络策略删除	infra:network-policy:delete	3	4	30311					0	t	t	t	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	\N
-30317	模型管理		2	1	30316	model	lucide:shapes	cmdb/model/index	CmdbModelManagement	0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30318	实例管理		2	2	30316	instance	lucide:shapes	cmdb/instance/index	CmdbInstanceManagement	0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30323	属性创建	cmdb:attribute:create	3	5	30317					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30324	属性更新	cmdb:attribute:update	3	6	30317					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30325	属性删除	cmdb:attribute:delete	3	7	30317					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30331	审批规则查询	infra:approval-rule:query	3	1	30330					0	t	t	t	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	\N
-30332	审批规则创建	infra:approval-rule:create	3	2	30330					0	t	t	t	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	\N
-30333	审批规则更新	infra:approval-rule:update	3	3	30330					0	t	t	t	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	\N
-30316	配置管理		1	10	0	/cmdb	lucide:database			0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30292	云资源查询	infra:cloud-resource:query	3	1	30252					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.366151	0	\N
-30293	云资源创建	infra:cloud-resource:create	3	2	30252					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.366151	0	\N
-30294	云资源更新	infra:cloud-resource:update	3	3	30252					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.366151	0	\N
-30295	云资源删除	infra:cloud-resource:delete	3	4	30252					0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.366151	0	\N
-30311	网络策略		2	7	30342	network-policy	lucide:shield-check	asset-ops/network-policy/index	AssetOpsNetworkPolicy	0	t	t	t	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.813498	0	\N
-30330	审批规则		2	3	30344	approval-rule	lucide:git-pull-request-arrow	asset-ops/approval-rule/index	AssetOpsApprovalRule	0	t	t	t	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.831795	0	\N
-30334	审批规则删除	infra:approval-rule:delete	3	4	30330					0	t	t	t	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	\N
-30319	模型查询	cmdb:model:query	3	1	30317					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30320	模型创建	cmdb:model:create	3	2	30317					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30321	模型更新	cmdb:model:update	3	3	30317					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30322	模型删除	cmdb:model:delete	3	4	30317					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30326	实例查询	cmdb:instance:query	3	1	30318					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30327	实例创建	cmdb:instance:create	3	2	30318					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30328	实例更新	cmdb:instance:update	3	3	30318					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30329	实例删除	cmdb:instance:delete	3	4	30318					0	t	t	t	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	\N
-30340	基础设施		1	11	0	/infra-center	lucide:server-cog			0	t	t	t	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.324191	0	\N
-30342	资产中心		1	13	0	/asset-center	lucide:boxes			0	t	t	t	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.324191	0	\N
-30344	运营流程		1	15	0	/ops-center	lucide:workflow			0	t	t	t	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.324191	0	\N
-30253	资源工单		2	1	30344	resource-ticket	lucide:ticket	asset-ops/resource-ticket/index	AssetOpsResourceTicket	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.324191	0	\N
-30242	资产运营		1	35	0	/asset-ops	lucide:boxes		AssetOps	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.324191	1	\N
+1189	表单创建	bpm:form:create	3	2	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-08 23:59:28.380284	1	\N
+30256	资产查询	infra:asset:query	3	1	30243					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30257	资产创建	infra:asset:create	3	2	30243					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30258	资产更新	infra:asset:update	3	3	30243					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30259	资产删除	infra:asset:delete	3	4	30243					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30260	服务商查询	infra:service-provider:query	3	1	30244					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30261	服务商创建	infra:service-provider:create	3	2	30244					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30262	服务商更新	infra:service-provider:update	3	3	30244					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30263	服务商删除	infra:service-provider:delete	3	4	30244					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30264	机房查询	infra:machine-room:query	3	1	30245					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30265	机房创建	infra:machine-room:create	3	2	30245					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30266	机房更新	infra:machine-room:update	3	3	30245					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30267	机房删除	infra:machine-room:delete	3	4	30245					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30268	云资源区查询	infra:cloud-zone:query	3	1	30246					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30269	云资源区创建	infra:cloud-zone:create	3	2	30246					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30270	云资源区更新	infra:cloud-zone:update	3	3	30246					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30271	云资源区删除	infra:cloud-zone:delete	3	4	30246					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30272	云平台查询	infra:cloud-platform:query	3	1	30247					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30273	云平台创建	infra:cloud-platform:create	3	2	30247					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30274	云平台更新	infra:cloud-platform:update	3	3	30247					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30275	云平台删除	infra:cloud-platform:delete	3	4	30247					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30276	云对接查询	infra:cloud-provider-config:query	3	1	30248					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30277	云对接创建	infra:cloud-provider-config:create	3	2	30248					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30278	云对接更新	infra:cloud-provider-config:update	3	3	30248					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30279	云对接删除	infra:cloud-provider-config:delete	3	4	30248					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30280	网络区域查询	infra:network-zone:query	3	1	30249					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30281	网络区域创建	infra:network-zone:create	3	2	30249					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30282	网络区域更新	infra:network-zone:update	3	3	30249					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30283	网络区域删除	infra:network-zone:delete	3	4	30249					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30284	安全产品查询	infra:security-product:query	3	1	30250					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30285	安全产品创建	infra:security-product:create	3	2	30250					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30286	安全产品更新	infra:security-product:update	3	3	30250					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30287	安全产品删除	infra:security-product:delete	3	4	30250					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30288	业务应用查询	infra:business-application:query	3	1	30251					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30289	业务应用创建	infra:business-application:create	3	2	30251					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30290	业务应用更新	infra:business-application:update	3	3	30251					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30291	业务应用删除	infra:business-application:delete	3	4	30251					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30296	资源工单查询	infra:resource-ticket:query	3	1	30253					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30297	资源工单创建	infra:resource-ticket:create	3	2	30253					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30298	资源工单更新	infra:resource-ticket:update	3	3	30253					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30299	资源工单删除	infra:resource-ticket:delete	3	4	30253					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30300	资源工单审批	infra:resource-ticket:approve	3	5	30253					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30301	资源工单配置	infra:resource-ticket:provision	3	6	30253					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30302	资源工单交付	infra:resource-ticket:deliver	3	7	30253					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30303	任务查询	infra:task:query	3	1	30254					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30304	任务创建	infra:task:create	3	2	30254					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30305	任务更新	infra:task:update	3	3	30254					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30306	任务删除	infra:task:delete	3	4	30254					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30307	任务执行	infra:task:execute	3	5	30254					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30308	风险查询	infra:risk:query	3	1	30255					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30309	风险更新	infra:risk:update	3	2	30255					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30310	风险处置	infra:risk:resolve	3	3	30255					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.264527	0	\N
+30312	网络策略更新	infra:network-policy:update	3	3	30311					0	t	t	t	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	\N
+30313	网络策略创建	infra:network-policy:create	3	2	30311					0	t	t	t	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	\N
+30314	网络策略查询	infra:network-policy:query	3	1	30311					0	t	t	t	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	\N
+30315	网络策略删除	infra:network-policy:delete	3	4	30311					0	t	t	t	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	\N
+30317	模型管理		2	1	30316	model	lucide:shapes	cmdb/model/index	CmdbModelManagement	0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30318	实例管理		2	2	30316	instance	lucide:shapes	cmdb/instance/index	CmdbInstanceManagement	0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30323	属性创建	cmdb:attribute:create	3	5	30317					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30324	属性更新	cmdb:attribute:update	3	6	30317					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30325	属性删除	cmdb:attribute:delete	3	7	30317					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30331	审批规则查询	infra:approval-rule:query	3	1	30330					0	t	t	t	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	\N
+30332	审批规则创建	infra:approval-rule:create	3	2	30330					0	t	t	t	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	\N
+30333	审批规则更新	infra:approval-rule:update	3	3	30330					0	t	t	t	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	\N
+30316	配置管理		1	10	0	/cmdb	lucide:database			0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30292	云资源查询	infra:cloud-resource:query	3	1	30252					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.408156	0	\N
+30293	云资源创建	infra:cloud-resource:create	3	2	30252					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.408156	0	\N
+30294	云资源更新	infra:cloud-resource:update	3	3	30252					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.408156	0	\N
+30295	云资源删除	infra:cloud-resource:delete	3	4	30252					0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.408156	0	\N
+30311	网络策略		2	7	30342	network-policy	lucide:shield-check	asset-ops/network-policy/index	AssetOpsNetworkPolicy	0	t	t	t	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.792505	0	\N
+30330	审批规则		2	3	30344	approval-rule	lucide:git-pull-request-arrow	asset-ops/approval-rule/index	AssetOpsApprovalRule	0	t	t	t	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.805802	0	\N
+30334	审批规则删除	infra:approval-rule:delete	3	4	30330					0	t	t	t	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	\N
+30319	模型查询	cmdb:model:query	3	1	30317					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30320	模型创建	cmdb:model:create	3	2	30317					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30321	模型更新	cmdb:model:update	3	3	30317					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30322	模型删除	cmdb:model:delete	3	4	30317					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30326	实例查询	cmdb:instance:query	3	1	30318					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30327	实例创建	cmdb:instance:create	3	2	30318					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30328	实例更新	cmdb:instance:update	3	3	30318					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30329	实例删除	cmdb:instance:delete	3	4	30318					0	t	t	t	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	\N
+30340	基础设施		1	11	0	/infra-center	lucide:server-cog			0	t	t	t	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.372167	0	\N
+30342	资产中心		1	13	0	/asset-center	lucide:boxes			0	t	t	t	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.372167	0	\N
+30344	运营流程		1	15	0	/ops-center	lucide:workflow			0	t	t	t	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.372167	0	\N
+30253	资源工单		2	1	30344	resource-ticket	lucide:ticket	asset-ops/resource-ticket/index	AssetOpsResourceTicket	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.372167	0	\N
+30242	资产运营		1	35	0	/asset-ops	lucide:boxes		AssetOps	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.372167	1	\N
 1	系统功能		1	20	0	/system	lucide:settings	\N	System	0	t	t	t	admin	2021-01-05 17:03:48	1	2026-07-17 01:35:39.386526	0	\N
 30240	基础设置		1	21	0	/system/basic	lucide:sliders-horizontal		SystemBasic	0	t	t	t	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	\N
 30241	信息中心		1	22	0	/system/message	lucide:mail		SystemMessage	0	t	t	t	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	\N
 2	基础功能		1	25	0	/infra	lucide:blocks	\N	Infra	0	t	t	t	admin	2021-01-05 17:03:48	1	2026-07-17 01:35:39.386526	0	\N
-30336	组织网段查询	cmdb:net-zone:query	3	1	1138					0	t	t	t	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.331937	0	\N
-30337	组织网段创建	cmdb:net-zone:create	3	2	1138					0	t	t	t	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.331937	0	\N
-30338	组织网段更新	cmdb:net-zone:update	3	3	1138					0	t	t	t	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.331937	0	\N
-30339	组织网段删除	cmdb:net-zone:delete	3	4	1138					0	t	t	t	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.331937	0	\N
-30335	组织网段		2	3	30316	net-zone	lucide:network	cmdb/net-zone/index	CmdbNetZone	0	t	t	t	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.331937	1	\N
-1186	流程管理		1	10	1185	manager	fa:dedent	\N	\N	0	t	t	t	1	2021-12-30 20:28:30	migration	2026-11-04 11:22:37.331937	1	\N
-1187	流程表单		2	2	1186	form	fa:hdd-o	bpm/form/index	BpmForm	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-04 11:22:37.331937	1	\N
-1188	表单查询	bpm:form:query	3	1	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-04 11:22:37.331937	1	\N
-30343	业务管理		1	14	0	/biz-center	lucide:briefcase			0	t	t	t	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.590263	1	\N
-30244	服务商		2	1	30340	service-provider	lucide:briefcase-business	asset-ops/service-provider/index	AssetOpsServiceProvider	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30246	云资源区		2	2	30340	cloud-zone	lucide:map-pin	asset-ops/cloud-platform/zone	AssetOpsCloudZone	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30245	物理机房		2	3	30340	machine-room	lucide:warehouse	asset-ops/machine-room/index	AssetOpsMachineRoom	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30247	云平台		2	4	30340	cloud-platform	lucide:cloud-cog	asset-ops/cloud-platform/platform	AssetOpsCloudPlatform	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30251	业务应用		2	4	30342	business-application	lucide:layout-grid	asset-ops/business-application/index	AssetOpsBusinessApplication	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.813498	0	\N
-1190	表单更新	bpm:form:update	3	3	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-04 11:22:37.331937	1	\N
-1191	表单删除	bpm:form:delete	3	4	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-04 11:22:37.331937	1	\N
-1192	表单导出	bpm:form:export	3	5	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-04 11:22:37.331937	1	\N
-1193	流程模型		2	1	1186	model	fa-solid:project-diagram	bpm/model/index	BpmModel	0	t	t	t	1	2021-12-31 23:24:58	migration	2026-11-04 11:22:37.331937	1	\N
-1194	模型查询	bpm:model:query	3	1	1193				\N	0	t	t	t	1	2022-01-03 19:01:10	migration	2026-11-04 11:22:37.331937	1	\N
-1195	模型创建	bpm:model:create	3	2	1193				\N	0	t	t	t	1	2022-01-03 19:01:24	migration	2026-11-04 11:22:37.331937	1	\N
-1197	模型更新	bpm:model:update	3	4	1193				\N	0	t	t	t	1	2022-01-03 19:02:28	migration	2026-11-04 11:22:37.331937	1	\N
-1198	模型删除	bpm:model:delete	3	5	1193				\N	0	t	t	t	1	2022-01-03 19:02:43	migration	2026-11-04 11:22:37.331937	1	\N
-1199	模型发布	bpm:model:deploy	3	6	1193				\N	0	t	t	t	1	2022-01-03 19:03:24	migration	2026-11-04 11:22:37.331937	1	\N
-1200	审批中心		2	20	1185	task	fa:tasks	\N	\N	0	t	t	t	1	2022-01-07 23:51:48	migration	2026-11-04 11:22:37.331937	1	\N
-1201	我的流程		2	1	1200	my	fa-solid:book	bpm/processInstance/index	BpmProcessInstanceMy	0	t	t	t		2022-01-07 15:53:44	migration	2026-11-04 11:22:37.331937	1	\N
-1202	流程实例的查询	bpm:process-instance:query	3	1	1201				\N	0	t	t	t		2022-01-07 15:53:44	migration	2026-11-04 11:22:37.331937	1	\N
-1207	待办任务		2	10	1200	todo	fa:slack	bpm/task/todo/index	BpmTodoTask	0	t	t	t	1	2022-01-08 10:33:37	migration	2026-11-04 11:22:37.331937	1	\N
-1208	已办任务		2	20	1200	done	fa:delicious	bpm/task/done/index	BpmDoneTask	0	t	t	t	1	2022-01-08 10:34:13	migration	2026-11-04 11:22:37.331937	1	\N
-1209	用户分组		2	4	1186	user-group	fa:user-secret	bpm/group/index	BpmUserGroup	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-04 11:22:37.331937	1	\N
-1210	用户组查询	bpm:user-group:query	3	1	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-04 11:22:37.331937	1	\N
-1211	用户组创建	bpm:user-group:create	3	2	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-04 11:22:37.331937	1	\N
-1212	用户组更新	bpm:user-group:update	3	3	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-04 11:22:37.331937	1	\N
-1213	用户组删除	bpm:user-group:delete	3	4	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-04 11:22:37.331937	1	\N
-1215	流程定义查询	bpm:process-definition:query	3	10	1193				\N	0	t	t	t	1	2022-01-23 00:21:43	migration	2026-11-04 11:22:37.331937	1	\N
-1216	流程任务分配规则查询	bpm:task-assign-rule:query	3	20	1193				\N	0	t	t	t	1	2022-01-23 00:26:53	migration	2026-11-04 11:22:37.331937	1	\N
-1217	流程任务分配规则创建	bpm:task-assign-rule:create	3	21	1193				\N	0	t	t	t	1	2022-01-23 00:28:15	migration	2026-11-04 11:22:37.331937	1	\N
-1218	流程任务分配规则更新	bpm:task-assign-rule:update	3	22	1193				\N	0	t	t	t	1	2022-01-23 00:28:41	migration	2026-11-04 11:22:37.331937	1	\N
-1219	流程实例的创建	bpm:process-instance:create	3	2	1201				\N	0	t	t	t	1	2022-01-23 00:36:15	migration	2026-11-04 11:22:37.331937	1	\N
-1220	流程实例的取消	bpm:process-instance:cancel	3	3	1201				\N	0	t	t	t	1	2022-01-23 00:36:33	migration	2026-11-04 11:22:37.331937	1	\N
-1221	流程任务的查询	bpm:task:query	3	1	1207				\N	0	t	t	t	1	2022-01-23 00:38:52	migration	2026-11-04 11:22:37.331937	1	\N
-1222	流程任务的更新	bpm:task:update	3	2	1207				\N	0	t	t	t	1	2022-01-23 00:39:24	migration	2026-11-04 11:22:37.331937	1	\N
-2713	抄送我的	bpm:process-instance-cc:query	2	30	1200	copy	ep:copy-document	bpm/task/copy/index	BpmProcessInstanceCopy	0	t	t	t	1	2024-03-17 21:50:23	migration	2026-11-04 11:22:37.331937	1	\N
-2714	流程分类		2	3	1186	category	fa:object-ungroup	bpm/category/index	BpmCategory	0	t	t	t		2024-03-08 02:00:51	migration	2026-11-04 11:22:37.331937	1	\N
-2715	分类查询	bpm:category:query	3	1	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-11-04 11:22:37.331937	1	\N
-2716	分类创建	bpm:category:create	3	2	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-11-04 11:22:37.331937	1	\N
-2717	分类更新	bpm:category:update	3	3	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-11-04 11:22:37.331937	1	\N
-2718	分类删除	bpm:category:delete	3	4	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-11-04 11:22:37.331937	1	\N
-2720	发起流程		2	0	1200	create	fa-solid:grin-stars	bpm/processInstance/create/index	BpmProcessInstanceCreate	0	t	f	t	1	2024-03-19 19:46:05	migration	2026-11-04 11:22:37.331937	1	\N
-2721	流程实例		2	10	1186	process-instance/manager	fa:square	bpm/processInstance/manager/index	BpmProcessInstanceManager	0	t	t	t	1	2024-03-21 23:57:30	migration	2026-11-04 11:22:37.331937	1	\N
-2722	流程实例的查询（管理员）	bpm:process-instance:manager-query	3	1	2721					0	t	t	t	1	2024-03-22 08:18:27	migration	2026-11-04 11:22:37.331937	1	\N
-2723	流程实例的取消（管理员）	bpm:process-instance:cancel-by-admin	3	2	2721					0	t	t	t	1	2024-03-22 08:19:25	migration	2026-11-04 11:22:37.331937	1	\N
-2724	流程任务		2	11	1186	process-tasnk	ep:collection-tag	bpm/task/manager/index	BpmManagerTask	0	t	t	t	1	2024-03-22 08:43:22	migration	2026-11-04 11:22:37.331937	1	\N
-2725	流程任务的查询（管理员）	bpm:task:manager-query	3	1	2724					0	t	t	t	1	2024-03-22 08:43:49	migration	2026-11-04 11:22:37.331937	1	\N
-2726	流程监听器		2	5	1186	process-listener	fa:assistive-listening-systems	bpm/processListener/index	BpmProcessListener	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-04 11:22:37.331937	1	\N
-2727	流程监听器查询	bpm:process-listener:query	3	1	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-04 11:22:37.331937	1	\N
-2728	流程监听器创建	bpm:process-listener:create	3	2	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-04 11:22:37.331937	1	\N
-2729	流程监听器更新	bpm:process-listener:update	3	3	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-04 11:22:37.331937	1	\N
-2730	流程监听器删除	bpm:process-listener:delete	3	4	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-04 11:22:37.331937	1	\N
-2731	流程表达式		2	6	1186	process-expression	fa:wpexplorer	bpm/processExpression/index	BpmProcessExpression	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-04 11:22:37.331937	1	\N
-2732	流程表达式查询	bpm:process-expression:query	3	1	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-04 11:22:37.331937	1	\N
-2733	流程表达式创建	bpm:process-expression:create	3	2	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-04 11:22:37.331937	1	\N
-2734	流程表达式更新	bpm:process-expression:update	3	3	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-04 11:22:37.331937	1	\N
-2735	流程表达式删除	bpm:process-expression:delete	3	4	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-04 11:22:37.331937	1	\N
-30220	流程详情	bpm:process-instance:query	2	90	1185	process-instance/detail	lucide:file-search	bpm/processInstance/detail/index	BpmProcessInstanceDetail	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-04 11:22:37.331937	1	1201
-30221	设计流程表单	bpm:form:update	2	91	1185	manager/form/edit	lucide:file-pen-line	bpm/form/designer/index	BpmFormEditor	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-04 11:22:37.331937	1	1187
-30222	创建流程	bpm:model:create	2	92	1185	manager/model/create	lucide:workflow	bpm/model/form/index	BpmModelCreate	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-04 11:22:37.331937	1	1193
-30223	修改流程	bpm:model:update	2	93	1185	manager/model/:type/:id	lucide:workflow	bpm/model/form/index	BpmModelUpdate	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-04 11:22:37.331937	1	1193
-30224	流程定义	bpm:definition:query	2	94	1185	manager/definition	lucide:file-cog	bpm/model/definition/index	BpmProcessDefinition	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-04 11:22:37.331937	1	1193
-30225	流程数据报表	bpm:process-instance:query	2	95	1185	process-instance/report	lucide:chart-no-axes-combined	bpm/processInstance/report/index	BpmProcessInstanceReport	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-04 11:22:37.331937	1	1193
-30349	物理资源删除	infra:physical-resource:delete	3	4	30345				\N	0	t	t	t	migration	2026-11-04 11:22:37.366151	migration	2026-11-04 11:22:37.366151	0	\N
-30346	物理资源查询	infra:physical-resource:query	3	1	30345				\N	0	t	t	t	migration	2026-11-04 11:22:37.366151	migration	2026-11-04 11:22:37.366151	0	\N
-30348	物理资源更新	infra:physical-resource:update	3	3	30345				\N	0	t	t	t	migration	2026-11-04 11:22:37.366151	migration	2026-11-04 11:22:37.366151	0	\N
-30347	物理资源创建	infra:physical-resource:create	3	2	30345				\N	0	t	t	t	migration	2026-11-04 11:22:37.366151	migration	2026-11-04 11:22:37.366151	0	\N
-1070	代码生成案例		1	1	2	demo	ep:aim	infra/testDemo/index	\N	0	t	t	t		2021-02-06 12:42:49	migration	2026-11-04 11:22:37.385958	1	\N
-2472	主子表（内嵌）		2	12	1070	demo03-inner	fa:power-off	infra/demo/demo03/inner/index	Demo03StudentInner	0	t	t	t		2023-11-13 04:39:51	migration	2026-11-04 11:22:37.385958	1	\N
-2478	单表（增删改查）		2	1	1070	demo01-contact	ep:bicycle	infra/demo/demo01/index	Demo01Contact	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-04 11:22:37.385958	1	\N
-2479	示例联系人查询	infra:demo01-contact:query	3	1	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-04 11:22:37.385958	1	\N
-2480	示例联系人创建	infra:demo01-contact:create	3	2	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-04 11:22:37.385958	1	\N
-2481	示例联系人更新	infra:demo01-contact:update	3	3	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-04 11:22:37.385958	1	\N
-2482	示例联系人删除	infra:demo01-contact:delete	3	4	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-04 11:22:37.385958	1	\N
-2483	示例联系人导出	infra:demo01-contact:export	3	5	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-04 11:22:37.385958	1	\N
-2484	树表（增删改查）		2	2	1070	demo02-category	fa:tree	infra/demo/demo02/index	Demo02Category	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-04 11:22:37.385958	1	\N
-2485	示例分类查询	infra:demo02-category:query	3	1	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-04 11:22:37.385958	1	\N
-2486	示例分类创建	infra:demo02-category:create	3	2	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-04 11:22:37.385958	1	\N
-2487	示例分类更新	infra:demo02-category:update	3	3	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-04 11:22:37.385958	1	\N
-2488	示例分类删除	infra:demo02-category:delete	3	4	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-04 11:22:37.385958	1	\N
-2489	示例分类导出	infra:demo02-category:export	3	5	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-04 11:22:37.385958	1	\N
-2490	主子表（标准）		2	10	1070	demo03-normal	fa:battery-3	infra/demo/demo03/normal/index	Demo03StudentNormal	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-04 11:22:37.385958	1	\N
-2491	学生查询	infra:demo03-student:query	3	1	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-04 11:22:37.385958	1	\N
-2492	学生创建	infra:demo03-student:create	3	2	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-04 11:22:37.385958	1	\N
-2493	学生更新	infra:demo03-student:update	3	3	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-04 11:22:37.385958	1	\N
-2494	学生删除	infra:demo03-student:delete	3	4	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-04 11:22:37.385958	1	\N
-2495	学生导出	infra:demo03-student:export	3	5	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-04 11:22:37.385958	1	\N
-116	API 接口	infra:swagger:list	2	3	2	api-docs	fa:fighter-jet	infra/api-docs/index	InfraApiDocs	0	t	t	t	admin	2021-01-05 17:03:48	migration	2026-11-04 11:22:37.392123	0	\N
-30341	云管中心		1	12	0	/cloud-center	lucide:cloud-cog			0	t	t	t	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.584386	1	\N
-30248	云厂商对接		2	5	30340	cloud-provider-config	lucide:plug-zap	asset-ops/cloud-provider-config/index	AssetOpsCloudProviderConfig	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30250	安全产品		2	6	30340	security-product	lucide:shield	asset-ops/security-product/index	AssetOpsSecurityProduct	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30361	自动化配置		2	4	30344	automation-config	lucide:settings	asset-ops/automation-config/index	AutomationConfig	0	t	t	t	system	2026-11-04 11:22:37.638191	system	2026-11-04 11:22:37.638191	0	\N
-30249	网络区域		2	7	30340	zone	lucide:globe	asset-ops/zone/index	AssetOpsNetworkZone	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30243	发现资产		2	1	30342	assets	lucide:hard-drive	asset-ops/asset/index	AssetOpsAsset	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30252	云资源		2	2	30342	cloud-resource	lucide:cloud	asset-ops/business-resource/cloud/index	AssetOpsCloudResource	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.806439	0	\N
-30345	物理资源		2	3	30342	physical-resource	lucide:hard-drive	asset-ops/business-resource/physical/index	AssetOpsPhysicalResource	0	t	t	t	migration	2026-11-04 11:22:37.360142	migration	2026-11-04 11:22:37.806439	0	\N
-30254	扫描任务		2	5	30342	task	lucide:list-checks	asset-ops/task/index	AssetOpsTask	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.813498	0	\N
-30350	资产核查		2	6	30342	inspection	lucide:scan-search	asset-ops/inspection/index	AssetInspection	0	t	t	t	migration	2026-11-04 11:22:37.378148	migration	2026-11-04 11:22:37.813498	0	\N
-30255	风险管理		2	8	30342	risk	lucide:triangle-alert	asset-ops/risk/index	AssetOpsRisk	0	t	t	t	migration	2026-11-04 11:22:37.198133	migration	2026-11-04 11:22:37.813498	0	\N
-30360	网络策略工单		2	2	30344	network-ticket	lucide:shield	asset-ops/network-ticket/index	NetworkPolicyTicket	0	t	t	t	system	2026-11-04 11:22:37.61593	system	2026-11-04 11:22:37.831795	0	\N
+30336	组织网段查询	cmdb:net-zone:query	3	1	1138					0	t	t	t	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.380284	0	\N
+30337	组织网段创建	cmdb:net-zone:create	3	2	1138					0	t	t	t	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.380284	0	\N
+30338	组织网段更新	cmdb:net-zone:update	3	3	1138					0	t	t	t	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.380284	0	\N
+30339	组织网段删除	cmdb:net-zone:delete	3	4	1138					0	t	t	t	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.380284	0	\N
+30335	组织网段		2	3	30316	net-zone	lucide:network	cmdb/net-zone/index	CmdbNetZone	0	t	t	t	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.380284	1	\N
+1186	流程管理		1	10	1185	manager	fa:dedent	\N	\N	0	t	t	t	1	2021-12-30 20:28:30	migration	2026-11-08 23:59:28.380284	1	\N
+1187	流程表单		2	2	1186	form	fa:hdd-o	bpm/form/index	BpmForm	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-08 23:59:28.380284	1	\N
+1188	表单查询	bpm:form:query	3	1	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-08 23:59:28.380284	1	\N
+30343	业务管理		1	14	0	/biz-center	lucide:briefcase			0	t	t	t	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.602162	1	\N
+30244	服务商		2	1	30340	service-provider	lucide:briefcase-business	asset-ops/service-provider/index	AssetOpsServiceProvider	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30246	云资源区		2	2	30340	cloud-zone	lucide:map-pin	asset-ops/cloud-platform/zone	AssetOpsCloudZone	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30245	物理机房		2	3	30340	machine-room	lucide:warehouse	asset-ops/machine-room/index	AssetOpsMachineRoom	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30247	云平台		2	4	30340	cloud-platform	lucide:cloud-cog	asset-ops/cloud-platform/platform	AssetOpsCloudPlatform	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30251	业务应用		2	4	30342	business-application	lucide:layout-grid	asset-ops/business-application/index	AssetOpsBusinessApplication	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.792505	0	\N
+1190	表单更新	bpm:form:update	3	3	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-08 23:59:28.380284	1	\N
+1191	表单删除	bpm:form:delete	3	4	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-08 23:59:28.380284	1	\N
+1192	表单导出	bpm:form:export	3	5	1187				\N	0	t	t	t		2021-12-30 12:38:22	migration	2026-11-08 23:59:28.380284	1	\N
+1193	流程模型		2	1	1186	model	fa-solid:project-diagram	bpm/model/index	BpmModel	0	t	t	t	1	2021-12-31 23:24:58	migration	2026-11-08 23:59:28.380284	1	\N
+1194	模型查询	bpm:model:query	3	1	1193				\N	0	t	t	t	1	2022-01-03 19:01:10	migration	2026-11-08 23:59:28.380284	1	\N
+1195	模型创建	bpm:model:create	3	2	1193				\N	0	t	t	t	1	2022-01-03 19:01:24	migration	2026-11-08 23:59:28.380284	1	\N
+1197	模型更新	bpm:model:update	3	4	1193				\N	0	t	t	t	1	2022-01-03 19:02:28	migration	2026-11-08 23:59:28.380284	1	\N
+1198	模型删除	bpm:model:delete	3	5	1193				\N	0	t	t	t	1	2022-01-03 19:02:43	migration	2026-11-08 23:59:28.380284	1	\N
+1199	模型发布	bpm:model:deploy	3	6	1193				\N	0	t	t	t	1	2022-01-03 19:03:24	migration	2026-11-08 23:59:28.380284	1	\N
+1200	审批中心		2	20	1185	task	fa:tasks	\N	\N	0	t	t	t	1	2022-01-07 23:51:48	migration	2026-11-08 23:59:28.380284	1	\N
+1201	我的流程		2	1	1200	my	fa-solid:book	bpm/processInstance/index	BpmProcessInstanceMy	0	t	t	t		2022-01-07 15:53:44	migration	2026-11-08 23:59:28.380284	1	\N
+1202	流程实例的查询	bpm:process-instance:query	3	1	1201				\N	0	t	t	t		2022-01-07 15:53:44	migration	2026-11-08 23:59:28.380284	1	\N
+1207	待办任务		2	10	1200	todo	fa:slack	bpm/task/todo/index	BpmTodoTask	0	t	t	t	1	2022-01-08 10:33:37	migration	2026-11-08 23:59:28.380284	1	\N
+1208	已办任务		2	20	1200	done	fa:delicious	bpm/task/done/index	BpmDoneTask	0	t	t	t	1	2022-01-08 10:34:13	migration	2026-11-08 23:59:28.380284	1	\N
+1209	用户分组		2	4	1186	user-group	fa:user-secret	bpm/group/index	BpmUserGroup	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-08 23:59:28.380284	1	\N
+1210	用户组查询	bpm:user-group:query	3	1	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-08 23:59:28.380284	1	\N
+1211	用户组创建	bpm:user-group:create	3	2	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-08 23:59:28.380284	1	\N
+1212	用户组更新	bpm:user-group:update	3	3	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-08 23:59:28.380284	1	\N
+1213	用户组删除	bpm:user-group:delete	3	4	1209				\N	0	t	t	t		2022-01-14 02:14:20	migration	2026-11-08 23:59:28.380284	1	\N
+1215	流程定义查询	bpm:process-definition:query	3	10	1193				\N	0	t	t	t	1	2022-01-23 00:21:43	migration	2026-11-08 23:59:28.380284	1	\N
+1216	流程任务分配规则查询	bpm:task-assign-rule:query	3	20	1193				\N	0	t	t	t	1	2022-01-23 00:26:53	migration	2026-11-08 23:59:28.380284	1	\N
+1217	流程任务分配规则创建	bpm:task-assign-rule:create	3	21	1193				\N	0	t	t	t	1	2022-01-23 00:28:15	migration	2026-11-08 23:59:28.380284	1	\N
+1218	流程任务分配规则更新	bpm:task-assign-rule:update	3	22	1193				\N	0	t	t	t	1	2022-01-23 00:28:41	migration	2026-11-08 23:59:28.380284	1	\N
+1219	流程实例的创建	bpm:process-instance:create	3	2	1201				\N	0	t	t	t	1	2022-01-23 00:36:15	migration	2026-11-08 23:59:28.380284	1	\N
+1220	流程实例的取消	bpm:process-instance:cancel	3	3	1201				\N	0	t	t	t	1	2022-01-23 00:36:33	migration	2026-11-08 23:59:28.380284	1	\N
+1221	流程任务的查询	bpm:task:query	3	1	1207				\N	0	t	t	t	1	2022-01-23 00:38:52	migration	2026-11-08 23:59:28.380284	1	\N
+1222	流程任务的更新	bpm:task:update	3	2	1207				\N	0	t	t	t	1	2022-01-23 00:39:24	migration	2026-11-08 23:59:28.380284	1	\N
+2713	抄送我的	bpm:process-instance-cc:query	2	30	1200	copy	ep:copy-document	bpm/task/copy/index	BpmProcessInstanceCopy	0	t	t	t	1	2024-03-17 21:50:23	migration	2026-11-08 23:59:28.380284	1	\N
+2714	流程分类		2	3	1186	category	fa:object-ungroup	bpm/category/index	BpmCategory	0	t	t	t		2024-03-08 02:00:51	migration	2026-11-08 23:59:28.380284	1	\N
+2715	分类查询	bpm:category:query	3	1	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-11-08 23:59:28.380284	1	\N
+2716	分类创建	bpm:category:create	3	2	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-11-08 23:59:28.380284	1	\N
+2717	分类更新	bpm:category:update	3	3	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-11-08 23:59:28.380284	1	\N
+2718	分类删除	bpm:category:delete	3	4	2714					0	t	t	t		2024-03-08 02:00:51	migration	2026-11-08 23:59:28.380284	1	\N
+2720	发起流程		2	0	1200	create	fa-solid:grin-stars	bpm/processInstance/create/index	BpmProcessInstanceCreate	0	t	f	t	1	2024-03-19 19:46:05	migration	2026-11-08 23:59:28.380284	1	\N
+2721	流程实例		2	10	1186	process-instance/manager	fa:square	bpm/processInstance/manager/index	BpmProcessInstanceManager	0	t	t	t	1	2024-03-21 23:57:30	migration	2026-11-08 23:59:28.380284	1	\N
+2722	流程实例的查询（管理员）	bpm:process-instance:manager-query	3	1	2721					0	t	t	t	1	2024-03-22 08:18:27	migration	2026-11-08 23:59:28.380284	1	\N
+2723	流程实例的取消（管理员）	bpm:process-instance:cancel-by-admin	3	2	2721					0	t	t	t	1	2024-03-22 08:19:25	migration	2026-11-08 23:59:28.380284	1	\N
+2724	流程任务		2	11	1186	process-tasnk	ep:collection-tag	bpm/task/manager/index	BpmManagerTask	0	t	t	t	1	2024-03-22 08:43:22	migration	2026-11-08 23:59:28.380284	1	\N
+2725	流程任务的查询（管理员）	bpm:task:manager-query	3	1	2724					0	t	t	t	1	2024-03-22 08:43:49	migration	2026-11-08 23:59:28.380284	1	\N
+2726	流程监听器		2	5	1186	process-listener	fa:assistive-listening-systems	bpm/processListener/index	BpmProcessListener	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-08 23:59:28.380284	1	\N
+2727	流程监听器查询	bpm:process-listener:query	3	1	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-08 23:59:28.380284	1	\N
+2728	流程监听器创建	bpm:process-listener:create	3	2	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-08 23:59:28.380284	1	\N
+2729	流程监听器更新	bpm:process-listener:update	3	3	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-08 23:59:28.380284	1	\N
+2730	流程监听器删除	bpm:process-listener:delete	3	4	2726				\N	0	t	t	t		2024-03-09 16:05:34	migration	2026-11-08 23:59:28.380284	1	\N
+2731	流程表达式		2	6	1186	process-expression	fa:wpexplorer	bpm/processExpression/index	BpmProcessExpression	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-08 23:59:28.380284	1	\N
+2732	流程表达式查询	bpm:process-expression:query	3	1	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-08 23:59:28.380284	1	\N
+2733	流程表达式创建	bpm:process-expression:create	3	2	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-08 23:59:28.380284	1	\N
+2734	流程表达式更新	bpm:process-expression:update	3	3	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-08 23:59:28.380284	1	\N
+2735	流程表达式删除	bpm:process-expression:delete	3	4	2731				\N	0	t	t	t		2024-03-09 22:35:08	migration	2026-11-08 23:59:28.380284	1	\N
+30220	流程详情	bpm:process-instance:query	2	90	1185	process-instance/detail	lucide:file-search	bpm/processInstance/detail/index	BpmProcessInstanceDetail	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-08 23:59:28.380284	1	1201
+30221	设计流程表单	bpm:form:update	2	91	1185	manager/form/edit	lucide:file-pen-line	bpm/form/designer/index	BpmFormEditor	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-08 23:59:28.380284	1	1187
+30222	创建流程	bpm:model:create	2	92	1185	manager/model/create	lucide:workflow	bpm/model/form/index	BpmModelCreate	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-08 23:59:28.380284	1	1193
+30223	修改流程	bpm:model:update	2	93	1185	manager/model/:type/:id	lucide:workflow	bpm/model/form/index	BpmModelUpdate	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-08 23:59:28.380284	1	1193
+30224	流程定义	bpm:definition:query	2	94	1185	manager/definition	lucide:file-cog	bpm/model/definition/index	BpmProcessDefinition	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-08 23:59:28.380284	1	1193
+30225	流程数据报表	bpm:process-instance:query	2	95	1185	process-instance/report	lucide:chart-no-axes-combined	bpm/processInstance/report/index	BpmProcessInstanceReport	0	f	f	f	system	2026-07-17 01:29:09.910057	migration	2026-11-08 23:59:28.380284	1	1193
+30349	物理资源删除	infra:physical-resource:delete	3	4	30345				\N	0	t	t	t	migration	2026-11-08 23:59:28.408156	migration	2026-11-08 23:59:28.408156	0	\N
+30346	物理资源查询	infra:physical-resource:query	3	1	30345				\N	0	t	t	t	migration	2026-11-08 23:59:28.408156	migration	2026-11-08 23:59:28.408156	0	\N
+30348	物理资源更新	infra:physical-resource:update	3	3	30345				\N	0	t	t	t	migration	2026-11-08 23:59:28.408156	migration	2026-11-08 23:59:28.408156	0	\N
+30347	物理资源创建	infra:physical-resource:create	3	2	30345				\N	0	t	t	t	migration	2026-11-08 23:59:28.408156	migration	2026-11-08 23:59:28.408156	0	\N
+1070	代码生成案例		1	1	2	demo	ep:aim	infra/testDemo/index	\N	0	t	t	t		2021-02-06 12:42:49	migration	2026-11-08 23:59:28.428379	1	\N
+2472	主子表（内嵌）		2	12	1070	demo03-inner	fa:power-off	infra/demo/demo03/inner/index	Demo03StudentInner	0	t	t	t		2023-11-13 04:39:51	migration	2026-11-08 23:59:28.428379	1	\N
+2478	单表（增删改查）		2	1	1070	demo01-contact	ep:bicycle	infra/demo/demo01/index	Demo01Contact	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-08 23:59:28.428379	1	\N
+2479	示例联系人查询	infra:demo01-contact:query	3	1	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-08 23:59:28.428379	1	\N
+2480	示例联系人创建	infra:demo01-contact:create	3	2	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-08 23:59:28.428379	1	\N
+2481	示例联系人更新	infra:demo01-contact:update	3	3	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-08 23:59:28.428379	1	\N
+2482	示例联系人删除	infra:demo01-contact:delete	3	4	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-08 23:59:28.428379	1	\N
+2483	示例联系人导出	infra:demo01-contact:export	3	5	2478				\N	0	t	t	t		2023-11-15 14:42:30	migration	2026-11-08 23:59:28.428379	1	\N
+2484	树表（增删改查）		2	2	1070	demo02-category	fa:tree	infra/demo/demo02/index	Demo02Category	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-08 23:59:28.428379	1	\N
+2485	示例分类查询	infra:demo02-category:query	3	1	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-08 23:59:28.428379	1	\N
+2486	示例分类创建	infra:demo02-category:create	3	2	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-08 23:59:28.428379	1	\N
+2487	示例分类更新	infra:demo02-category:update	3	3	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-08 23:59:28.428379	1	\N
+2488	示例分类删除	infra:demo02-category:delete	3	4	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-08 23:59:28.428379	1	\N
+2489	示例分类导出	infra:demo02-category:export	3	5	2484				\N	0	t	t	t		2023-11-16 12:18:27	migration	2026-11-08 23:59:28.428379	1	\N
+2490	主子表（标准）		2	10	1070	demo03-normal	fa:battery-3	infra/demo/demo03/normal/index	Demo03StudentNormal	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-08 23:59:28.428379	1	\N
+2491	学生查询	infra:demo03-student:query	3	1	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-08 23:59:28.428379	1	\N
+2492	学生创建	infra:demo03-student:create	3	2	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-08 23:59:28.428379	1	\N
+2493	学生更新	infra:demo03-student:update	3	3	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-08 23:59:28.428379	1	\N
+2494	学生删除	infra:demo03-student:delete	3	4	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-08 23:59:28.428379	1	\N
+2495	学生导出	infra:demo03-student:export	3	5	2490				\N	0	t	t	t		2023-11-16 12:53:37	migration	2026-11-08 23:59:28.428379	1	\N
+116	API 接口	infra:swagger:list	2	3	2	api-docs	fa:fighter-jet	infra/api-docs/index	InfraApiDocs	0	t	t	t	admin	2021-01-05 17:03:48	migration	2026-11-08 23:59:28.434397	0	\N
+30341	云管中心		1	12	0	/cloud-center	lucide:cloud-cog			0	t	t	t	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.596193	1	\N
+30248	云厂商对接		2	5	30340	cloud-provider-config	lucide:plug-zap	asset-ops/cloud-provider-config/index	AssetOpsCloudProviderConfig	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30250	安全产品		2	6	30340	security-product	lucide:shield	asset-ops/security-product/index	AssetOpsSecurityProduct	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30361	自动化配置		2	4	30344	automation-config	lucide:settings	asset-ops/automation-config/index	AutomationConfig	0	t	t	t	system	2026-11-08 23:59:28.63625	system	2026-11-08 23:59:28.63625	0	\N
+30370	MCP 服务		2	8	30240	/system/mcp-key	lucide:plug	system/mcp/key/index	SystemMcpKey	0	t	t	t	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	\N
+30371	密钥查询	system:mcp-key:query	3	1	30370				\N	0	t	t	t	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	\N
+30372	密钥创建	system:mcp-key:create	3	2	30370				\N	0	t	t	t	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	\N
+30373	密钥更新	system:mcp-key:update	3	3	30370				\N	0	t	t	t	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	\N
+30374	密钥删除	system:mcp-key:delete	3	4	30370				\N	0	t	t	t	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	\N
+30249	网络区域		2	7	30340	zone	lucide:globe	asset-ops/zone/index	AssetOpsNetworkZone	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30243	发现资产		2	1	30342	assets	lucide:hard-drive	asset-ops/asset/index	AssetOpsAsset	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30252	云资源		2	2	30342	cloud-resource	lucide:cloud	asset-ops/business-resource/cloud/index	AssetOpsCloudResource	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.78734	0	\N
+30345	物理资源		2	3	30342	physical-resource	lucide:hard-drive	asset-ops/business-resource/physical/index	AssetOpsPhysicalResource	0	t	t	t	migration	2026-11-08 23:59:28.402207	migration	2026-11-08 23:59:28.78734	0	\N
+30254	扫描任务		2	5	30342	task	lucide:list-checks	asset-ops/task/index	AssetOpsTask	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.792505	0	\N
+30350	资产核查		2	6	30342	inspection	lucide:scan-search	asset-ops/inspection/index	AssetInspection	0	t	t	t	migration	2026-11-08 23:59:28.420236	migration	2026-11-08 23:59:28.792505	0	\N
+30255	风险管理		2	8	30342	risk	lucide:triangle-alert	asset-ops/risk/index	AssetOpsRisk	0	t	t	t	migration	2026-11-08 23:59:28.264527	migration	2026-11-08 23:59:28.792505	0	\N
+30360	网络策略工单		2	2	30344	network-ticket	lucide:shield	asset-ops/network-ticket/index	NetworkPolicyTicket	0	t	t	t	system	2026-11-08 23:59:28.620149	system	2026-11-08 23:59:28.805802	0	\N
 \.
 
 
 --
--- Data for Name: system_notice; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_notice; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_notice (id, title, content, type, status, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
 4	我是测试标题	<p>哈哈哈哈123</p>	1	0	110	2022-02-22 01:01:25	110	2022-02-22 01:01:46	0	121
-1	芋道的公众	<p>新版本内容133222</p>	1	0	admin	2021-01-05 17:03:48	migration	2026-11-04 11:22:37.340109	1	1
-2	维护通知：2018-07-01 系统凌晨维护	<p><img src="http://test.yudao.iocoder.cn/b7cb3cf49b4b3258bf7309a09dd2f4e5.jpg" alt="" data-href="">11112222<img src="http://test.yudao.iocoder.cn/fe44fc7bdb82ca421184b2eebbaee9e2148d4a1827479a4eb4521e11d2a062ba.png" alt="image" data-href="http://test.yudao.iocoder.cn/fe44fc7bdb82ca421184b2eebbaee9e2148d4a1827479a4eb4521e11d2a062ba.png">3333</p>	2	1	admin	2021-01-05 17:03:48	migration	2026-11-04 11:22:37.340109	1	1
+1	芋道的公众	<p>新版本内容133222</p>	1	0	admin	2021-01-05 17:03:48	migration	2026-11-08 23:59:28.38645	1	1
+2	维护通知：2018-07-01 系统凌晨维护	<p><img src="http://test.yudao.iocoder.cn/b7cb3cf49b4b3258bf7309a09dd2f4e5.jpg" alt="" data-href="">11112222<img src="http://test.yudao.iocoder.cn/fe44fc7bdb82ca421184b2eebbaee9e2148d4a1827479a4eb4521e11d2a062ba.png" alt="image" data-href="http://test.yudao.iocoder.cn/fe44fc7bdb82ca421184b2eebbaee9e2148d4a1827479a4eb4521e11d2a062ba.png">3333</p>	2	1	admin	2021-01-05 17:03:48	migration	2026-11-08 23:59:28.38645	1	1
 \.
 
 
 --
--- Data for Name: system_notify_message; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_notify_message; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_notify_message (id, user_id, user_type, template_id, template_code, template_nickname, template_content, template_type, template_params, read_status, read_time, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6235,16 +5952,16 @@ COPY public.system_notify_message (id, user_id, user_type, template_id, template
 
 
 --
--- Data for Name: system_notify_template; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_notify_template; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_notify_template (id, name, code, nickname, content, type, params, status, remark, creator, create_time, updater, update_time, deleted) FROM stdin;
-3	工单到期提醒	ticket_expire_reminder	工单提醒	工单「{ticketName}」将于 {expireAt} 到期（剩余 {daysLeft} 天）。如需继续使用请在工单系统提交延期申请；到期未续期将自动进入回收流程。	2	["ticketName","expireAt","daysLeft"]	0	工单到期生命周期提醒	system	2026-11-04 11:22:37.578624	system	2026-11-04 11:22:37.578624	0
+3	工单到期提醒	ticket_expire_reminder	工单提醒	工单「{ticketName}」将于 {expireAt} 到期（剩余 {daysLeft} 天）。如需继续使用请在工单系统提交延期申请；到期未续期将自动进入回收流程。	2	["ticketName","expireAt","daysLeft"]	0	工单到期生命周期提醒	system	2026-11-08 23:59:28.590192	system	2026-11-08 23:59:28.590192	0
 \.
 
 
 --
--- Data for Name: system_oauth2_access_token; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_oauth2_access_token; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_oauth2_access_token (id, user_id, user_type, user_info, access_token, refresh_token, client_id, scopes, expires_time, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6252,7 +5969,7 @@ COPY public.system_oauth2_access_token (id, user_id, user_type, user_info, acces
 
 
 --
--- Data for Name: system_oauth2_approve; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_oauth2_approve; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_oauth2_approve (id, user_id, user_type, client_id, scope, approved, expires_time, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6260,19 +5977,19 @@ COPY public.system_oauth2_approve (id, user_id, user_type, client_id, scope, app
 
 
 --
--- Data for Name: system_oauth2_client; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_oauth2_client; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_oauth2_client (id, client_id, secret, name, logo, description, status, access_token_validity_seconds, refresh_token_validity_seconds, redirect_uris, authorized_grant_types, scopes, auto_approve_scopes, authorities, resource_ids, additional_information, creator, create_time, updater, update_time, deleted) FROM stdin;
-1	default	admin123	RustSet		RustSet 默认 OAuth2 客户端	0	1800	2592000	["http://127.0.0.1:5666"]	["password","authorization_code","implicit","refresh_token","client_credentials"]	["user.read","user.write"]	[]	["user.read","user.write"]	[]	{}	1	2022-05-11 21:47:12	migration	2026-11-04 11:22:37.340109	0
-40	test	test2	biubiu	http://test.yudao.iocoder.cn/20251227/javayuanma_1766829882970.jpg	啦啦啦啦	0	1800	43200	["https://www.iocoder.cn"]	["password","authorization_code","implicit"]	["user_info","projects"]	["user_info"]	[]	[]	{}	1	2022-05-12 00:28:20	migration	2026-11-04 11:22:37.340109	1
-41	yudao-sso-demo-by-code	test	基于授权码模式，如何实现 SSO 单点登录？	http://test.yudao.iocoder.cn/it/20250502/sign_1746181948685.png	\N	0	1800	43200	["http://127.0.0.1:18080"]	["authorization_code","refresh_token"]	["user.read","user.write"]	[]	[]	[]	\N	1	2022-09-29 13:28:31	migration	2026-11-04 11:22:37.340109	1
-42	yudao-sso-demo-by-password	test	基于密码模式，如何实现 SSO 单点登录？	http://test.yudao.iocoder.cn/20251025/images (3)_1761360515810.jpeg	\N	0	1800	43200	["http://127.0.0.1:18080"]	["password","refresh_token"]	["user.read","user.write"]	[]	[]	[]	\N	1	2022-10-04 17:40:16	migration	2026-11-04 11:22:37.340109	1
+1	default	admin123	RustSet		RustSet 默认 OAuth2 客户端	0	1800	2592000	["http://127.0.0.1:5666"]	["password","authorization_code","implicit","refresh_token","client_credentials"]	["user.read","user.write"]	[]	["user.read","user.write"]	[]	{}	1	2022-05-11 21:47:12	migration	2026-11-08 23:59:28.38645	0
+40	test	test2	biubiu	http://test.yudao.iocoder.cn/20251227/javayuanma_1766829882970.jpg	啦啦啦啦	0	1800	43200	["https://www.iocoder.cn"]	["password","authorization_code","implicit"]	["user_info","projects"]	["user_info"]	[]	[]	{}	1	2022-05-12 00:28:20	migration	2026-11-08 23:59:28.38645	1
+41	yudao-sso-demo-by-code	test	基于授权码模式，如何实现 SSO 单点登录？	http://test.yudao.iocoder.cn/it/20250502/sign_1746181948685.png	\N	0	1800	43200	["http://127.0.0.1:18080"]	["authorization_code","refresh_token"]	["user.read","user.write"]	[]	[]	[]	\N	1	2022-09-29 13:28:31	migration	2026-11-08 23:59:28.38645	1
+42	yudao-sso-demo-by-password	test	基于密码模式，如何实现 SSO 单点登录？	http://test.yudao.iocoder.cn/20251025/images (3)_1761360515810.jpeg	\N	0	1800	43200	["http://127.0.0.1:18080"]	["password","refresh_token"]	["user.read","user.write"]	[]	[]	[]	\N	1	2022-10-04 17:40:16	migration	2026-11-08 23:59:28.38645	1
 \.
 
 
 --
--- Data for Name: system_oauth2_code; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_oauth2_code; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_oauth2_code (id, user_id, user_type, code, client_id, scopes, expires_time, redirect_uri, state, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6280,7 +5997,7 @@ COPY public.system_oauth2_code (id, user_id, user_type, code, client_id, scopes,
 
 
 --
--- Data for Name: system_oauth2_refresh_token; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_oauth2_refresh_token; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_oauth2_refresh_token (id, user_id, refresh_token, user_type, client_id, scopes, expires_time, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6288,7 +6005,7 @@ COPY public.system_oauth2_refresh_token (id, user_id, refresh_token, user_type, 
 
 
 --
--- Data for Name: system_operate_log; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_operate_log; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_operate_log (id, trace_id, user_id, user_type, type, sub_type, biz_id, action, success, extra, request_method, request_url, user_ip, user_agent, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6296,7 +6013,7 @@ COPY public.system_operate_log (id, trace_id, user_id, user_type, type, sub_type
 
 
 --
--- Data for Name: system_post; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_post; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_post (id, code, name, sort, status, remark, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6308,7 +6025,7 @@ COPY public.system_post (id, code, name, sort, status, remark, creator, create_t
 
 
 --
--- Data for Name: system_role; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_role; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_role (id, name, code, sort, data_scope, data_scope_dept_ids, status, type, remark, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6318,13 +6035,13 @@ COPY public.system_role (id, name, code, sort, data_scope, data_scope_dept_ids, 
 109	租户管理员	tenant_admin	0	1		0	1	系统自动生成	1	2022-02-22 00:56:14	1	2022-02-22 00:56:14	0	121
 111	租户管理员	tenant_admin	0	1		0	1	系统自动生成	1	2022-03-07 21:37:58	1	2022-03-07 21:37:58	0	122
 155	测试数据权限1	test-dp	4	2	[112,100,102,103,104,105,107,108]	0	2	1111	1	2025-03-31 14:58:06	1	2025-12-04 23:29:40	0	1
-157	CMDB 管理员	cmdb_admin	20	1		0	1	\N	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-158	CMDB 用户	cmdb_user	21	1		0	1	\N	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
+157	CMDB 管理员	cmdb_admin	20	1		0	1	\N	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+158	CMDB 用户	cmdb_user	21	1		0	1	\N	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
 \.
 
 
 --
--- Data for Name: system_role_menu; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_role_menu; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_role_menu (id, role_id, menu_id, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -6753,22 +6470,22 @@ COPY public.system_role_menu (id, role_id, menu_id, creator, create_time, update
 4164	109	1118	1	2024-03-30 17:53:17	1	2024-03-30 17:53:17	0	121
 4165	109	1119	1	2024-03-30 17:53:17	1	2024-03-30 17:53:17	0	121
 4166	109	1120	1	2024-03-30 17:53:17	1	2024-03-30 17:53:17	0	121
-3130	111	2497	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3111	111	2472	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3112	111	2478	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3118	111	2484	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3124	111	2490	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3113	111	2479	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3114	111	2480	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3115	111	2481	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3116	111	2482	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3117	111	2483	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3119	111	2485	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3120	111	2486	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3121	111	2487	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3122	111	2488	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3123	111	2489	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3125	111	2491	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
+3130	111	2497	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3111	111	2472	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3112	111	2478	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3118	111	2484	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3124	111	2490	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3113	111	2479	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3114	111	2480	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3115	111	2481	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3116	111	2482	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3117	111	2483	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3119	111	2485	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3120	111	2486	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3121	111	2487	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3122	111	2488	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3123	111	2489	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3125	111	2491	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
 4222	111	5	1	2024-03-30 17:53:18	1	2024-03-30 17:53:18	0	122
 4223	111	1118	1	2024-03-30 17:53:18	1	2024-03-30 17:53:18	0	122
 4224	111	1119	1	2024-03-30 17:53:18	1	2024-03-30 17:53:18	0	122
@@ -6814,333 +6531,338 @@ COPY public.system_role_menu (id, role_id, menu_id, creator, create_time, update
 330137	2	30241	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	0
 330138	109	30241	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	0
 330139	111	30241	system	2026-07-17 01:35:39.386526	system	2026-07-17 01:35:39.386526	0	0
-330140	1	30242	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330141	1	30243	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330142	1	30244	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330143	1	30245	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330144	1	30246	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330145	1	30247	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330146	1	30248	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330147	1	30249	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330148	1	30250	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330149	1	30251	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330150	1	30252	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330151	1	30253	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330152	1	30254	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330153	1	30255	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330154	1	30256	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330155	1	30257	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330156	1	30258	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330157	1	30259	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330158	1	30260	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330159	1	30261	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330160	1	30262	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330161	1	30263	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330162	1	30264	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330163	1	30265	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330164	1	30266	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330165	1	30267	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330166	1	30268	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330167	1	30269	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330168	1	30270	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330169	1	30271	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330170	1	30272	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330171	1	30273	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330172	1	30274	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330173	1	30275	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330174	1	30276	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330175	1	30277	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330176	1	30278	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330177	1	30279	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330178	1	30280	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330179	1	30281	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330180	1	30282	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330181	1	30283	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330182	1	30284	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330183	1	30285	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330184	1	30286	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330185	1	30287	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330186	1	30288	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330187	1	30289	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330188	1	30290	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330189	1	30291	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330190	1	30292	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330191	1	30293	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330192	1	30294	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330193	1	30295	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330194	1	30296	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330195	1	30297	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330196	1	30298	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330197	1	30299	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330198	1	30300	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330199	1	30301	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330200	1	30302	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330201	1	30303	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330202	1	30304	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330203	1	30305	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330204	1	30306	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330205	1	30307	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330206	1	30308	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330207	1	30309	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330208	1	30310	migration	2026-11-04 11:22:37.224047	migration	2026-11-04 11:22:37.224047	0	1
-330209	1	30311	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	1
-330210	1	30312	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	1
-330211	1	30313	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	1
-330212	1	30314	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	1
-330213	1	30315	migration	2026-11-04 11:22:37.234002	migration	2026-11-04 11:22:37.234002	0	1
-330214	1	30316	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330215	1	30317	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330216	1	30318	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330217	1	30319	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330218	1	30320	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330219	1	30321	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330220	1	30322	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330221	1	30323	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330222	1	30324	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330223	1	30325	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330224	1	30326	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330225	1	30327	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330226	1	30328	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330227	1	30329	migration	2026-11-04 11:22:37.266053	migration	2026-11-04 11:22:37.266053	0	1
-330228	1	30330	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	1
-330229	1	30331	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	1
-330230	1	30332	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	1
-330231	1	30333	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	1
-330232	1	30334	migration	2026-11-04 11:22:37.30026	migration	2026-11-04 11:22:37.30026	0	1
-330233	157	30319	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330234	157	30320	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330235	157	30321	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330236	157	30322	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330237	157	30323	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330238	157	30324	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330239	157	30325	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330240	157	30326	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330241	157	30327	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330242	157	30328	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330243	157	30329	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330244	1	30335	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	1
-330245	1	30336	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	1
-330246	1	30337	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	1
-330247	1	30338	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	1
-330248	1	30339	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	1
-330249	157	30335	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330250	157	30336	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330251	157	30337	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330252	157	30338	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330253	157	30339	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330254	158	30335	migration	2026-11-04 11:22:37.306204	migration	2026-11-04 11:22:37.306204	0	0
-330259	158	30319	migration	2026-11-04 11:22:37.316122	migration	2026-11-04 11:22:37.316122	0	0
-330260	158	30326	migration	2026-11-04 11:22:37.316122	migration	2026-11-04 11:22:37.316122	0	0
-330261	158	30327	migration	2026-11-04 11:22:37.316122	migration	2026-11-04 11:22:37.316122	0	0
-330262	158	30328	migration	2026-11-04 11:22:37.316122	migration	2026-11-04 11:22:37.316122	0	0
-330263	1	30340	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.324191	0	1
-330264	1	30341	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.324191	0	1
-330265	1	30342	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.324191	0	1
-330266	1	30343	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.324191	0	1
-330267	1	30344	migration	2026-11-04 11:22:37.324191	migration	2026-11-04 11:22:37.324191	0	1
-4167	109	2713	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4168	109	2714	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4169	109	2715	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4170	109	2716	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4171	109	2717	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4172	109	2718	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4173	109	2720	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4174	109	1185	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4175	109	2721	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4176	109	1186	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4177	109	2722	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4178	109	1187	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4179	109	2723	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4180	109	1188	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4181	109	2724	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4182	109	1189	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4183	109	2725	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4184	109	1190	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4185	109	2726	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4186	109	1191	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4187	109	2727	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4188	109	1192	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4189	109	2728	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4190	109	1193	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4191	109	2729	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4192	109	1194	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4193	109	2730	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4194	109	1195	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4195	109	2731	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4197	109	2732	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4198	109	1197	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4199	109	2733	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4200	109	1198	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4201	109	2734	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4202	109	1199	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4203	109	2735	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4204	109	1200	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4205	109	1201	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4206	109	1202	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4207	109	1207	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4208	109	1208	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4209	109	1209	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4210	109	1210	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4211	109	1211	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4212	109	1212	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4213	109	1213	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4214	109	1215	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4215	109	1216	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4216	109	1217	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4217	109	1218	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4218	109	1219	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4219	109	1220	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4220	109	1221	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4221	109	1222	1	2024-03-30 17:53:17	migration	2026-11-04 11:22:37.331937	1	121
-4226	111	2713	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4227	111	2714	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4228	111	2715	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4229	111	2716	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4230	111	2717	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4231	111	2718	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4232	111	2720	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4233	111	1185	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4234	111	2721	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4235	111	1186	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4236	111	2722	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4237	111	1187	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4238	111	2723	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4239	111	1188	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4240	111	2724	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4241	111	1189	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4242	111	2725	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4243	111	1190	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4244	111	2726	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4245	111	1191	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4246	111	2727	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4247	111	1192	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4248	111	2728	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4249	111	1193	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4250	111	2729	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4251	111	1194	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4252	111	2730	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4253	111	1195	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4254	111	2731	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4256	111	2732	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4257	111	1197	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4258	111	2733	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4259	111	1198	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4260	111	2734	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4261	111	1199	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4262	111	2735	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4263	111	1200	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4264	111	1201	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4265	111	1202	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4266	111	1207	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4267	111	1208	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4268	111	1209	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4269	111	1210	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4270	111	1211	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4271	111	1212	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4272	111	1213	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4273	111	1215	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4274	111	1216	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4275	111	1217	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4276	111	1218	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4277	111	1219	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4278	111	1220	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4279	111	1221	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-4280	111	1222	1	2024-03-30 17:53:18	migration	2026-11-04 11:22:37.331937	1	122
-6297	2	2713	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6298	2	2714	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6299	2	2715	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6300	2	2716	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6301	2	2717	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6302	2	2718	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6303	2	2720	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6304	2	1185	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6305	2	2721	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6306	2	1186	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6307	2	2722	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6308	2	1187	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6309	2	2723	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6310	2	1188	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6311	2	2724	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6312	2	1189	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6313	2	2725	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6314	2	1190	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6315	2	2726	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6316	2	1191	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6317	2	2727	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6318	2	1192	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6319	2	2728	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6320	2	1193	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6321	2	2729	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6322	2	1194	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6323	2	2730	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6324	2	1195	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6325	2	2731	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6326	2	2732	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6327	2	1197	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6328	2	2733	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6329	2	1198	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6330	2	2734	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6331	2	1199	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6332	2	2735	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6333	2	1200	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6334	2	1201	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6335	2	1202	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6336	2	1207	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6337	2	1208	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6338	2	1209	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6339	2	1210	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6340	2	1211	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6341	2	1212	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6342	2	1213	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6343	2	1215	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6344	2	1216	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6345	2	1217	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6346	2	1218	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6347	2	1219	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6348	2	1220	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6349	2	1221	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6350	2	1222	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-6351	2	2913	1	2026-01-04 18:09:41	migration	2026-11-04 11:22:37.331937	1	1
-330268	1	30345	migration	2026-11-04 11:22:37.360142	migration	2026-11-04 11:22:37.360142	0	1
-330269	1	30346	migration	2026-11-04 11:22:37.366151	migration	2026-11-04 11:22:37.366151	0	1
-330270	1	30347	migration	2026-11-04 11:22:37.366151	migration	2026-11-04 11:22:37.366151	0	1
-330271	1	30348	migration	2026-11-04 11:22:37.366151	migration	2026-11-04 11:22:37.366151	0	1
-330272	1	30349	migration	2026-11-04 11:22:37.366151	migration	2026-11-04 11:22:37.366151	0	1
-330273	1	30350	migration	2026-11-04 11:22:37.378148	migration	2026-11-04 11:22:37.378148	0	1
-3087	111	1070	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3011	109	1070	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-2029	2	1070	1	2023-01-25 08:42:52	migration	2026-11-04 11:22:37.385958	1	1
-3054	109	2497	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3035	109	2472	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3036	109	2478	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3042	109	2484	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3048	109	2490	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3037	109	2479	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3038	109	2480	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3039	109	2481	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3040	109	2482	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3041	109	2483	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3043	109	2485	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3044	109	2486	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3045	109	2487	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3046	109	2488	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3047	109	2489	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3049	109	2491	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3126	111	2492	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3050	109	2492	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3127	111	2493	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3051	109	2493	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3128	111	2494	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3052	109	2494	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-3129	111	2495	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	122
-3053	109	2495	1	2023-12-02 23:41:02	migration	2026-11-04 11:22:37.385958	1	121
-330274	1	30360	system	2026-11-04 11:22:37.61593	system	2026-11-04 11:22:37.61593	0	1
-330275	1	30361	system	2026-11-04 11:22:37.638191	system	2026-11-04 11:22:37.638191	0	1
+330140	1	30242	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330141	1	30243	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330142	1	30244	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330143	1	30245	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330144	1	30246	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330145	1	30247	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330146	1	30248	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330147	1	30249	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330148	1	30250	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330149	1	30251	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330150	1	30252	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330151	1	30253	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330152	1	30254	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330153	1	30255	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330154	1	30256	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330155	1	30257	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330156	1	30258	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330157	1	30259	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330158	1	30260	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330159	1	30261	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330160	1	30262	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330161	1	30263	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330162	1	30264	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330163	1	30265	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330164	1	30266	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330165	1	30267	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330166	1	30268	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330167	1	30269	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330168	1	30270	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330169	1	30271	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330170	1	30272	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330171	1	30273	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330172	1	30274	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330173	1	30275	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330174	1	30276	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330175	1	30277	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330176	1	30278	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330177	1	30279	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330178	1	30280	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330179	1	30281	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330180	1	30282	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330181	1	30283	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330182	1	30284	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330183	1	30285	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330184	1	30286	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330185	1	30287	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330186	1	30288	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330187	1	30289	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330188	1	30290	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330189	1	30291	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330190	1	30292	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330191	1	30293	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330192	1	30294	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330193	1	30295	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330194	1	30296	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330195	1	30297	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330196	1	30298	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330197	1	30299	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330198	1	30300	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330199	1	30301	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330200	1	30302	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330201	1	30303	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330202	1	30304	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330203	1	30305	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330204	1	30306	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330205	1	30307	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330206	1	30308	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330207	1	30309	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330208	1	30310	migration	2026-11-08 23:59:28.286229	migration	2026-11-08 23:59:28.286229	0	1
+330209	1	30311	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	1
+330210	1	30312	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	1
+330211	1	30313	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	1
+330212	1	30314	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	1
+330213	1	30315	migration	2026-11-08 23:59:28.294671	migration	2026-11-08 23:59:28.294671	0	1
+330214	1	30316	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330215	1	30317	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330216	1	30318	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330217	1	30319	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330218	1	30320	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330219	1	30321	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330220	1	30322	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330221	1	30323	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330222	1	30324	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330223	1	30325	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330224	1	30326	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330225	1	30327	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330226	1	30328	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330227	1	30329	migration	2026-11-08 23:59:28.326446	migration	2026-11-08 23:59:28.326446	0	1
+330228	1	30330	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	1
+330229	1	30331	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	1
+330230	1	30332	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	1
+330231	1	30333	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	1
+330232	1	30334	migration	2026-11-08 23:59:28.352162	migration	2026-11-08 23:59:28.352162	0	1
+330233	157	30319	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330234	157	30320	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330235	157	30321	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330236	157	30322	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330237	157	30323	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330238	157	30324	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330239	157	30325	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330240	157	30326	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330241	157	30327	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330242	157	30328	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330243	157	30329	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330244	1	30335	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	1
+330245	1	30336	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	1
+330246	1	30337	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	1
+330247	1	30338	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	1
+330248	1	30339	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	1
+330249	157	30335	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330250	157	30336	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330251	157	30337	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330252	157	30338	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330253	157	30339	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330254	158	30335	migration	2026-11-08 23:59:28.358178	migration	2026-11-08 23:59:28.358178	0	0
+330259	158	30319	migration	2026-11-08 23:59:28.366507	migration	2026-11-08 23:59:28.366507	0	0
+330260	158	30326	migration	2026-11-08 23:59:28.366507	migration	2026-11-08 23:59:28.366507	0	0
+330261	158	30327	migration	2026-11-08 23:59:28.366507	migration	2026-11-08 23:59:28.366507	0	0
+330262	158	30328	migration	2026-11-08 23:59:28.366507	migration	2026-11-08 23:59:28.366507	0	0
+330263	1	30340	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.372167	0	1
+330264	1	30341	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.372167	0	1
+330265	1	30342	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.372167	0	1
+330266	1	30343	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.372167	0	1
+330267	1	30344	migration	2026-11-08 23:59:28.372167	migration	2026-11-08 23:59:28.372167	0	1
+4167	109	2713	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4168	109	2714	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4169	109	2715	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4170	109	2716	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4171	109	2717	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4172	109	2718	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4173	109	2720	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4174	109	1185	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4175	109	2721	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4176	109	1186	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4177	109	2722	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4178	109	1187	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4179	109	2723	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4180	109	1188	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4181	109	2724	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4182	109	1189	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4183	109	2725	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4184	109	1190	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4185	109	2726	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4186	109	1191	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4187	109	2727	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4188	109	1192	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4189	109	2728	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4190	109	1193	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4191	109	2729	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4192	109	1194	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4193	109	2730	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4194	109	1195	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4195	109	2731	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4197	109	2732	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4198	109	1197	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4199	109	2733	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4200	109	1198	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4201	109	2734	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4202	109	1199	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4203	109	2735	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4204	109	1200	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4205	109	1201	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4206	109	1202	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4207	109	1207	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4208	109	1208	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4209	109	1209	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4210	109	1210	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4211	109	1211	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4212	109	1212	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4213	109	1213	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4214	109	1215	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4215	109	1216	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4216	109	1217	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4217	109	1218	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4218	109	1219	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4219	109	1220	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4220	109	1221	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4221	109	1222	1	2024-03-30 17:53:17	migration	2026-11-08 23:59:28.380284	1	121
+4226	111	2713	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4227	111	2714	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4228	111	2715	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4229	111	2716	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4230	111	2717	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4231	111	2718	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4232	111	2720	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4233	111	1185	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4234	111	2721	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4235	111	1186	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4236	111	2722	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4237	111	1187	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4238	111	2723	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4239	111	1188	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4240	111	2724	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4241	111	1189	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4242	111	2725	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4243	111	1190	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4244	111	2726	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4245	111	1191	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4246	111	2727	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4247	111	1192	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4248	111	2728	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4249	111	1193	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4250	111	2729	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4251	111	1194	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4252	111	2730	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4253	111	1195	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4254	111	2731	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4256	111	2732	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4257	111	1197	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4258	111	2733	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4259	111	1198	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4260	111	2734	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4261	111	1199	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4262	111	2735	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4263	111	1200	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4264	111	1201	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4265	111	1202	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4266	111	1207	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4267	111	1208	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4268	111	1209	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4269	111	1210	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4270	111	1211	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4271	111	1212	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4272	111	1213	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4273	111	1215	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4274	111	1216	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4275	111	1217	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4276	111	1218	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4277	111	1219	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4278	111	1220	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4279	111	1221	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+4280	111	1222	1	2024-03-30 17:53:18	migration	2026-11-08 23:59:28.380284	1	122
+6297	2	2713	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6298	2	2714	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6299	2	2715	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6300	2	2716	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6301	2	2717	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6302	2	2718	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6303	2	2720	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6304	2	1185	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6305	2	2721	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6306	2	1186	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6307	2	2722	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6308	2	1187	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6309	2	2723	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6310	2	1188	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6311	2	2724	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6312	2	1189	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6313	2	2725	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6314	2	1190	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6315	2	2726	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6316	2	1191	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6317	2	2727	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6318	2	1192	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6319	2	2728	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6320	2	1193	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6321	2	2729	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6322	2	1194	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6323	2	2730	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6324	2	1195	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6325	2	2731	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6326	2	2732	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6327	2	1197	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6328	2	2733	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6329	2	1198	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6330	2	2734	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6331	2	1199	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6332	2	2735	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6333	2	1200	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6334	2	1201	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6335	2	1202	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6336	2	1207	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6337	2	1208	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6338	2	1209	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6339	2	1210	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6340	2	1211	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6341	2	1212	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6342	2	1213	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6343	2	1215	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6344	2	1216	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6345	2	1217	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6346	2	1218	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6347	2	1219	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6348	2	1220	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6349	2	1221	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6350	2	1222	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+6351	2	2913	1	2026-01-04 18:09:41	migration	2026-11-08 23:59:28.380284	1	1
+330268	1	30345	migration	2026-11-08 23:59:28.402207	migration	2026-11-08 23:59:28.402207	0	1
+330269	1	30346	migration	2026-11-08 23:59:28.408156	migration	2026-11-08 23:59:28.408156	0	1
+330270	1	30347	migration	2026-11-08 23:59:28.408156	migration	2026-11-08 23:59:28.408156	0	1
+330271	1	30348	migration	2026-11-08 23:59:28.408156	migration	2026-11-08 23:59:28.408156	0	1
+330272	1	30349	migration	2026-11-08 23:59:28.408156	migration	2026-11-08 23:59:28.408156	0	1
+330273	1	30350	migration	2026-11-08 23:59:28.420236	migration	2026-11-08 23:59:28.420236	0	1
+3087	111	1070	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3011	109	1070	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+2029	2	1070	1	2023-01-25 08:42:52	migration	2026-11-08 23:59:28.428379	1	1
+3054	109	2497	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3035	109	2472	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3036	109	2478	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3042	109	2484	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3048	109	2490	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3037	109	2479	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3038	109	2480	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3039	109	2481	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3040	109	2482	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3041	109	2483	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3043	109	2485	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3044	109	2486	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3045	109	2487	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3046	109	2488	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3047	109	2489	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3049	109	2491	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3126	111	2492	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3050	109	2492	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3127	111	2493	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3051	109	2493	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3128	111	2494	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3052	109	2494	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+3129	111	2495	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	122
+3053	109	2495	1	2023-12-02 23:41:02	migration	2026-11-08 23:59:28.428379	1	121
+330274	1	30360	system	2026-11-08 23:59:28.620149	system	2026-11-08 23:59:28.620149	0	1
+330275	1	30361	system	2026-11-08 23:59:28.63625	system	2026-11-08 23:59:28.63625	0	1
+330276	1	30373	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	1
+330277	1	30370	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	1
+330278	1	30372	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	1
+330279	1	30371	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	1
+330280	1	30374	system	2026-11-08 23:59:28.650183	system	2026-11-08 23:59:28.650183	0	1
 \.
 
 
 --
--- Data for Name: system_sms_channel; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_sms_channel; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_sms_channel (id, signature, code, status, remark, api_key, api_secret, callback_url, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7151,7 +6873,7 @@ COPY public.system_sms_channel (id, signature, code, status, remark, api_key, ap
 
 
 --
--- Data for Name: system_sms_code; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_sms_code; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_sms_code (id, mobile, code, create_ip, scene, today_index, used, used_time, used_ip, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -7159,7 +6881,7 @@ COPY public.system_sms_code (id, mobile, code, create_ip, scene, today_index, us
 
 
 --
--- Data for Name: system_sms_log; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_sms_log; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_sms_log (id, channel_id, channel_code, template_id, template_code, template_type, template_content, template_params, api_template_id, mobile, user_id, user_type, send_status, send_time, api_send_code, api_send_msg, api_request_id, api_serial_no, receive_status, receive_time, api_receive_code, api_receive_msg, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7167,7 +6889,7 @@ COPY public.system_sms_log (id, channel_id, channel_code, template_id, template_
 
 
 --
--- Data for Name: system_sms_template; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_sms_template; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_sms_template (id, type, status, code, name, content, params, remark, api_template_id, channel_id, channel_code, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7190,7 +6912,7 @@ COPY public.system_sms_template (id, type, status, code, name, content, params, 
 
 
 --
--- Data for Name: system_social_client; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_social_client; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_social_client (id, name, social_type, user_type, client_id, client_secret, agent_id, public_key, status, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -7206,7 +6928,7 @@ COPY public.system_social_client (id, name, social_type, user_type, client_id, c
 
 
 --
--- Data for Name: system_social_user; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_social_user; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_social_user (id, type, openid, token, raw_token_info, nickname, avatar, raw_user_info, code, state, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -7214,7 +6936,7 @@ COPY public.system_social_user (id, type, openid, token, raw_token_info, nicknam
 
 
 --
--- Data for Name: system_social_user_bind; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_social_user_bind; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_social_user_bind (id, user_id, user_type, social_type, social_user_id, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -7222,18 +6944,18 @@ COPY public.system_social_user_bind (id, user_id, user_type, social_type, social
 
 
 --
--- Data for Name: system_tenant; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_tenant; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_tenant (id, name, contact_user_id, contact_name, contact_mobile, status, websites, package_id, expire_time, account_count, creator, create_time, updater, update_time, deleted) FROM stdin;
-1	RustSet	\N	管理员	17321315478	0		0	2099-02-19 17:14:16	9999	1	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.340109	0
-121	小租户	110	小王2	15601691300	0		111	2026-07-10 00:00:00	30	1	2022-02-22 00:56:14	migration	2026-11-04 11:22:37.340109	0
-122	测试租户	113	管理员	15601691300	0		111	2023-04-29 00:00:00	50	1	2022-03-07 21:37:58	migration	2026-11-04 11:22:37.340109	0
+1	RustSet	\N	管理员	17321315478	0		0	2099-02-19 17:14:16	9999	1	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.38645	0
+121	小租户	110	小王2	15601691300	0		111	2026-07-10 00:00:00	30	1	2022-02-22 00:56:14	migration	2026-11-08 23:59:28.38645	0
+122	测试租户	113	管理员	15601691300	0		111	2023-04-29 00:00:00	50	1	2022-03-07 21:37:58	migration	2026-11-08 23:59:28.38645	0
 \.
 
 
 --
--- Data for Name: system_tenant_package; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_tenant_package; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_tenant_package (id, name, status, remark, menu_ids, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7242,7 +6964,7 @@ COPY public.system_tenant_package (id, name, status, remark, menu_ids, creator, 
 
 
 --
--- Data for Name: system_user_post; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_user_post; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_user_post (id, user_id, post_id, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -7262,7 +6984,7 @@ COPY public.system_user_post (id, user_id, post_id, creator, create_time, update
 
 
 --
--- Data for Name: system_user_role; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_user_role; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_user_role (id, user_id, role_id, creator, create_time, updater, update_time, deleted, tenant_id) FROM stdin;
@@ -7291,35 +7013,35 @@ COPY public.system_user_role (id, user_id, role_id, creator, create_time, update
 
 
 --
--- Data for Name: system_users; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: system_users; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.system_users (id, username, password, nickname, remark, dept_id, post_ids, email, mobile, sex, avatar, status, login_ip, login_date, creator, create_time, updater, update_time, deleted, tenant_id, identity_uuid) FROM stdin;
-1	admin	$sm3$16384$7a7092f2a3f9a71facbcb3a1666a9110$f5e509bec314404aa6f771a1378b9e6645f386b88c692675267f89789ebc5010	RustSet 管理员	管理员	103	[1,2]	13aoteman@126.com	18818260272	1		0		\N	admin	2021-01-05 17:03:47	migration	2026-11-04 11:22:37.345907	0	1	4003435d-fee2-433d-8288-8bd84101bf16
+1	admin	$sm3$16384$7a7092f2a3f9a71facbcb3a1666a9110$f5e509bec314404aa6f771a1378b9e6645f386b88c692675267f89789ebc5010	RustSet 管理员	管理员	103	[1,2]	13aoteman@126.com	18818260272	1		0		\N	admin	2021-01-05 17:03:47	migration	2026-11-08 23:59:28.392374	0	1	4003435d-fee2-433d-8288-8bd84101bf16
 104	test	$2a$04$BrwaYn303hjA/6TnXqdGoOLhyHOAA0bVrAFu6.1dJKycqKUnIoRz2	测试号	\N	107	[1,2]	111@qq.com	15601691200	1	\N	0		\N		2021-01-21 02:13:53	\N	2026-01-04 18:09:54	0	1	2d10acdc-a623-4526-822f-295b76331f61
 110	admin110	$2a$10$mRMIYLDtRHlf6.9ipiqH1.Z.bh/R9dO9d5iHiGYPigi6r5KOoR2Wm	小王	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-22 00:56:14	\N	2026-07-16 06:25:39.039366	0	121	9c330aef-242c-4349-8f10-e9f8a4f27a4d
 111	test	$2a$10$mRMIYLDtRHlf6.9ipiqH1.Z.bh/R9dO9d5iHiGYPigi6r5KOoR2Wm	测试用户	\N	\N	[]			0	\N	0		\N	110	2022-02-23 13:14:33	\N	2026-07-16 06:12:57.86539	0	121	d81ad3bf-9a1f-4420-97f1-11e17779468c
 112	newobject	$2a$04$dB0z8Q819fJWz0hbaLe6B.VfHCjYgWx6LFfET5lyz3JwcqlyCkQ4C	新对象	\N	100	[]		15601691235	1	\N	0		\N	1	2022-02-23 19:08:03	\N	2025-04-21 14:23:08	0	1	56c8c8f0-832e-4bcf-a4de-cb6d3f9b317f
-113	aoteman	$2a$10$0acJOIk2D25/oC87nyclE..0lzeu9DtQ/n3geP4fkun/zIVRhHJIO	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-03-07 21:37:58	migration	2026-11-04 11:22:37.340109	0	122	f762824c-863d-4d6a-9652-d67d07dff70d
+113	aoteman	$2a$10$0acJOIk2D25/oC87nyclE..0lzeu9DtQ/n3geP4fkun/zIVRhHJIO	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-03-07 21:37:58	migration	2026-11-08 23:59:28.38645	0	122	f762824c-863d-4d6a-9652-d67d07dff70d
 114	hrmgr	$2a$10$TR4eybBioGRhBmDBWkqWLO6NIh3mzYa8KBKDDB5woiGYFVlRAi.fu	hr 小姐姐	\N	\N	[5]		15601691236	1	\N	0		\N	1	2022-03-19 21:50:58	\N	2026-01-04 18:16:01	0	1	d1bdf970-446b-4dc2-abf4-2f4c969d2298
 115	aotemane	$2a$04$GcyP0Vyzb2F2Yni5PuIK9ueGxM0tkZGMtDwVRwrNbtMvorzbpNsV2	阿呆	11222	102	[1,2]	7648@qq.com	15601691229	2	\N	0		\N	1	2022-04-30 02:55:43	1	2025-04-21 14:23:08	0	1	23c9ef7b-1947-4f3a-a06e-71488de6b507
 117	admin123	$2a$04$sEtimsHu9YCkYY4/oqElHem2Ijc9ld20eYO6lN.g/21NfLUTDLB9W	测试号02	1111	100	[2]		15601691234	1	\N	0		\N	1	2022-07-09 17:40:26	1	2025-05-14 09:56:04	0	1	783c8126-ed7b-4f47-b01c-74bfc7358601
 118	goudan	$2a$04$3suGZjnA6rM5bErf38u1felbgqbsPHGdRG3l9NkxPCEt2ah9Y6aJi	狗蛋	\N	103	[1]		15601691239	1	\N	0		\N	1	2022-07-09 17:44:43	\N	2025-11-23 15:28:25	0	1	1337338d-a3ec-4b36-9489-61bc4deb8c8a
-107	admin107	$2a$10$dYOOBKMO93v/.ReCqzyFg.o67Tqk.bbc2bhrpyBGkIw9aypCtr2pm	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 22:59:33	migration	2026-11-04 11:22:37.345907	0	118	dfdc2f63-0643-4bf7-996e-d66b197ade02
-108	admin108	$2a$10$y6mfvKoNYL1GXWak8nYwVOH.kCWqjactkzdoIDgiKl93WN3Ejg.Lu	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 23:00:50	migration	2026-11-04 11:22:37.345907	0	119	34001a93-ad57-4df9-b797-86810bc7c88d
+107	admin107	$2a$10$dYOOBKMO93v/.ReCqzyFg.o67Tqk.bbc2bhrpyBGkIw9aypCtr2pm	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 22:59:33	migration	2026-11-08 23:59:28.392374	0	118	dfdc2f63-0643-4bf7-996e-d66b197ade02
+108	admin108	$2a$10$y6mfvKoNYL1GXWak8nYwVOH.kCWqjactkzdoIDgiKl93WN3Ejg.Lu	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 23:00:50	migration	2026-11-08 23:59:28.392374	0	119	34001a93-ad57-4df9-b797-86810bc7c88d
 139	wwbwwb	$2a$04$FJLIyg8lbPytP29pbZaiU.LesJvCsYfEaHqQfB0pGQhK3e9BeZmLy	小秃头	123	108	[2,4]			1	\N	0		\N	\N	2024-09-10 21:03:58	1	2025-12-15 22:38:15	0	1	51591a2c-4497-46d5-9158-f9d3a61220d6
 141	admin1	$2a$04$oj6F6d7HrZ70kYVD3TNzEu.m3TPUzajOVuC66zdKna8KRerK1FmVa	新用户	\N	\N	\N			0		0		\N	1	2025-04-08 13:09:07	1	2025-05-14 19:11:48	0	1	445f0226-93a6-44ab-9553-61304601f847
 142	test01	$2a$04$4bCYWZkjxxOC4QE0LY2M9uEEKWeJbLfs489NFtQoyidL5I0FndRaO	test01		\N	[]		19021719925	1		0		\N	1	2025-07-09 21:07:10	\N	2025-12-02 13:23:11	0	1	a11d3ba6-9ddc-4914-816e-1d1b0f63423e
 143	a00001	$2a$04$GhVHFviOw/SsTmiQtifHJesDYFlHMeGK7OWh7aGCCjGGVCmbHVAwa	a00001	\N	104	\N			0		0		\N	\N	2025-12-01 16:10:13	1	2025-12-05 21:34:05	0	1	4f0cadfd-bd5e-4ed2-aa93-92eff0caff71
 144	aoteman001	$2a$04$omQOmhz8OyUFBKw77nr8KOtMp6xdvoQ1gWStjk9r8.OYT3Bv6oEYe	aoteman001	\N	116	\N			0		1		\N	1	2025-12-01 17:05:27	1	2025-12-15 15:55:54	0	1	a4edfe32-96f1-4a81-84d3-59553729bb02
-109	admin109	$2a$10$JAqvH0tEc0I7dfDVBI7zyuB4E3j.uH6daIjV53.vUS6PknFkDJkuK	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 23:11:50	migration	2026-11-04 11:22:37.345907	0	120	3e44df26-102a-4bb6-8b4c-1c06acee548b
-100	rustset-demo	$2a$04$h.aaPKgO.odHepnk5PCsWeEwKdojFWdTItxGKfx1r0e1CSeBzsTJ6	RustSet 用户	\N	104	[1]		15601691300	1	\N	0		\N		2021-01-07 09:07:17	migration	2026-11-04 11:22:37.345907	0	1	0ba69165-1297-4983-a7e3-bbc36cf3b3a5
-103	yuanma	$2a$04$fUBSmjKCPYAUmnMzOb6qE.eZCGPhHi1JmAKclODbfS/O7fHOl2bH6	示例用户	\N	106	\N		15601701300	0	\N	0		\N		2021-01-13 23:50:35	migration	2026-11-04 11:22:37.345907	0	1	b20b44a9-e18e-4a7b-824d-e50b779fa649
+109	admin109	$2a$10$JAqvH0tEc0I7dfDVBI7zyuB4E3j.uH6daIjV53.vUS6PknFkDJkuK	RustSet 用户	\N	\N	\N		15601691300	0	\N	0		\N	1	2022-02-20 23:11:50	migration	2026-11-08 23:59:28.392374	0	120	3e44df26-102a-4bb6-8b4c-1c06acee548b
+100	rustset-demo	$2a$04$h.aaPKgO.odHepnk5PCsWeEwKdojFWdTItxGKfx1r0e1CSeBzsTJ6	RustSet 用户	\N	104	[1]		15601691300	1	\N	0		\N		2021-01-07 09:07:17	migration	2026-11-08 23:59:28.392374	0	1	0ba69165-1297-4983-a7e3-bbc36cf3b3a5
+103	yuanma	$2a$04$fUBSmjKCPYAUmnMzOb6qE.eZCGPhHi1JmAKclODbfS/O7fHOl2bH6	示例用户	\N	106	\N		15601701300	0	\N	0		\N		2021-01-13 23:50:35	migration	2026-11-08 23:59:28.392374	0	1	b20b44a9-e18e-4a7b-824d-e50b779fa649
 \.
 
 
 --
--- Data for Name: yudao_demo01_contact; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: yudao_demo01_contact; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.yudao_demo01_contact (id, name, sex, birthday, description, avatar, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7327,7 +7049,7 @@ COPY public.yudao_demo01_contact (id, name, sex, birthday, description, avatar, 
 
 
 --
--- Data for Name: yudao_demo02_category; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: yudao_demo02_category; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.yudao_demo02_category (id, name, parent_id, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7335,7 +7057,7 @@ COPY public.yudao_demo02_category (id, name, parent_id, creator, create_time, up
 
 
 --
--- Data for Name: yudao_demo03_course; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: yudao_demo03_course; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.yudao_demo03_course (id, student_id, name, score, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7343,7 +7065,7 @@ COPY public.yudao_demo03_course (id, student_id, name, score, creator, create_ti
 
 
 --
--- Data for Name: yudao_demo03_grade; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: yudao_demo03_grade; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.yudao_demo03_grade (id, student_id, name, teacher, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7351,7 +7073,7 @@ COPY public.yudao_demo03_grade (id, student_id, name, teacher, creator, create_t
 
 
 --
--- Data for Name: yudao_demo03_student; Type: TABLE DATA; Schema: public; Owner: rustset_test
+-- Data for Name: yudao_demo03_student; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.yudao_demo03_student (id, name, sex, birthday, description, creator, create_time, updater, update_time, deleted) FROM stdin;
@@ -7359,539 +7081,546 @@ COPY public.yudao_demo03_student (id, name, sex, birthday, description, creator,
 
 
 --
--- Name: cmdb_attribute_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: cmdb_attribute_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.cmdb_attribute_seq', 1, false);
 
 
 --
--- Name: cmdb_attribute_trigger_id_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: cmdb_attribute_trigger_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.cmdb_attribute_trigger_id_seq', 1, false);
 
 
 --
--- Name: cmdb_instance_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.cmdb_instance_seq', 1, false);
 
 
 --
--- Name: cmdb_model_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: cmdb_model_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.cmdb_model_seq', 1, false);
 
 
 --
--- Name: cmdb_net_zone_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: cmdb_net_zone_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.cmdb_net_zone_seq', 1, false);
 
 
 --
--- Name: cmdb_relation_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: cmdb_relation_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.cmdb_relation_seq', 1, false);
 
 
 --
--- Name: infra_api_access_log_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_api_access_log_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_api_access_log_seq', 44792, true);
 
 
 --
--- Name: infra_api_error_log_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_api_error_log_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_api_error_log_seq', 1, false);
 
 
 --
--- Name: infra_application_endpoint_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_application_endpoint_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_application_endpoint_seq', 1, false);
 
 
 --
--- Name: infra_approval_rule_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_approval_rule_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_approval_rule_seq', 1, false);
 
 
 --
--- Name: infra_asset_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_asset_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_asset_seq', 1, false);
 
 
 --
--- Name: infra_automation_audit_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_automation_audit_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_automation_audit_seq', 1, false);
 
 
 --
--- Name: infra_automation_config_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_automation_config_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_automation_config_seq', 2, true);
 
 
 --
--- Name: infra_automation_credential_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_automation_credential_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_automation_credential_seq', 1, false);
 
 
 --
--- Name: infra_business_application_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_business_application_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_business_application_seq', 1, false);
 
 
 --
--- Name: infra_cloud_asset_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_asset_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_cloud_asset_seq', 1, false);
 
 
 --
--- Name: infra_cloud_platform_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_platform_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_cloud_platform_seq', 1, false);
 
 
 --
--- Name: infra_cloud_provider_config_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_provider_config_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_cloud_provider_config_seq', 1, false);
 
 
 --
--- Name: infra_cloud_resource_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_cloud_resource_seq', 1, true);
 
 
 --
--- Name: infra_cloud_zone_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_zone_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_cloud_zone_seq', 1, false);
 
 
 --
--- Name: infra_codegen_column_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_codegen_column_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_codegen_column_seq', 26, true);
 
 
 --
--- Name: infra_codegen_table_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_codegen_table_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_codegen_table_seq', 1, true);
 
 
 --
--- Name: infra_config_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_config_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_config_seq', 2, true);
 
 
 --
--- Name: infra_data_source_config_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_data_source_config_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_data_source_config_seq', 2, true);
 
 
 --
--- Name: infra_file_config_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_file_config_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_file_config_seq', 3, true);
 
 
 --
--- Name: infra_file_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_file_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_file_seq', 3, true);
 
 
 --
--- Name: infra_high_risk_port_rule_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_high_risk_port_rule_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_high_risk_port_rule_seq', 36, true);
 
 
 --
--- Name: infra_job_log_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_job_log_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_job_log_seq', 2, true);
 
 
 --
--- Name: infra_job_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_job_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_job_seq', 3, true);
 
 
 --
--- Name: infra_machine_room_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_machine_room_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_machine_room_seq', 1, false);
 
 
 --
--- Name: infra_network_policy_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_network_policy_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_network_policy_seq', 1, false);
 
 
 --
--- Name: infra_network_zone_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_network_zone_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_network_zone_seq', 1, false);
 
 
 --
--- Name: infra_physical_resource_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_physical_resource_seq', 1, true);
 
 
 --
--- Name: infra_resource_ticket_attachment_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_attachment_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_resource_ticket_attachment_seq', 1, false);
 
 
 --
--- Name: infra_resource_ticket_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_resource_ticket_seq', 1, false);
 
 
 --
--- Name: infra_risk_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_risk_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_risk_seq', 1, false);
 
 
 --
--- Name: infra_security_product_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_security_product_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_security_product_seq', 1, false);
 
 
 --
--- Name: infra_service_provider_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_service_provider_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_service_provider_seq', 1, false);
 
 
 --
--- Name: infra_task_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: infra_task_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.infra_task_seq', 1, false);
 
 
 --
--- Name: system_dept_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_dept_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_dept_seq', 118, true);
 
 
 --
--- Name: system_dict_data_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_dict_data_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_dict_data_seq', 3449, true);
 
 
 --
--- Name: system_dict_type_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_dict_type_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_dict_type_seq', 2139, true);
 
 
 --
--- Name: system_login_log_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_login_log_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_login_log_seq', 167, true);
 
 
 --
--- Name: system_mail_account_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_mail_account_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_mail_account_seq', 5, true);
 
 
 --
--- Name: system_mail_log_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_mail_log_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_mail_log_seq', 3, true);
 
 
 --
--- Name: system_mail_template_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_mail_template_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_mail_template_seq', 16, true);
 
 
 --
--- Name: system_menu_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_mcp_api_key_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.system_mcp_api_key_seq', 1, false);
+
+
+--
+-- Name: system_menu_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_menu_seq', 30350, true);
 
 
 --
--- Name: system_notice_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_notice_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_notice_seq', 5, true);
 
 
 --
--- Name: system_notify_message_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_notify_message_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_notify_message_seq', 12, true);
 
 
 --
--- Name: system_notify_template_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_notify_template_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_notify_template_seq', 3, true);
 
 
 --
--- Name: system_oauth2_access_token_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_access_token_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_oauth2_access_token_seq', 324, true);
 
 
 --
--- Name: system_oauth2_approve_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_approve_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_oauth2_approve_seq', 1, true);
 
 
 --
--- Name: system_oauth2_client_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_client_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_oauth2_client_seq', 43, true);
 
 
 --
--- Name: system_oauth2_code_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_code_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_oauth2_code_seq', 1, true);
 
 
 --
--- Name: system_oauth2_refresh_token_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_refresh_token_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_oauth2_refresh_token_seq', 308, true);
 
 
 --
--- Name: system_operate_log_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_operate_log_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_operate_log_seq', 162, true);
 
 
 --
--- Name: system_post_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_post_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_post_seq', 8, true);
 
 
 --
--- Name: system_role_menu_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_role_menu_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.system_role_menu_seq', 330275, true);
+SELECT pg_catalog.setval('public.system_role_menu_seq', 330280, true);
 
 
 --
--- Name: system_role_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_role_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_role_seq', 158, true);
 
 
 --
--- Name: system_sms_channel_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_sms_channel_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_sms_channel_seq', 8, true);
 
 
 --
--- Name: system_sms_code_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_sms_code_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_sms_code_seq', 1, true);
 
 
 --
--- Name: system_sms_log_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_sms_log_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_sms_log_seq', 3, true);
 
 
 --
--- Name: system_sms_template_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_sms_template_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_sms_template_seq', 20, true);
 
 
 --
--- Name: system_social_client_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_social_client_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_social_client_seq', 48, true);
 
 
 --
--- Name: system_social_user_bind_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_social_user_bind_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_social_user_bind_seq', 1, true);
 
 
 --
--- Name: system_social_user_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_social_user_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_social_user_seq', 1, true);
 
 
 --
--- Name: system_tenant_package_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_tenant_package_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_tenant_package_seq', 112, true);
 
 
 --
--- Name: system_tenant_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_tenant_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_tenant_seq', 123, true);
 
 
 --
--- Name: system_user_post_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_user_post_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_user_post_seq', 132, true);
 
 
 --
--- Name: system_user_role_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_user_role_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_user_role_seq', 57, true);
 
 
 --
--- Name: system_users_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: system_users_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.system_users_seq', 146, true);
 
 
 --
--- Name: yudao_demo01_contact_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: yudao_demo01_contact_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.yudao_demo01_contact_seq', 1, false);
 
 
 --
--- Name: yudao_demo02_category_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: yudao_demo02_category_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.yudao_demo02_category_seq', 1, false);
 
 
 --
--- Name: yudao_demo03_course_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_course_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.yudao_demo03_course_seq', 1, false);
 
 
 --
--- Name: yudao_demo03_grade_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_grade_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.yudao_demo03_grade_seq', 1, false);
 
 
 --
--- Name: yudao_demo03_student_seq; Type: SEQUENCE SET; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_student_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.yudao_demo03_student_seq', 1, false);
 
 
 --
--- Name: chat_conversations chat_conversations_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: chat_conversations chat_conversations_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.chat_conversations
@@ -7899,7 +7628,7 @@ ALTER TABLE ONLY ai.chat_conversations
 
 
 --
--- Name: chat_messages chat_messages_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: chat_messages chat_messages_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.chat_messages
@@ -7907,7 +7636,7 @@ ALTER TABLE ONLY ai.chat_messages
 
 
 --
--- Name: chat_roles chat_roles_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: chat_roles chat_roles_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.chat_roles
@@ -7915,7 +7644,7 @@ ALTER TABLE ONLY ai.chat_roles
 
 
 --
--- Name: images images_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: images images_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.images
@@ -7923,7 +7652,7 @@ ALTER TABLE ONLY ai.images
 
 
 --
--- Name: knowledge_bases knowledge_bases_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: knowledge_bases knowledge_bases_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.knowledge_bases
@@ -7931,7 +7660,7 @@ ALTER TABLE ONLY ai.knowledge_bases
 
 
 --
--- Name: knowledge_documents knowledge_documents_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: knowledge_documents knowledge_documents_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.knowledge_documents
@@ -7939,7 +7668,7 @@ ALTER TABLE ONLY ai.knowledge_documents
 
 
 --
--- Name: knowledge_segments knowledge_segments_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: knowledge_segments knowledge_segments_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.knowledge_segments
@@ -7947,7 +7676,7 @@ ALTER TABLE ONLY ai.knowledge_segments
 
 
 --
--- Name: model_catalog model_catalog_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: model_catalog model_catalog_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.model_catalog
@@ -7955,7 +7684,7 @@ ALTER TABLE ONLY ai.model_catalog
 
 
 --
--- Name: model_configs model_configs_key_key; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: model_configs model_configs_key_key; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.model_configs
@@ -7963,7 +7692,7 @@ ALTER TABLE ONLY ai.model_configs
 
 
 --
--- Name: model_configs model_configs_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: model_configs model_configs_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.model_configs
@@ -7971,7 +7700,7 @@ ALTER TABLE ONLY ai.model_configs
 
 
 --
--- Name: model_platforms model_platforms_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: model_platforms model_platforms_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.model_platforms
@@ -7979,7 +7708,7 @@ ALTER TABLE ONLY ai.model_platforms
 
 
 --
--- Name: music music_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: music music_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.music
@@ -7987,7 +7716,7 @@ ALTER TABLE ONLY ai.music
 
 
 --
--- Name: tools tools_name_key; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: tools tools_name_key; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.tools
@@ -7995,7 +7724,7 @@ ALTER TABLE ONLY ai.tools
 
 
 --
--- Name: tools tools_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: tools tools_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.tools
@@ -8003,7 +7732,7 @@ ALTER TABLE ONLY ai.tools
 
 
 --
--- Name: writes writes_pkey; Type: CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: writes writes_pkey; Type: CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.writes
@@ -8011,7 +7740,7 @@ ALTER TABLE ONLY ai.writes
 
 
 --
--- Name: _sqlx_migrations _sqlx_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: _sqlx_migrations _sqlx_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public._sqlx_migrations
@@ -8019,7 +7748,7 @@ ALTER TABLE ONLY public._sqlx_migrations
 
 
 --
--- Name: cmdb_attribute cmdb_attribute_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_attribute cmdb_attribute_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_attribute
@@ -8027,7 +7756,7 @@ ALTER TABLE ONLY public.cmdb_attribute
 
 
 --
--- Name: cmdb_attribute_trigger cmdb_attribute_trigger_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_attribute_trigger cmdb_attribute_trigger_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_attribute_trigger
@@ -8035,7 +7764,7 @@ ALTER TABLE ONLY public.cmdb_attribute_trigger
 
 
 --
--- Name: cmdb_instance cmdb_instance_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance cmdb_instance_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_instance
@@ -8043,7 +7772,7 @@ ALTER TABLE ONLY public.cmdb_instance
 
 
 --
--- Name: cmdb_instance_unique_value cmdb_instance_unique_value_key; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance_unique_value cmdb_instance_unique_value_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_instance_unique_value
@@ -8051,7 +7780,7 @@ ALTER TABLE ONLY public.cmdb_instance_unique_value
 
 
 --
--- Name: cmdb_instance_unique_value cmdb_instance_unique_value_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance_unique_value cmdb_instance_unique_value_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_instance_unique_value
@@ -8059,7 +7788,7 @@ ALTER TABLE ONLY public.cmdb_instance_unique_value
 
 
 --
--- Name: cmdb_model cmdb_model_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_model cmdb_model_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_model
@@ -8067,7 +7796,7 @@ ALTER TABLE ONLY public.cmdb_model
 
 
 --
--- Name: cmdb_net_zone cmdb_net_zone_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_net_zone cmdb_net_zone_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_net_zone
@@ -8075,7 +7804,7 @@ ALTER TABLE ONLY public.cmdb_net_zone
 
 
 --
--- Name: cmdb_relation cmdb_relation_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_relation cmdb_relation_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_relation
@@ -8083,7 +7812,7 @@ ALTER TABLE ONLY public.cmdb_relation
 
 
 --
--- Name: infra_api_access_log infra_api_access_log_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_api_access_log infra_api_access_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_api_access_log
@@ -8091,7 +7820,7 @@ ALTER TABLE ONLY public.infra_api_access_log
 
 
 --
--- Name: infra_api_error_log infra_api_error_log_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_api_error_log infra_api_error_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_api_error_log
@@ -8099,7 +7828,7 @@ ALTER TABLE ONLY public.infra_api_error_log
 
 
 --
--- Name: infra_approval_rule infra_approval_rule_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_approval_rule infra_approval_rule_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_approval_rule
@@ -8107,7 +7836,7 @@ ALTER TABLE ONLY public.infra_approval_rule
 
 
 --
--- Name: infra_automation_audit infra_automation_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_automation_audit infra_automation_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_automation_audit
@@ -8115,7 +7844,7 @@ ALTER TABLE ONLY public.infra_automation_audit
 
 
 --
--- Name: infra_automation_config infra_automation_config_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_automation_config infra_automation_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_automation_config
@@ -8123,7 +7852,7 @@ ALTER TABLE ONLY public.infra_automation_config
 
 
 --
--- Name: infra_automation_credential infra_automation_credential_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_automation_credential infra_automation_credential_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_automation_credential
@@ -8131,7 +7860,7 @@ ALTER TABLE ONLY public.infra_automation_credential
 
 
 --
--- Name: infra_codegen_column infra_codegen_column_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_codegen_column infra_codegen_column_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_codegen_column
@@ -8139,7 +7868,7 @@ ALTER TABLE ONLY public.infra_codegen_column
 
 
 --
--- Name: infra_codegen_table infra_codegen_table_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_codegen_table infra_codegen_table_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_codegen_table
@@ -8147,7 +7876,7 @@ ALTER TABLE ONLY public.infra_codegen_table
 
 
 --
--- Name: infra_config infra_config_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_config infra_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_config
@@ -8155,7 +7884,7 @@ ALTER TABLE ONLY public.infra_config
 
 
 --
--- Name: infra_data_source_config infra_data_source_config_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_data_source_config infra_data_source_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_data_source_config
@@ -8163,7 +7892,7 @@ ALTER TABLE ONLY public.infra_data_source_config
 
 
 --
--- Name: infra_file_config infra_file_config_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_file_config infra_file_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_file_config
@@ -8171,7 +7900,7 @@ ALTER TABLE ONLY public.infra_file_config
 
 
 --
--- Name: infra_file infra_file_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_file infra_file_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_file
@@ -8179,7 +7908,7 @@ ALTER TABLE ONLY public.infra_file
 
 
 --
--- Name: infra_high_risk_port_rule infra_high_risk_port_rule_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_high_risk_port_rule infra_high_risk_port_rule_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_high_risk_port_rule
@@ -8187,7 +7916,7 @@ ALTER TABLE ONLY public.infra_high_risk_port_rule
 
 
 --
--- Name: infra_inspection_result infra_inspection_result_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_inspection_result infra_inspection_result_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_inspection_result
@@ -8195,7 +7924,7 @@ ALTER TABLE ONLY public.infra_inspection_result
 
 
 --
--- Name: infra_inspection_result infra_inspection_result_task_id_ip_key; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_inspection_result infra_inspection_result_task_id_ip_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_inspection_result
@@ -8203,7 +7932,7 @@ ALTER TABLE ONLY public.infra_inspection_result
 
 
 --
--- Name: infra_job_log infra_job_log_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_job_log infra_job_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_job_log
@@ -8211,7 +7940,7 @@ ALTER TABLE ONLY public.infra_job_log
 
 
 --
--- Name: infra_job infra_job_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_job infra_job_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_job
@@ -8219,7 +7948,7 @@ ALTER TABLE ONLY public.infra_job
 
 
 --
--- Name: infra_network_policy infra_network_policy_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_network_policy infra_network_policy_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_network_policy
@@ -8227,7 +7956,7 @@ ALTER TABLE ONLY public.infra_network_policy
 
 
 --
--- Name: system_dept pk_system_dept; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_dept pk_system_dept; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_dept
@@ -8235,7 +7964,7 @@ ALTER TABLE ONLY public.system_dept
 
 
 --
--- Name: system_dict_data pk_system_dict_data; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_dict_data pk_system_dict_data; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_dict_data
@@ -8243,7 +7972,7 @@ ALTER TABLE ONLY public.system_dict_data
 
 
 --
--- Name: system_dict_type pk_system_dict_type; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_dict_type pk_system_dict_type; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_dict_type
@@ -8251,7 +7980,7 @@ ALTER TABLE ONLY public.system_dict_type
 
 
 --
--- Name: system_login_log pk_system_login_log; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_login_log pk_system_login_log; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_login_log
@@ -8259,7 +7988,7 @@ ALTER TABLE ONLY public.system_login_log
 
 
 --
--- Name: system_mail_account pk_system_mail_account; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_mail_account pk_system_mail_account; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_mail_account
@@ -8267,7 +7996,7 @@ ALTER TABLE ONLY public.system_mail_account
 
 
 --
--- Name: system_mail_log pk_system_mail_log; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_mail_log pk_system_mail_log; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_mail_log
@@ -8275,7 +8004,7 @@ ALTER TABLE ONLY public.system_mail_log
 
 
 --
--- Name: system_mail_template pk_system_mail_template; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_mail_template pk_system_mail_template; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_mail_template
@@ -8283,7 +8012,7 @@ ALTER TABLE ONLY public.system_mail_template
 
 
 --
--- Name: system_menu pk_system_menu; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_menu pk_system_menu; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_menu
@@ -8291,7 +8020,7 @@ ALTER TABLE ONLY public.system_menu
 
 
 --
--- Name: system_notice pk_system_notice; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_notice pk_system_notice; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_notice
@@ -8299,7 +8028,7 @@ ALTER TABLE ONLY public.system_notice
 
 
 --
--- Name: system_notify_message pk_system_notify_message; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_notify_message pk_system_notify_message; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_notify_message
@@ -8307,7 +8036,7 @@ ALTER TABLE ONLY public.system_notify_message
 
 
 --
--- Name: system_notify_template pk_system_notify_template; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_notify_template pk_system_notify_template; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_notify_template
@@ -8315,7 +8044,7 @@ ALTER TABLE ONLY public.system_notify_template
 
 
 --
--- Name: system_oauth2_access_token pk_system_oauth2_access_token; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_access_token pk_system_oauth2_access_token; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_oauth2_access_token
@@ -8323,7 +8052,7 @@ ALTER TABLE ONLY public.system_oauth2_access_token
 
 
 --
--- Name: system_oauth2_approve pk_system_oauth2_approve; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_approve pk_system_oauth2_approve; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_oauth2_approve
@@ -8331,7 +8060,7 @@ ALTER TABLE ONLY public.system_oauth2_approve
 
 
 --
--- Name: system_oauth2_client pk_system_oauth2_client; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_client pk_system_oauth2_client; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_oauth2_client
@@ -8339,7 +8068,7 @@ ALTER TABLE ONLY public.system_oauth2_client
 
 
 --
--- Name: system_oauth2_code pk_system_oauth2_code; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_code pk_system_oauth2_code; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_oauth2_code
@@ -8347,7 +8076,7 @@ ALTER TABLE ONLY public.system_oauth2_code
 
 
 --
--- Name: system_oauth2_refresh_token pk_system_oauth2_refresh_token; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_oauth2_refresh_token pk_system_oauth2_refresh_token; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_oauth2_refresh_token
@@ -8355,7 +8084,7 @@ ALTER TABLE ONLY public.system_oauth2_refresh_token
 
 
 --
--- Name: system_operate_log pk_system_operate_log; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_operate_log pk_system_operate_log; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_operate_log
@@ -8363,7 +8092,7 @@ ALTER TABLE ONLY public.system_operate_log
 
 
 --
--- Name: system_post pk_system_post; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_post pk_system_post; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_post
@@ -8371,7 +8100,7 @@ ALTER TABLE ONLY public.system_post
 
 
 --
--- Name: system_role pk_system_role; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_role pk_system_role; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_role
@@ -8379,7 +8108,7 @@ ALTER TABLE ONLY public.system_role
 
 
 --
--- Name: system_role_menu pk_system_role_menu; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_role_menu pk_system_role_menu; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_role_menu
@@ -8387,7 +8116,7 @@ ALTER TABLE ONLY public.system_role_menu
 
 
 --
--- Name: system_sms_channel pk_system_sms_channel; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_sms_channel pk_system_sms_channel; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_sms_channel
@@ -8395,7 +8124,7 @@ ALTER TABLE ONLY public.system_sms_channel
 
 
 --
--- Name: system_sms_code pk_system_sms_code; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_sms_code pk_system_sms_code; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_sms_code
@@ -8403,7 +8132,7 @@ ALTER TABLE ONLY public.system_sms_code
 
 
 --
--- Name: system_sms_log pk_system_sms_log; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_sms_log pk_system_sms_log; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_sms_log
@@ -8411,7 +8140,7 @@ ALTER TABLE ONLY public.system_sms_log
 
 
 --
--- Name: system_sms_template pk_system_sms_template; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_sms_template pk_system_sms_template; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_sms_template
@@ -8419,7 +8148,7 @@ ALTER TABLE ONLY public.system_sms_template
 
 
 --
--- Name: system_social_client pk_system_social_client; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_social_client pk_system_social_client; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_social_client
@@ -8427,7 +8156,7 @@ ALTER TABLE ONLY public.system_social_client
 
 
 --
--- Name: system_social_user pk_system_social_user; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_social_user pk_system_social_user; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_social_user
@@ -8435,7 +8164,7 @@ ALTER TABLE ONLY public.system_social_user
 
 
 --
--- Name: system_social_user_bind pk_system_social_user_bind; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_social_user_bind pk_system_social_user_bind; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_social_user_bind
@@ -8443,7 +8172,7 @@ ALTER TABLE ONLY public.system_social_user_bind
 
 
 --
--- Name: system_tenant pk_system_tenant; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_tenant pk_system_tenant; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_tenant
@@ -8451,7 +8180,7 @@ ALTER TABLE ONLY public.system_tenant
 
 
 --
--- Name: system_tenant_package pk_system_tenant_package; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_tenant_package pk_system_tenant_package; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_tenant_package
@@ -8459,7 +8188,7 @@ ALTER TABLE ONLY public.system_tenant_package
 
 
 --
--- Name: system_user_post pk_system_user_post; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_user_post pk_system_user_post; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_user_post
@@ -8467,7 +8196,7 @@ ALTER TABLE ONLY public.system_user_post
 
 
 --
--- Name: system_user_role pk_system_user_role; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_user_role pk_system_user_role; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_user_role
@@ -8475,7 +8204,7 @@ ALTER TABLE ONLY public.system_user_role
 
 
 --
--- Name: system_users pk_system_users; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_users pk_system_users; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_users
@@ -8483,7 +8212,15 @@ ALTER TABLE ONLY public.system_users
 
 
 --
--- Name: yudao_demo01_contact yudao_demo01_contact_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: system_mcp_api_key system_mcp_api_key_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.system_mcp_api_key
+    ADD CONSTRAINT system_mcp_api_key_pkey PRIMARY KEY (id, tenant_id);
+
+
+--
+-- Name: yudao_demo01_contact yudao_demo01_contact_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.yudao_demo01_contact
@@ -8491,7 +8228,7 @@ ALTER TABLE ONLY public.yudao_demo01_contact
 
 
 --
--- Name: yudao_demo02_category yudao_demo02_category_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: yudao_demo02_category yudao_demo02_category_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.yudao_demo02_category
@@ -8499,7 +8236,7 @@ ALTER TABLE ONLY public.yudao_demo02_category
 
 
 --
--- Name: yudao_demo03_course yudao_demo03_course_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_course yudao_demo03_course_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.yudao_demo03_course
@@ -8507,7 +8244,7 @@ ALTER TABLE ONLY public.yudao_demo03_course
 
 
 --
--- Name: yudao_demo03_grade yudao_demo03_grade_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_grade yudao_demo03_grade_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.yudao_demo03_grade
@@ -8515,7 +8252,7 @@ ALTER TABLE ONLY public.yudao_demo03_grade
 
 
 --
--- Name: yudao_demo03_student yudao_demo03_student_pkey; Type: CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: yudao_demo03_student yudao_demo03_student_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.yudao_demo03_student
@@ -8523,1239 +8260,1253 @@ ALTER TABLE ONLY public.yudao_demo03_student
 
 
 --
--- Name: idx_ai_chat_conversation_knowledge_ids; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_chat_conversation_knowledge_ids; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_chat_conversation_knowledge_ids ON ai.chat_conversations USING gin (knowledge_ids);
 
 
 --
--- Name: idx_ai_chat_conversation_user; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_chat_conversation_user; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_chat_conversation_user ON ai.chat_conversations USING btree (user_id, pinned DESC, update_time DESC);
 
 
 --
--- Name: idx_ai_chat_message_conversation; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_chat_message_conversation; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_chat_message_conversation ON ai.chat_messages USING btree (conversation_id, id);
 
 
 --
--- Name: idx_ai_chat_roles_public; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_chat_roles_public; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_chat_roles_public ON ai.chat_roles USING btree (public_status, status, sort, id DESC);
 
 
 --
--- Name: idx_ai_chat_roles_user; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_chat_roles_user; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_chat_roles_user ON ai.chat_roles USING btree (user_id, id DESC);
 
 
 --
--- Name: idx_ai_images_pending_task; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_images_pending_task; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_images_pending_task ON ai.images USING btree (COALESCE(last_poll_time, (0)::bigint), id) WHERE ((status = 10) AND (task_id IS NOT NULL));
 
 
 --
--- Name: idx_ai_images_user; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_images_user; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_images_user ON ai.images USING btree (user_id, id DESC);
 
 
 --
--- Name: idx_ai_knowledge_segment_base; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_knowledge_segment_base; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_knowledge_segment_base ON ai.knowledge_segments USING btree (knowledge_id, status);
 
 
 --
--- Name: idx_ai_model_catalog_type; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_model_catalog_type; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_model_catalog_type ON ai.model_catalog USING btree (platform, type, active);
 
 
 --
--- Name: idx_ai_model_platform_type; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_model_platform_type; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_model_platform_type ON ai.model_configs USING btree (platform, type, status);
 
 
 --
--- Name: idx_ai_music_pending; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_music_pending; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_music_pending ON ai.music USING btree (status, last_poll_time) WHERE (status = 10);
 
 
 --
--- Name: idx_ai_music_user_status; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_music_user_status; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_music_user_status ON ai.music USING btree (user_id, status, id DESC);
 
 
 --
--- Name: idx_ai_tools_status_name; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_tools_status_name; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_tools_status_name ON ai.tools USING btree (status, name);
 
 
 --
--- Name: idx_ai_writes_user_time; Type: INDEX; Schema: ai; Owner: rustset_test
+-- Name: idx_ai_writes_user_time; Type: INDEX; Schema: ai; Owner: -
 --
 
 CREATE INDEX idx_ai_writes_user_time ON ai.writes USING btree (user_id, id DESC);
 
 
 --
--- Name: cmdb_instance_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX cmdb_instance_tenant_id_key ON public.cmdb_instance USING btree (tenant_id, id);
 
 
 --
--- Name: cmdb_net_zone_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: cmdb_net_zone_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX cmdb_net_zone_tenant_id_key ON public.cmdb_net_zone USING btree (tenant_id, id);
 
 
 --
--- Name: idx_app_endpoint_business; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_app_endpoint_business; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_app_endpoint_business ON public.infra_application_endpoint USING btree (business_application_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_asset_ip; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_asset_ip; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_asset_ip ON public.infra_asset USING btree (ip) WHERE (deleted = 0);
 
 
 --
--- Name: idx_asset_tenant_ip_unique; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_asset_tenant_ip_unique; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_asset_tenant_ip_unique ON public.infra_asset USING btree (tenant_id, ip) WHERE ((deleted = 0) AND (tenant_id IS NOT NULL));
 
 
 --
--- Name: idx_business_app_name; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_business_app_name; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_business_app_name ON public.infra_business_application USING btree (name) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cloud_asset_instance; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_asset_instance; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cloud_asset_instance ON public.infra_cloud_asset USING btree (instance_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cloud_asset_provider; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_asset_provider; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cloud_asset_provider ON public.infra_cloud_asset USING btree (cloud_provider_config_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cloud_asset_tenant_instance_config; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_asset_tenant_instance_config; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_cloud_asset_tenant_instance_config ON public.infra_cloud_asset USING btree (tenant_id, instance_id, cloud_provider_config_id) NULLS NOT DISTINCT WHERE ((tenant_id IS NOT NULL) AND (deleted = 0));
 
 
 --
--- Name: idx_cloud_platform_zone; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_platform_zone; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cloud_platform_zone ON public.infra_cloud_platform USING btree (zone_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cloud_provider_config_platform; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_provider_config_platform; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cloud_provider_config_platform ON public.infra_cloud_provider_config USING btree (platform_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cloud_provider_config_zone; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_provider_config_zone; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cloud_provider_config_zone ON public.infra_cloud_provider_config USING btree (zone_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cloud_resource_customer; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_resource_customer; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cloud_resource_customer ON public.infra_cloud_resource USING btree (customer_name) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cloud_resource_region; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_resource_region; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cloud_resource_region ON public.infra_cloud_resource USING btree (cloud_region) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cloud_zone_code; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cloud_zone_code; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cloud_zone_code ON public.infra_cloud_zone USING btree (zone_code) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_attribute_model; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_attribute_model; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_attribute_model ON public.cmdb_attribute USING btree (model_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_attribute_trigger_model; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_attribute_trigger_model; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_attribute_trigger_model ON public.cmdb_attribute_trigger USING btree (model_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_instance_attributes; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_instance_attributes; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_instance_attributes ON public.cmdb_instance USING gin (attributes jsonb_path_ops);
 
 
 --
--- Name: idx_cmdb_instance_model; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_instance_model; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_instance_model ON public.cmdb_instance USING btree (model_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_instance_tenant_model; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_instance_tenant_model; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_instance_tenant_model ON public.cmdb_instance USING btree (tenant_id, model_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_model_code; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_model_code; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_model_code ON public.cmdb_model USING btree (code) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_net_zone_parent; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_net_zone_parent; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_net_zone_parent ON public.cmdb_net_zone USING btree (parent_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_net_zone_tenant_parent; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_net_zone_tenant_parent; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_net_zone_tenant_parent ON public.cmdb_net_zone USING btree (tenant_id, parent_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_relation_source; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_relation_source; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_relation_source ON public.cmdb_relation USING btree (source_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_relation_target; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_relation_target; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_relation_target ON public.cmdb_relation USING btree (target_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_cmdb_relation_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_cmdb_relation_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cmdb_relation_tenant ON public.cmdb_relation USING btree (tenant_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_high_risk_port_rule_identity; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_high_risk_port_rule_identity; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_high_risk_port_rule_identity ON public.infra_high_risk_port_rule USING btree (protocol, port_start, port_end) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_api_access_log_time; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_api_access_log_time; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_api_access_log_time ON public.infra_api_access_log USING btree (create_time DESC) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_api_error_log_status_time; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_api_error_log_status_time; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_api_error_log_status_time ON public.infra_api_error_log USING btree (process_status, create_time DESC) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_application_endpoint_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_application_endpoint_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_application_endpoint_tenant ON public.infra_application_endpoint USING btree (tenant_id, business_application_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_approval_rule_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_approval_rule_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_approval_rule_tenant ON public.infra_approval_rule USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_asset_inventory_application; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_asset_inventory_application; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_asset_inventory_application ON public.infra_asset USING btree (application_name, server_name) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_asset_inventory_org; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_asset_inventory_org; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_asset_inventory_org ON public.infra_asset USING btree (organization_name, business_department) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_asset_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_asset_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_asset_tenant ON public.infra_asset USING btree (tenant_id);
 
 
 --
--- Name: idx_infra_automation_audit_ticket; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_automation_audit_ticket; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_automation_audit_ticket ON public.infra_automation_audit USING btree (tenant_id, ticket_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_automation_config_type; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_automation_config_type; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_infra_automation_config_type ON public.infra_automation_config USING btree (tenant_id, automation_type) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_automation_credential_type; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_automation_credential_type; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_infra_automation_credential_type ON public.infra_automation_credential USING btree (tenant_id, automation_type) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_business_application_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_business_application_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_business_application_tenant ON public.infra_business_application USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_asset_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_asset_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_asset_tenant ON public.infra_cloud_asset USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_platform_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_platform_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_platform_tenant ON public.infra_cloud_platform USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_provider_config_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_provider_config_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_provider_config_tenant ON public.infra_cloud_provider_config USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_resource_application; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_resource_application; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_resource_application ON public.infra_cloud_resource USING btree (tenant_id, application_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_resource_customer; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_resource_customer; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_resource_customer ON public.infra_cloud_resource USING btree (tenant_id, customer_user_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_resource_platform; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_resource_platform; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_resource_platform ON public.infra_cloud_resource USING btree (tenant_id, cloud_platform_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_resource_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_resource_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_resource_tenant ON public.infra_cloud_resource USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_zone_provider; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_zone_provider; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_zone_provider ON public.infra_cloud_zone USING btree (tenant_id, provider_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_cloud_zone_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_cloud_zone_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_cloud_zone_tenant ON public.infra_cloud_zone USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_codegen_column_table; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_codegen_column_table; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_codegen_column_table ON public.infra_codegen_column USING btree (table_id, ordinal_position, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_inspection_baseline_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_inspection_baseline_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_inspection_baseline_tenant ON public.infra_inspection_baseline USING btree (tenant_id);
 
 
 --
--- Name: idx_infra_inspection_result_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_inspection_result_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_inspection_result_tenant ON public.infra_inspection_result USING btree (tenant_id);
 
 
 --
--- Name: idx_infra_job_active; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_job_active; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_job_active ON public.infra_job USING btree (status, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_job_log_job_time; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_job_log_job_time; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_job_log_job_time ON public.infra_job_log USING btree (job_id, create_time DESC) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_machine_room_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_machine_room_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_machine_room_tenant ON public.infra_machine_room USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_machine_room_zone; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_machine_room_zone; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_machine_room_zone ON public.infra_machine_room USING btree (tenant_id, zone_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_network_policy_application; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_network_policy_application; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_network_policy_application ON public.infra_network_policy USING btree (tenant_id, application_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_network_policy_application_date; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_network_policy_application_date; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_network_policy_application_date ON public.infra_network_policy USING btree (application_date DESC) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_network_policy_dest_ip; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_network_policy_dest_ip; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_network_policy_dest_ip ON public.infra_network_policy USING btree (destination_ip) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_network_policy_endpoints; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_network_policy_endpoints; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_network_policy_endpoints ON public.infra_network_policy USING btree (source_ip, destination_ip) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_network_policy_source_ip; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_network_policy_source_ip; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_network_policy_source_ip ON public.infra_network_policy USING btree (source_ip) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_network_policy_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_network_policy_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_network_policy_tenant ON public.infra_network_policy USING btree (tenant_id);
 
 
 --
--- Name: idx_infra_network_zone_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_network_zone_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_network_zone_tenant ON public.infra_network_zone USING btree (tenant_id, priority, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_physical_resource_application; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_physical_resource_application; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_physical_resource_application ON public.infra_physical_resource USING btree (tenant_id, application_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_physical_resource_customer; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_physical_resource_customer; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_physical_resource_customer ON public.infra_physical_resource USING btree (tenant_id, customer_user_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_physical_resource_platform; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_physical_resource_platform; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_physical_resource_platform ON public.infra_physical_resource USING btree (tenant_id, cloud_platform_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_physical_resource_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_physical_resource_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_physical_resource_tenant ON public.infra_physical_resource USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_resource_ticket_applicant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_resource_ticket_applicant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_resource_ticket_applicant ON public.infra_resource_ticket USING btree (tenant_id, applicant_user_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_resource_ticket_application; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_resource_ticket_application; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_resource_ticket_application ON public.infra_resource_ticket USING btree (tenant_id, application_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_resource_ticket_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_resource_ticket_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_resource_ticket_tenant ON public.infra_resource_ticket USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_risk_policy_source; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_risk_policy_source; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_risk_policy_source ON public.infra_risk USING btree (tenant_id, source_type, source_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_risk_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_risk_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_risk_tenant ON public.infra_risk USING btree (tenant_id);
 
 
 --
--- Name: idx_infra_security_product_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_security_product_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_security_product_tenant ON public.infra_security_product USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_service_provider_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_service_provider_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_service_provider_tenant ON public.infra_service_provider USING btree (tenant_id, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_infra_task_expired_lease; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_task_expired_lease; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_task_expired_lease ON public.infra_task USING btree (lease_expires_at) WHERE ((deleted = 0) AND ((status)::text = 'running'::text));
 
 
 --
--- Name: idx_infra_task_tenant; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_task_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_task_tenant ON public.infra_task USING btree (tenant_id);
 
 
 --
--- Name: idx_infra_task_tenant_idempotency; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_task_tenant_idempotency; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_infra_task_tenant_idempotency ON public.infra_task USING btree (tenant_id, idempotency_key) WHERE ((deleted = 0) AND (idempotency_key IS NOT NULL));
 
 
 --
--- Name: idx_infra_task_worker_queue; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_task_worker_queue; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_task_worker_queue ON public.infra_task USING btree (next_attempt_at, create_time) WHERE ((deleted = 0) AND ((status)::text = ANY ((ARRAY['queued'::character varying, 'retrying'::character varying])::text[])));
 
 
 --
--- Name: idx_infra_ticket_attachment_ticket; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_infra_ticket_attachment_ticket; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_infra_ticket_attachment_ticket ON public.infra_resource_ticket_attachment USING btree (tenant_id, ticket_id, kind, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_inspection_baseline_tenant_ip; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_inspection_baseline_tenant_ip; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_inspection_baseline_tenant_ip ON public.infra_inspection_baseline USING btree (tenant_id, ip) NULLS NOT DISTINCT;
 
 
 --
--- Name: idx_inspection_result_task; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_inspection_result_task; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_inspection_result_task ON public.infra_inspection_result USING btree (task_id);
 
 
 --
--- Name: idx_machine_room_code; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_machine_room_code; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_machine_room_code ON public.infra_machine_room USING btree (room_code) WHERE (deleted = 0);
 
 
 --
--- Name: idx_network_zone_name; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_network_zone_name; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_network_zone_name ON public.infra_network_zone USING btree (name) WHERE (deleted = 0);
 
 
 --
--- Name: idx_physical_resource_customer; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_physical_resource_customer; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_physical_resource_customer ON public.infra_physical_resource USING btree (customer_name) WHERE (deleted = 0);
 
 
 --
--- Name: idx_physical_resource_room; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_physical_resource_room; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_physical_resource_room ON public.infra_physical_resource USING btree (machine_room_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_resource_ticket_provider; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_resource_ticket_provider; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_resource_ticket_provider ON public.infra_resource_ticket USING btree (provider_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_resource_ticket_status; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_resource_ticket_status; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_resource_ticket_status ON public.infra_resource_ticket USING btree (ticket_status) WHERE (deleted = 0);
 
 
 --
--- Name: idx_resource_ticket_tenant_idempotency; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_resource_ticket_tenant_idempotency; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_resource_ticket_tenant_idempotency ON public.infra_resource_ticket USING btree (tenant_id, idempotency_key) WHERE ((deleted = 0) AND (idempotency_key IS NOT NULL));
 
 
 --
--- Name: idx_resource_ticket_type; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_resource_ticket_type; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_resource_ticket_type ON public.infra_resource_ticket USING btree (resource_type) WHERE (deleted = 0);
 
 
 --
--- Name: idx_resource_ticket_workflow; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_resource_ticket_workflow; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_resource_ticket_workflow ON public.infra_resource_ticket USING btree (ticket_type, ticket_status) WHERE (deleted = 0);
 
 
 --
--- Name: idx_risk_asset_ip; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_risk_asset_ip; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_risk_asset_ip ON public.infra_risk USING btree (asset_ip) WHERE (deleted = 0);
 
 
 --
--- Name: idx_risk_inspection_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_risk_inspection_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_risk_inspection_key ON public.infra_risk USING btree (tenant_id, inspection_key) WHERE ((deleted = 0) AND (inspection_key IS NOT NULL));
 
 
 --
--- Name: idx_risk_severity; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_risk_severity; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_risk_severity ON public.infra_risk USING btree (severity) WHERE (deleted = 0);
 
 
 --
--- Name: idx_risk_status; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_risk_status; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_risk_status ON public.infra_risk USING btree (status) WHERE (deleted = 0);
 
 
 --
--- Name: idx_security_product_category; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_security_product_category; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_security_product_category ON public.infra_security_product USING btree (category) WHERE (deleted = 0);
 
 
 --
--- Name: idx_security_product_vendor; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_security_product_vendor; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_security_product_vendor ON public.infra_security_product USING btree (vendor) WHERE (deleted = 0);
 
 
 --
--- Name: idx_service_provider_code; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_service_provider_code; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_service_provider_code ON public.infra_service_provider USING btree (provider_code) WHERE (deleted = 0);
 
 
 --
--- Name: idx_system_login_log_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_login_log_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_login_log_01 ON public.system_login_log USING btree (username);
 
 
 --
--- Name: idx_system_login_log_02; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_login_log_02; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_login_log_02 ON public.system_login_log USING btree (create_time);
 
 
 --
--- Name: idx_system_menu_active_menu; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_mcp_api_key_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_system_mcp_api_key_tenant ON public.system_mcp_api_key USING btree (tenant_id, id);
+
+
+--
+-- Name: idx_system_menu_active_menu; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_menu_active_menu ON public.system_menu USING btree (active_menu_id) WHERE ((deleted = 0) AND (active_menu_id IS NOT NULL));
 
 
 --
--- Name: idx_system_menu_tree_active; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_menu_tree_active; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_menu_tree_active ON public.system_menu USING btree (parent_id, sort, id) WHERE ((deleted = 0) AND (status = 0));
 
 
 --
--- Name: idx_system_notify_message_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_notify_message_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_notify_message_01 ON public.system_notify_message USING btree (user_id, user_type, read_status);
 
 
 --
--- Name: idx_system_oauth2_access_token_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_oauth2_access_token_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_oauth2_access_token_01 ON public.system_oauth2_access_token USING btree (md5(access_token));
 
 
 --
--- Name: idx_system_oauth2_access_token_02; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_oauth2_access_token_02; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_oauth2_access_token_02 ON public.system_oauth2_access_token USING btree (refresh_token);
 
 
 --
--- Name: idx_system_oauth2_access_token_active_user; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_oauth2_access_token_active_user; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_oauth2_access_token_active_user ON public.system_oauth2_access_token USING btree (user_id, deleted, expires_time);
 
 
 --
--- Name: idx_system_oauth2_approve_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_oauth2_approve_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_oauth2_approve_01 ON public.system_oauth2_approve USING btree (user_id, user_type, client_id);
 
 
 --
--- Name: idx_system_oauth2_client_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_oauth2_client_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_oauth2_client_01 ON public.system_oauth2_client USING btree (client_id);
 
 
 --
--- Name: idx_system_oauth2_code_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_oauth2_code_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_oauth2_code_01 ON public.system_oauth2_code USING btree (code);
 
 
 --
--- Name: idx_system_oauth2_refresh_token_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_oauth2_refresh_token_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_oauth2_refresh_token_01 ON public.system_oauth2_refresh_token USING btree (refresh_token);
 
 
 --
--- Name: idx_system_operate_log_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_operate_log_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_operate_log_01 ON public.system_operate_log USING btree (user_id);
 
 
 --
--- Name: idx_system_operate_log_02; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_operate_log_02; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_operate_log_02 ON public.system_operate_log USING btree (create_time);
 
 
 --
--- Name: idx_system_role_menu_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_role_menu_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_role_menu_01 ON public.system_role_menu USING btree (role_id);
 
 
 --
--- Name: idx_system_role_menu_active_menu; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_role_menu_active_menu; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_role_menu_active_menu ON public.system_role_menu USING btree (menu_id, role_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_system_role_tenant_active; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_role_tenant_active; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_role_tenant_active ON public.system_role USING btree (tenant_id, status, id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_system_sms_code_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_sms_code_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_sms_code_01 ON public.system_sms_code USING btree (mobile);
 
 
 --
--- Name: idx_system_social_user_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_social_user_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_social_user_01 ON public.system_social_user USING btree (type, openid);
 
 
 --
--- Name: idx_system_social_user_02; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_social_user_02; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_social_user_02 ON public.system_social_user USING btree (type, code, state);
 
 
 --
--- Name: idx_system_social_user_bind_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_social_user_bind_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_social_user_bind_01 ON public.system_social_user_bind USING btree (user_type, social_user_id);
 
 
 --
--- Name: idx_system_user_role_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_user_role_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_user_role_01 ON public.system_user_role USING btree (user_id);
 
 
 --
--- Name: idx_system_user_role_role; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_user_role_role; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_user_role_role ON public.system_user_role USING btree (role_id, user_id) WHERE (deleted = 0);
 
 
 --
--- Name: idx_system_users_01; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_users_01; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_users_01 ON public.system_users USING btree (username);
 
 
 --
--- Name: idx_system_users_02; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_users_02; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_users_02 ON public.system_users USING btree (mobile);
 
 
 --
--- Name: idx_system_users_03; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_users_03; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_users_03 ON public.system_users USING btree (email);
 
 
 --
--- Name: idx_system_users_04; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_system_users_04; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_system_users_04 ON public.system_users USING btree (dept_id);
 
 
 --
--- Name: idx_task_status; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: idx_task_status; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_task_status ON public.infra_task USING btree (status) WHERE (deleted = 0);
 
 
 --
--- Name: infra_automation_audit_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_automation_audit_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX infra_automation_audit_tenant_id_key ON public.infra_automation_audit USING btree (tenant_id, id);
 
 
 --
--- Name: infra_automation_config_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_automation_config_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_automation_config_tenant_id_key ON public.infra_automation_config USING btree (tenant_id, id);
 
 
 --
--- Name: infra_automation_credential_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_automation_credential_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_automation_credential_tenant_id_key ON public.infra_automation_credential USING btree (tenant_id, id);
 
 
 --
--- Name: infra_business_application_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_business_application_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_business_application_tenant_id_key ON public.infra_business_application USING btree (tenant_id, id);
 
 
 --
--- Name: infra_cloud_platform_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_platform_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_cloud_platform_tenant_id_key ON public.infra_cloud_platform USING btree (tenant_id, id);
 
 
 --
--- Name: infra_cloud_provider_config_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_provider_config_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_cloud_provider_config_tenant_id_key ON public.infra_cloud_provider_config USING btree (tenant_id, id);
 
 
 --
--- Name: infra_cloud_zone_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_zone_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_cloud_zone_tenant_id_key ON public.infra_cloud_zone USING btree (tenant_id, id);
 
 
 --
--- Name: infra_machine_room_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_machine_room_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_machine_room_tenant_id_key ON public.infra_machine_room USING btree (tenant_id, id);
 
 
 --
--- Name: infra_network_policy_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_network_policy_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_network_policy_tenant_id_key ON public.infra_network_policy USING btree (tenant_id, id);
 
 
 --
--- Name: infra_network_zone_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_network_zone_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_network_zone_tenant_id_key ON public.infra_network_zone USING btree (tenant_id, id);
 
 
 --
--- Name: infra_resource_ticket_attachment_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_attachment_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_resource_ticket_attachment_tenant_id_key ON public.infra_resource_ticket_attachment USING btree (tenant_id, id);
 
 
 --
--- Name: infra_resource_ticket_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_resource_ticket_tenant_id_key ON public.infra_resource_ticket USING btree (tenant_id, id);
 
 
 --
--- Name: infra_service_provider_tenant_id_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: infra_service_provider_tenant_id_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX infra_service_provider_tenant_id_key ON public.infra_service_provider USING btree (tenant_id, id);
 
 
 --
--- Name: system_users_identity_uuid_key; Type: INDEX; Schema: public; Owner: rustset_test
+-- Name: system_users_identity_uuid_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX system_users_identity_uuid_key ON public.system_users USING btree (identity_uuid);
 
 
 --
--- Name: cmdb_instance cmdb_instance_require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: uk_system_mcp_api_key_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_system_mcp_api_key_hash ON public.system_mcp_api_key USING btree (api_key_hash) WHERE (deleted = 0);
+
+
+--
+-- Name: cmdb_instance cmdb_instance_require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER cmdb_instance_require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.cmdb_instance FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: cmdb_instance cmdb_instance_unique_value_sync; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance cmdb_instance_unique_value_sync; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER cmdb_instance_unique_value_sync AFTER INSERT OR DELETE OR UPDATE OF id, tenant_id, model_id, attributes, deleted ON public.cmdb_instance FOR EACH ROW EXECUTE FUNCTION public.cmdb_sync_instance_unique_value();
 
 
 --
--- Name: cmdb_model cmdb_model_unique_value_sync; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: cmdb_model cmdb_model_unique_value_sync; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER cmdb_model_unique_value_sync AFTER UPDATE OF unique_key ON public.cmdb_model FOR EACH ROW EXECUTE FUNCTION public.cmdb_rebuild_model_unique_values();
 
 
 --
--- Name: cmdb_relation cmdb_relation_require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: cmdb_relation cmdb_relation_require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER cmdb_relation_require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.cmdb_relation FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_resource_ticket infra_ticket_require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket infra_ticket_require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER infra_ticket_require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_resource_ticket FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_application_endpoint require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_application_endpoint require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_application_endpoint FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_approval_rule require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_approval_rule require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_approval_rule FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_asset require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_asset require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_asset FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_business_application require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_business_application require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_business_application FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_cloud_asset require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_asset require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_cloud_asset FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_cloud_platform require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_platform require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_cloud_platform FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_cloud_provider_config require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_provider_config require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_cloud_provider_config FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_cloud_resource require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_cloud_resource FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_cloud_zone require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_zone require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_cloud_zone FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_inspection_baseline require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_inspection_baseline require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_inspection_baseline FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_inspection_result require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_inspection_result require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_inspection_result FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_machine_room require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_machine_room require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_machine_room FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_network_policy require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_network_policy require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_network_policy FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_network_zone require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_network_zone require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_network_zone FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_physical_resource require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_physical_resource FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_resource_ticket_attachment require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_attachment require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_resource_ticket_attachment FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_risk require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_risk require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_risk FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_security_product require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_security_product require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_security_product FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_service_provider require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_service_provider require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_service_provider FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: infra_task require_tenant; Type: TRIGGER; Schema: public; Owner: rustset_test
+-- Name: infra_task require_tenant; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER require_tenant BEFORE INSERT OR UPDATE OF tenant_id ON public.infra_task FOR EACH ROW EXECUTE FUNCTION public.require_resource_tenant();
 
 
 --
--- Name: chat_conversations chat_conversations_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: chat_conversations chat_conversations_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.chat_conversations
@@ -9763,7 +9514,7 @@ ALTER TABLE ONLY ai.chat_conversations
 
 
 --
--- Name: chat_messages chat_messages_conversation_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: chat_messages chat_messages_conversation_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.chat_messages
@@ -9771,7 +9522,7 @@ ALTER TABLE ONLY ai.chat_messages
 
 
 --
--- Name: chat_messages chat_messages_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: chat_messages chat_messages_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.chat_messages
@@ -9779,7 +9530,7 @@ ALTER TABLE ONLY ai.chat_messages
 
 
 --
--- Name: chat_roles chat_roles_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: chat_roles chat_roles_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.chat_roles
@@ -9787,7 +9538,7 @@ ALTER TABLE ONLY ai.chat_roles
 
 
 --
--- Name: images images_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: images images_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.images
@@ -9795,7 +9546,7 @@ ALTER TABLE ONLY ai.images
 
 
 --
--- Name: images images_parent_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: images images_parent_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.images
@@ -9803,7 +9554,7 @@ ALTER TABLE ONLY ai.images
 
 
 --
--- Name: knowledge_bases knowledge_bases_embedding_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: knowledge_bases knowledge_bases_embedding_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.knowledge_bases
@@ -9811,7 +9562,7 @@ ALTER TABLE ONLY ai.knowledge_bases
 
 
 --
--- Name: knowledge_documents knowledge_documents_knowledge_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: knowledge_documents knowledge_documents_knowledge_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.knowledge_documents
@@ -9819,7 +9570,7 @@ ALTER TABLE ONLY ai.knowledge_documents
 
 
 --
--- Name: knowledge_segments knowledge_segments_document_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: knowledge_segments knowledge_segments_document_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.knowledge_segments
@@ -9827,7 +9578,7 @@ ALTER TABLE ONLY ai.knowledge_segments
 
 
 --
--- Name: knowledge_segments knowledge_segments_knowledge_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: knowledge_segments knowledge_segments_knowledge_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.knowledge_segments
@@ -9835,7 +9586,7 @@ ALTER TABLE ONLY ai.knowledge_segments
 
 
 --
--- Name: model_catalog model_catalog_platform_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: model_catalog model_catalog_platform_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.model_catalog
@@ -9843,7 +9594,7 @@ ALTER TABLE ONLY ai.model_catalog
 
 
 --
--- Name: music music_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: music music_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.music
@@ -9851,7 +9602,7 @@ ALTER TABLE ONLY ai.music
 
 
 --
--- Name: writes writes_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: rustset_test
+-- Name: writes writes_model_id_fkey; Type: FK CONSTRAINT; Schema: ai; Owner: -
 --
 
 ALTER TABLE ONLY ai.writes
@@ -9859,7 +9610,7 @@ ALTER TABLE ONLY ai.writes
 
 
 --
--- Name: cmdb_instance cmdb_instance_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance cmdb_instance_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_instance
@@ -9867,7 +9618,7 @@ ALTER TABLE ONLY public.cmdb_instance
 
 
 --
--- Name: cmdb_instance_unique_value cmdb_instance_unique_value_instance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance_unique_value cmdb_instance_unique_value_instance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_instance_unique_value
@@ -9875,7 +9626,7 @@ ALTER TABLE ONLY public.cmdb_instance_unique_value
 
 
 --
--- Name: cmdb_instance_unique_value cmdb_instance_unique_value_model_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_instance_unique_value cmdb_instance_unique_value_model_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_instance_unique_value
@@ -9883,7 +9634,7 @@ ALTER TABLE ONLY public.cmdb_instance_unique_value
 
 
 --
--- Name: cmdb_relation cmdb_relation_source_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_relation cmdb_relation_source_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_relation
@@ -9891,7 +9642,7 @@ ALTER TABLE ONLY public.cmdb_relation
 
 
 --
--- Name: cmdb_relation cmdb_relation_target_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_relation cmdb_relation_target_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_relation
@@ -9899,7 +9650,7 @@ ALTER TABLE ONLY public.cmdb_relation
 
 
 --
--- Name: cmdb_relation cmdb_relation_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: cmdb_relation cmdb_relation_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cmdb_relation
@@ -9907,7 +9658,7 @@ ALTER TABLE ONLY public.cmdb_relation
 
 
 --
--- Name: infra_application_endpoint infra_application_endpoint_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_application_endpoint infra_application_endpoint_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_application_endpoint
@@ -9915,7 +9666,7 @@ ALTER TABLE ONLY public.infra_application_endpoint
 
 
 --
--- Name: infra_approval_rule infra_approval_rule_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_approval_rule infra_approval_rule_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_approval_rule
@@ -9923,7 +9674,7 @@ ALTER TABLE ONLY public.infra_approval_rule
 
 
 --
--- Name: infra_asset infra_asset_net_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_asset infra_asset_net_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_asset
@@ -9931,7 +9682,7 @@ ALTER TABLE ONLY public.infra_asset
 
 
 --
--- Name: infra_asset infra_asset_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_asset infra_asset_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_asset
@@ -9939,7 +9690,7 @@ ALTER TABLE ONLY public.infra_asset
 
 
 --
--- Name: infra_business_application infra_business_application_owner_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_business_application infra_business_application_owner_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_business_application
@@ -9947,7 +9698,7 @@ ALTER TABLE ONLY public.infra_business_application
 
 
 --
--- Name: infra_business_application infra_business_application_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_business_application infra_business_application_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_business_application
@@ -9955,7 +9706,7 @@ ALTER TABLE ONLY public.infra_business_application
 
 
 --
--- Name: infra_cloud_asset infra_cloud_asset_config_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_asset infra_cloud_asset_config_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_asset
@@ -9963,7 +9714,7 @@ ALTER TABLE ONLY public.infra_cloud_asset
 
 
 --
--- Name: infra_cloud_asset infra_cloud_asset_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_asset infra_cloud_asset_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_asset
@@ -9971,7 +9722,7 @@ ALTER TABLE ONLY public.infra_cloud_asset
 
 
 --
--- Name: infra_cloud_provider_config infra_cloud_config_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_provider_config infra_cloud_config_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_provider_config
@@ -9979,7 +9730,7 @@ ALTER TABLE ONLY public.infra_cloud_provider_config
 
 
 --
--- Name: infra_cloud_provider_config infra_cloud_config_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_provider_config infra_cloud_config_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_provider_config
@@ -9987,7 +9738,7 @@ ALTER TABLE ONLY public.infra_cloud_provider_config
 
 
 --
--- Name: infra_cloud_platform infra_cloud_platform_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_platform infra_cloud_platform_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_platform
@@ -9995,7 +9746,7 @@ ALTER TABLE ONLY public.infra_cloud_platform
 
 
 --
--- Name: infra_cloud_platform infra_cloud_platform_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_platform infra_cloud_platform_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_platform
@@ -10003,7 +9754,7 @@ ALTER TABLE ONLY public.infra_cloud_platform
 
 
 --
--- Name: infra_cloud_provider_config infra_cloud_provider_config_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_provider_config infra_cloud_provider_config_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_provider_config
@@ -10011,7 +9762,7 @@ ALTER TABLE ONLY public.infra_cloud_provider_config
 
 
 --
--- Name: infra_cloud_resource infra_cloud_resource_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource infra_cloud_resource_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_resource
@@ -10019,7 +9770,7 @@ ALTER TABLE ONLY public.infra_cloud_resource
 
 
 --
--- Name: infra_cloud_resource infra_cloud_resource_config_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource infra_cloud_resource_config_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_resource
@@ -10027,7 +9778,7 @@ ALTER TABLE ONLY public.infra_cloud_resource
 
 
 --
--- Name: infra_cloud_resource infra_cloud_resource_customer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource infra_cloud_resource_customer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_resource
@@ -10035,7 +9786,7 @@ ALTER TABLE ONLY public.infra_cloud_resource
 
 
 --
--- Name: infra_cloud_resource infra_cloud_resource_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource infra_cloud_resource_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_resource
@@ -10043,7 +9794,7 @@ ALTER TABLE ONLY public.infra_cloud_resource
 
 
 --
--- Name: infra_cloud_resource infra_cloud_resource_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_resource infra_cloud_resource_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_resource
@@ -10051,7 +9802,7 @@ ALTER TABLE ONLY public.infra_cloud_resource
 
 
 --
--- Name: infra_cloud_zone infra_cloud_zone_provider_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_zone infra_cloud_zone_provider_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_zone
@@ -10059,7 +9810,7 @@ ALTER TABLE ONLY public.infra_cloud_zone
 
 
 --
--- Name: infra_cloud_zone infra_cloud_zone_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_cloud_zone infra_cloud_zone_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_cloud_zone
@@ -10067,7 +9818,7 @@ ALTER TABLE ONLY public.infra_cloud_zone
 
 
 --
--- Name: infra_application_endpoint infra_endpoint_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_application_endpoint infra_endpoint_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_application_endpoint
@@ -10075,7 +9826,7 @@ ALTER TABLE ONLY public.infra_application_endpoint
 
 
 --
--- Name: infra_inspection_baseline infra_inspection_baseline_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_inspection_baseline infra_inspection_baseline_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_inspection_baseline
@@ -10083,7 +9834,7 @@ ALTER TABLE ONLY public.infra_inspection_baseline
 
 
 --
--- Name: infra_inspection_result infra_inspection_result_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_inspection_result infra_inspection_result_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_inspection_result
@@ -10091,7 +9842,7 @@ ALTER TABLE ONLY public.infra_inspection_result
 
 
 --
--- Name: infra_machine_room infra_machine_room_cloud_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_machine_room infra_machine_room_cloud_zone_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_machine_room
@@ -10099,7 +9850,7 @@ ALTER TABLE ONLY public.infra_machine_room
 
 
 --
--- Name: infra_machine_room infra_machine_room_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_machine_room infra_machine_room_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_machine_room
@@ -10107,7 +9858,7 @@ ALTER TABLE ONLY public.infra_machine_room
 
 
 --
--- Name: infra_network_policy infra_network_policy_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_network_policy infra_network_policy_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_network_policy
@@ -10115,7 +9866,7 @@ ALTER TABLE ONLY public.infra_network_policy
 
 
 --
--- Name: infra_network_policy infra_network_policy_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_network_policy infra_network_policy_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_network_policy
@@ -10123,7 +9874,7 @@ ALTER TABLE ONLY public.infra_network_policy
 
 
 --
--- Name: infra_network_zone infra_network_zone_cloud_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_network_zone infra_network_zone_cloud_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_network_zone
@@ -10131,7 +9882,7 @@ ALTER TABLE ONLY public.infra_network_zone
 
 
 --
--- Name: infra_network_zone infra_network_zone_machine_room_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_network_zone infra_network_zone_machine_room_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_network_zone
@@ -10139,7 +9890,7 @@ ALTER TABLE ONLY public.infra_network_zone
 
 
 --
--- Name: infra_network_zone infra_network_zone_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_network_zone infra_network_zone_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_network_zone
@@ -10147,7 +9898,7 @@ ALTER TABLE ONLY public.infra_network_zone
 
 
 --
--- Name: infra_physical_resource infra_physical_resource_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource infra_physical_resource_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_physical_resource
@@ -10155,7 +9906,7 @@ ALTER TABLE ONLY public.infra_physical_resource
 
 
 --
--- Name: infra_physical_resource infra_physical_resource_customer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource infra_physical_resource_customer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_physical_resource
@@ -10163,7 +9914,7 @@ ALTER TABLE ONLY public.infra_physical_resource
 
 
 --
--- Name: infra_physical_resource infra_physical_resource_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource infra_physical_resource_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_physical_resource
@@ -10171,7 +9922,7 @@ ALTER TABLE ONLY public.infra_physical_resource
 
 
 --
--- Name: infra_physical_resource infra_physical_resource_room_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource infra_physical_resource_room_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_physical_resource
@@ -10179,7 +9930,7 @@ ALTER TABLE ONLY public.infra_physical_resource
 
 
 --
--- Name: infra_physical_resource infra_physical_resource_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_physical_resource infra_physical_resource_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_physical_resource
@@ -10187,7 +9938,7 @@ ALTER TABLE ONLY public.infra_physical_resource
 
 
 --
--- Name: infra_resource_ticket infra_resource_ticket_applicant_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket infra_resource_ticket_applicant_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_resource_ticket
@@ -10195,7 +9946,7 @@ ALTER TABLE ONLY public.infra_resource_ticket
 
 
 --
--- Name: infra_resource_ticket_attachment infra_resource_ticket_attachment_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_attachment infra_resource_ticket_attachment_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_resource_ticket_attachment
@@ -10203,7 +9954,7 @@ ALTER TABLE ONLY public.infra_resource_ticket_attachment
 
 
 --
--- Name: infra_resource_ticket infra_resource_ticket_customer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket infra_resource_ticket_customer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_resource_ticket
@@ -10211,7 +9962,7 @@ ALTER TABLE ONLY public.infra_resource_ticket
 
 
 --
--- Name: infra_resource_ticket infra_resource_ticket_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket infra_resource_ticket_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_resource_ticket
@@ -10219,7 +9970,7 @@ ALTER TABLE ONLY public.infra_resource_ticket
 
 
 --
--- Name: infra_risk infra_risk_high_risk_rule_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_risk infra_risk_high_risk_rule_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_risk
@@ -10227,7 +9978,7 @@ ALTER TABLE ONLY public.infra_risk
 
 
 --
--- Name: infra_risk infra_risk_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_risk infra_risk_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_risk
@@ -10235,7 +9986,7 @@ ALTER TABLE ONLY public.infra_risk
 
 
 --
--- Name: infra_security_product infra_security_cloud_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_security_product infra_security_cloud_platform_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_security_product
@@ -10243,7 +9994,7 @@ ALTER TABLE ONLY public.infra_security_product
 
 
 --
--- Name: infra_security_product infra_security_machine_room_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_security_product infra_security_machine_room_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_security_product
@@ -10251,7 +10002,7 @@ ALTER TABLE ONLY public.infra_security_product
 
 
 --
--- Name: infra_security_product infra_security_product_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_security_product infra_security_product_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_security_product
@@ -10259,7 +10010,7 @@ ALTER TABLE ONLY public.infra_security_product
 
 
 --
--- Name: infra_security_product infra_security_provider_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_security_product infra_security_provider_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_security_product
@@ -10267,7 +10018,7 @@ ALTER TABLE ONLY public.infra_security_product
 
 
 --
--- Name: infra_service_provider infra_service_provider_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_service_provider infra_service_provider_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_service_provider
@@ -10275,7 +10026,7 @@ ALTER TABLE ONLY public.infra_service_provider
 
 
 --
--- Name: infra_task infra_task_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_task infra_task_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_task
@@ -10283,7 +10034,7 @@ ALTER TABLE ONLY public.infra_task
 
 
 --
--- Name: infra_resource_ticket infra_ticket_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket infra_ticket_application_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_resource_ticket
@@ -10291,7 +10042,7 @@ ALTER TABLE ONLY public.infra_resource_ticket
 
 
 --
--- Name: infra_resource_ticket_attachment infra_ticket_attachment_ticket_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: rustset_test
+-- Name: infra_resource_ticket_attachment infra_ticket_attachment_ticket_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.infra_resource_ticket_attachment
@@ -10302,5 +10053,5 @@ ALTER TABLE ONLY public.infra_resource_ticket_attachment
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JG9JgwS85t144Jq5TRByG3rUM0Q47yCtgv1COnTHAJWxfnEdCOflZUtLT0oB4Xy
+\unrestrict 57wPQPeCidwdZwzew4uZWso0H6ROZZNrY6LCPmrtIs81MVFawA8GHydLFS8k6xz
 

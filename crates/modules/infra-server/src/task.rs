@@ -17,7 +17,7 @@ use rustset_infra_api::{
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-pub(crate) mod repository;
+pub mod repository;
 pub(crate) mod worker;
 
 pub(crate) fn start_worker(pool: DbPool) {

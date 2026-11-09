@@ -2,7 +2,8 @@
 //! relations in `relation.rs`.
 
 mod instance;
-mod instance_service;
+// instance_service 供 mcp-server 复用查询函数（对外 MCP 工具）。
+pub mod instance_service;
 mod net_zone;
 mod relation;
 mod trigger;
@@ -206,14 +207,32 @@ async fn model_page(
     Query(params): Query<ModelPageParams>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     require(&user, "cmdb:model:query")?;
-    let (size, offset) = page_bounds(params.page_no, params.page_size);
-    let pattern = model_keyword_pattern(&params.keyword);
+    let result = page_models(
+        &state.pool,
+        params.keyword.as_deref(),
+        params.page_no,
+        params.page_size,
+    )
+    .await?;
+    Ok(Json(ApiResponse::new(result)))
+}
+
+/// 模型关键词分页（HTTP 处理器与 mcp-server 工具共用）。
+pub async fn page_models(
+    pool: &DbPool,
+    keyword: Option<&str>,
+    page_no: Option<i64>,
+    page_size: Option<i64>,
+) -> Result<Value, AppError> {
+    let (size, offset) = page_bounds(page_no, page_size);
+    let owned_keyword = keyword.map(str::to_string);
+    let pattern = model_keyword_pattern(&owned_keyword);
     let total: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM cmdb_model m
          WHERE m.deleted = 0 AND ($1::text IS NULL OR UPPER(m.name) LIKE UPPER($1) OR UPPER(m.code) LIKE UPPER($1))",
     )
     .bind(&pattern)
-    .fetch_one(&state.pool)
+    .fetch_one(pool)
     .await
     .map_err(|_| AppError::internal("failed to count models"))?;
     let rows = sqlx::query(
@@ -230,13 +249,11 @@ async fn model_page(
     .bind(&pattern)
     .bind(size)
     .bind(offset)
-    .fetch_all(&state.pool)
+    .fetch_all(pool)
     .await
     .map_err(|_| AppError::internal("failed to read models"))?;
     let list: Vec<_> = rows.iter().map(model_row).collect();
-    Ok(Json(ApiResponse::new(
-        json!({ "list": list, "total": total }),
-    )))
+    Ok(json!({ "list": list, "total": total }))
 }
 
 async fn model_get(

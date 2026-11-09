@@ -3,7 +3,7 @@ use super::*;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 
-pub(super) async fn get(
+pub async fn get(
     pool: &DbPool,
     spec: TableSpec,
     tenant: &TenantContext,
@@ -22,12 +22,13 @@ pub(super) async fn get(
     Ok(crate::table_value(value))
 }
 
-pub(super) async fn page(
+/// 纯数据分页查询（HTTP 处理器与 mcp-server 工具共用）。
+pub async fn page_data(
     pool: &DbPool,
     spec: TableSpec,
     tenant: &TenantContext,
     params: QueryParams,
-) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+) -> Result<crate::Page<Value>, AppError> {
     let size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (params.page_no.unwrap_or(1).max(1) - 1).saturating_mul(size);
     let total = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
@@ -41,7 +42,18 @@ pub(super) async fn page(
     let list = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(format!("SELECT to_jsonb(t) FROM {table} t WHERE tenant_id=$1 AND deleted=0 ORDER BY id DESC LIMIT $2 OFFSET $3", table=spec.table)))
         .bind(tenant.id()).bind(size).bind(offset).fetch_all(pool).await
         .map_err(|_| AppError::internal("failed to list records"))?.into_iter().map(crate::table_value).collect();
-    Ok(Json(ApiResponse::new(crate::Page { list, total })))
+    Ok(crate::Page { list, total })
+}
+
+pub(super) async fn page(
+    pool: &DbPool,
+    spec: TableSpec,
+    tenant: &TenantContext,
+    params: QueryParams,
+) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+    Ok(Json(ApiResponse::new(
+        page_data(pool, spec, tenant, params).await?,
+    )))
 }
 
 pub(super) async fn create(

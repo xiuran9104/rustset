@@ -150,3 +150,10 @@ bun run --cwd apps/web build:antd
 - SSE 到前端后一次性出现：关闭 Nginx/Ingress 的响应缓冲并增加读取超时。
 - AI 任务一直处理中：检查模型配置的任务查询路径、鉴权头和供应商任务 ID；可调用 `/poll` 接口立即同步。
 - 前端请求 404：确认 RustSet 管理端 API 基址或 Nginx `/api/` 转发是否去掉了正确的前缀。
+
+## 对外 MCP 服务
+
+网关默认在 `POST /mcp` 暴露 MCP（Model Context Protocol）服务，供 Claude Code、
+Cursor 等外部 AI 客户端调用资产/CMDB/风险/任务/工单查询与 AI 对话工具。
+密钥在管理端"基础设置 → MCP 服务"创建（绑定用户，权限与租户随该用户），
+`MCP_ENABLED=0` 可整体关闭。详见 [MCP 服务文档](mcp-service.md)。

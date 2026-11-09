@@ -1,6 +1,6 @@
 mod expiry;
 mod provisioning;
-mod repository;
+pub mod repository;
 pub(crate) use provisioning::load_platform_target;
 
 use rustset_framework_database::{DbPool};

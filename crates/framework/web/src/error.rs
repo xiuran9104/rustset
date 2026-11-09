@@ -25,6 +25,11 @@ impl AppError {
         &self.message
     }
 
+    /// HTTP status the error will render with (callers may branch on it).
+    pub fn status_code(&self) -> StatusCode {
+        self.status
+    }
+
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, 400, message)
     }

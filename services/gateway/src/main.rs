@@ -162,9 +162,9 @@ async fn main() -> anyhow::Result<()> {
         .api_route("/", get(index))
         // 文档端点自身不进文档。
         .route("/openapi.json", get(openapi::document))
-        .merge(rustset_system_server::routes(system_state))
+        .merge(rustset_system_server::routes(system_state.clone()))
         .merge(rustset_infra_server::routes(infra_state))
-        .merge(rustset_ai_server::routes(ai_state))
+        .merge(rustset_ai_server::routes(ai_state.clone()))
         .merge(rustset_cmdb_server::routes(cmdb_state))
         .finish_api(&mut api_doc);
 
@@ -222,6 +222,19 @@ async fn main() -> anyhow::Result<()> {
             database_auth,
             rustset_system_server::authenticate_from_database,
         ));
+
+    // 对外 MCP 服务（Streamable HTTP，JSON-RPC；不进 OpenAPI 文档）。
+    // 鉴权独立于 JWT：Authorization: Bearer mcp_... 由路由内校验，
+    // database_auth 已对 mcp_ 前缀令牌放行。
+    if env_bool("MCP_ENABLED", true) {
+        let mcp_state = rustset_mcp_server::McpState::new(
+            database.clone(),
+            system_state.clone(),
+            ai_state.clone(),
+        );
+        app = app.merge(rustset_mcp_server::routes(mcp_state));
+        tracing::info!("MCP service enabled at POST /mcp (api-key auth)");
+    }
 
     if let Some(redis) = rate_limit_redis {
         app = app.layer(from_fn_with_state(

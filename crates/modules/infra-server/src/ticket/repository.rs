@@ -6,7 +6,7 @@ use super::*;
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_database::{BindIn, DbPool, expand_in_placeholders};
 
-pub(super) async fn get(pool: &DbPool, tenant: &TenantContext, id: i64) -> Result<Value, AppError> {
+pub async fn get(pool: &DbPool, tenant: &TenantContext, id: i64) -> Result<Value, AppError> {
     let value = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_resource_ticket t WHERE id=$1 AND tenant_id=$2 AND deleted=0")
         .bind(id).bind(tenant.id()).fetch_optional(pool).await
         .map_err(|_| AppError::internal("failed to read ticket"))?
@@ -14,11 +14,12 @@ pub(super) async fn get(pool: &DbPool, tenant: &TenantContext, id: i64) -> Resul
     Ok(crate::table_value(value))
 }
 
-pub(super) async fn page(
+/// 纯数据分页（HTTP 处理器与 mcp-server 工具共用）。
+pub async fn page_data(
     pool: &DbPool,
     tenant: &TenantContext,
     params: QueryParams,
-) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+) -> Result<crate::Page<Value>, AppError> {
     let size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (params.page_no.unwrap_or(1).max(1) - 1).saturating_mul(size);
     let total = sqlx::query_scalar(
@@ -31,7 +32,17 @@ pub(super) async fn page(
     let list = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_resource_ticket t WHERE tenant_id=$1 AND deleted=0 ORDER BY id DESC LIMIT $2 OFFSET $3")
         .bind(tenant.id()).bind(size).bind(offset).fetch_all(pool).await
         .map_err(|_| AppError::internal("failed to list tickets"))?.into_iter().map(crate::table_value).collect();
-    Ok(Json(ApiResponse::new(crate::Page { list, total })))
+    Ok(crate::Page { list, total })
+}
+
+pub(super) async fn page(
+    pool: &DbPool,
+    tenant: &TenantContext,
+    params: QueryParams,
+) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+    Ok(Json(ApiResponse::new(
+        page_data(pool, tenant, params).await?,
+    )))
 }
 
 pub(super) async fn create(

@@ -28,6 +28,17 @@ async fn page(
     Query(p): Query<QueryParams>,
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
+    Ok(Json(ApiResponse::new(
+        page_data(&s.pool, &tenant, p).await?,
+    )))
+}
+
+/// 纯数据分页（HTTP 处理器与 mcp-server 工具共用）。
+pub async fn page_data(
+    pool: &rustset_framework_database::DbPool,
+    tenant: &TenantContext,
+    p: QueryParams,
+) -> Result<crate::Page<Value>, AppError> {
     let pn = p.page_no.unwrap_or(1).max(1);
     let ps = p.page_size.unwrap_or(10).clamp(1, 200);
     let off = (pn - 1) * ps;
@@ -35,11 +46,11 @@ async fn page(
         "SELECT count(*) FROM infra_risk WHERE tenant_id=$1 AND deleted=0",
     )
     .bind(tenant.id())
-    .fetch_one(&s.pool)
+    .fetch_one(pool)
     .await
     .map_err(|_| AppError::internal("failed"))?;
-    let list = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_risk t WHERE tenant_id=$3 AND deleted=0 ORDER BY create_time DESC LIMIT $1 OFFSET $2").bind(ps).bind(off).bind(tenant.id()).fetch_all(&s.pool).await.map_err(|_| AppError::internal("failed"))?.into_iter().map(crate::table_value).collect();
-    Ok(Json(ApiResponse::new(crate::Page { list, total })))
+    let list = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_risk t WHERE tenant_id=$3 AND deleted=0 ORDER BY create_time DESC LIMIT $1 OFFSET $2").bind(ps).bind(off).bind(tenant.id()).fetch_all(pool).await.map_err(|_| AppError::internal("failed"))?.into_iter().map(crate::table_value).collect();
+    Ok(crate::Page { list, total })
 }
 
 async fn list(

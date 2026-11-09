@@ -39,6 +39,11 @@ pub async fn authenticate_from_database(
     let token = authorization
         .strip_prefix("Bearer ")
         .ok_or(SecurityError::InvalidCredentials)?;
+    // MCP API Key（mcp_ 前缀）不是 JWT，由 /mcp 路由内的密钥鉴权接管；
+    // 这里必须放行，否则网关层会先以 JWT 校验拒绝外部 MCP 客户端。
+    if token.starts_with("mcp_") {
+        return Ok(next.run(request).await);
+    }
     let claims = auth.state.tokens.verify_access_token(token)?;
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| SecurityError::InvalidCredentials)?;
 

@@ -19,6 +19,7 @@ members = [
     "crates/modules/ai-server",
     "crates/modules/system-api",
     "crates/modules/system-server",
+    "crates/modules/mcp-server",
     "services/gateway",
     "script/sql-translate",
 ]
@@ -67,6 +68,7 @@ rustset-cmdb-server = { path = "crates/modules/cmdb-server" }
 rustset-ai-server = { path = "crates/modules/ai-server" }
 rustset-system-api = { path = "crates/modules/system-api" }
 rustset-system-server = { path = "crates/modules/system-server" }
+rustset-mcp-server = { path = "crates/modules/mcp-server" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 csv = "1.4"
@@ -74,6 +76,7 @@ sha2 = "0.10"
 sqlx = { version = "0.9", default-features = false, features = ["chrono", "macros", "migrate", "postgres", "runtime-tokio", "tls-rustls", "uuid"] }
 tokio = { version = "1.44", features = ["macros", "rt-multi-thread", "signal"] }
 tower = "0.5"
+http-body-util = "0.1"
 tower-http = { version = "0.6", features = ["cors", "request-id", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }

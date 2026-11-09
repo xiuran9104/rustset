@@ -5,6 +5,7 @@ mod cache;
 mod database_auth;
 mod infrastructure;
 mod management;
+mod mcp;
 mod oauth2_token;
 mod transport;
 
@@ -44,4 +45,5 @@ impl SystemState {
 }
 
 pub use database_auth::{DatabaseAuthState, authenticate_from_database};
+pub use mcp::{authenticate_mcp_key, sha256_hex};
 pub use transport::routes;

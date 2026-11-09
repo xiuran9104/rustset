@@ -46,14 +46,14 @@ fn response(row: PgRow) -> ScanTaskResponse {
     }
 }
 
-pub(crate) async fn count(pool: &DbPool, tenant_id: i64) -> Result<i64, sqlx::Error> {
+pub async fn count(pool: &DbPool, tenant_id: i64) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar("SELECT count(*) FROM infra_task WHERE tenant_id=$1 AND deleted=0")
         .bind(tenant_id)
         .fetch_one(pool)
         .await
 }
 
-pub(crate) async fn page(
+pub async fn page(
     pool: &DbPool,
     tenant_id: i64,
     limit: i64,
@@ -99,7 +99,7 @@ pub(crate) async fn list_kind(
         .map(|rows| rows.into_iter().map(response).collect())
 }
 
-pub(crate) async fn get(
+pub async fn get(
     pool: &DbPool,
     tenant_id: i64,
     id: &str,

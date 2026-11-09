@@ -1,4 +1,5 @@
-mod chat;
+// chat 供 mcp-server 复用 dispatch_send（对外 MCP 工具）。
+pub mod chat;
 mod chat_role;
 mod factory;
 mod knowledge;
@@ -133,15 +134,23 @@ async fn simple_list(
     Query(query): Query<SimpleListQuery>,
 ) -> Result<Json<ApiResponse<Vec<ModelConfig>>>, AppError> {
     require(&user, "ai:model:query")?;
-    let type_filter = query.type_.as_deref().and_then(normalize_type);
+    let rows = enabled_models(&state.pool, query.type_.as_deref()).await?;
+    Ok(Json(ApiResponse::new(rows)))
+}
+
+/// 启用中的模型列表（HTTP 处理器与 mcp-server 工具共用）。
+/// 注意：返回值含 api_key 明文，仅供服务端使用；对外输出前必须过滤。
+pub async fn enabled_models(
+    pool: &rustset_framework_database::DbPool,
+    type_filter_raw: Option<&str>,
+) -> Result<Vec<ModelConfig>, AppError> {
+    let type_filter = type_filter_raw.and_then(normalize_type);
     let rows = sqlx::query("SELECT id,name,key,platform,type,model,api_key,url,status,config FROM ai.model_configs WHERE status=0 AND ($1::text IS NULL OR type=$1) ORDER BY name,id")
         .bind(type_filter)
-        .fetch_all(&state.pool)
+        .fetch_all(pool)
         .await
         .map_err(|_| AppError::internal("failed to list AI models"))?;
-    Ok(Json(ApiResponse::new(
-        rows.into_iter().map(row_model).collect(),
-    )))
+    Ok(rows.into_iter().map(row_model).collect())
 }
 fn row_model(row: sqlx::postgres::PgRow) -> ModelConfig {
     ModelConfig {

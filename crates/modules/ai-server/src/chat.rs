@@ -97,13 +97,41 @@ struct PageQuery {
 }
 #[derive(Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-struct SendRequest {
+pub struct SendRequest {
     conversation_id: i64,
     content: String,
     use_context: Option<bool>,
     use_search: Option<bool>,
     #[serde(default)]
     attachment_urls: Vec<String>,
+}
+
+impl SendRequest {
+    /// MCP 等外部调用入口：不指定对话（conversationId=0 表示自动创建）。
+    pub fn auto(content: String, use_context: Option<bool>) -> Self {
+        Self {
+            conversation_id: 0,
+            content,
+            use_context,
+            use_search: None,
+            attachment_urls: Vec::new(),
+        }
+    }
+
+    /// MCP 等外部调用入口：指定已有对话。
+    pub fn with_conversation(
+        conversation_id: i64,
+        content: String,
+        use_context: Option<bool>,
+    ) -> Self {
+        Self {
+            conversation_id,
+            content,
+            use_context,
+            use_search: None,
+            attachment_urls: Vec::new(),
+        }
+    }
 }
 
 async fn create_conversation(
@@ -421,13 +449,58 @@ async fn generate(
     }
     Err(AppError::bad_request("工具调用超过最大循环次数"))
 }
-async fn send(
-    user: CurrentUser,
-    State(state): State<AiState>,
-    Json(v): Json<SendRequest>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let (model_id, receive_id, request, send, tool_ids) = load_request(&state, &user, &v).await?;
-    let (result, tool_calls) = generate(&state, &user, model_id, request, &tool_ids).await?;
+/// 为外部调用（MCP）创建一个默认对话：首个启用的 chat 模型 + 默认参数。
+async fn create_default_conversation(
+    state: &AiState,
+    user: &CurrentUser,
+    title: &str,
+) -> Result<i64, AppError> {
+    let model_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM ai.model_configs WHERE type='chat' AND status=0 ORDER BY id LIMIT 1",
+    )
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("读取聊天模型失败"))?
+    .ok_or_else(|| AppError::bad_request("请先配置启用的聊天模型"))?;
+    let conversation_id = id();
+    sqlx::query("INSERT INTO ai.chat_conversations(id,user_id,title,pinned,role_id,model_id,temperature,max_tokens,max_contexts,system_message,tool_ids,knowledge_ids,create_time,update_time) VALUES($1,$2,$3,false,NULL,$4,0.7,4096,20,NULL,'{}','{}',$5,$5)")
+        .bind(conversation_id)
+        .bind(&user.user_id)
+        .bind(title)
+        .bind(model_id)
+        .bind(now())
+        .execute(&state.pool)
+        .await
+        .map_err(|_| AppError::internal("创建对话失败"))?;
+    Ok(conversation_id)
+}
+
+/// 非流式发送：落库消息 → 生成 → 落库回复，返回 send/receive JSON。
+/// HTTP 处理器与 mcp-server 工具共用；conversationId<=0 时自动创建新对话。
+pub async fn dispatch_send(
+    state: &AiState,
+    user: &CurrentUser,
+    request: &SendRequest,
+) -> Result<Value, AppError> {
+    let conversation_id = if request.conversation_id > 0 {
+        request.conversation_id
+    } else {
+        let title: String = request
+            .content
+            .chars()
+            .take(20)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect();
+        create_default_conversation(state, user, &format!("MCP: {title}")).await?
+    };
+    let v = SendRequest {
+        conversation_id,
+        ..request.clone()
+    };
+    let (model_id, receive_id, chat_request, send, tool_ids) =
+        load_request(state, user, &v).await?;
+    let (result, tool_calls) = generate(state, user, model_id, chat_request, &tool_ids).await?;
     sqlx::query(
         "UPDATE ai.chat_messages SET content=$2,reasoning_content=$3,tool_calls=$4 WHERE id=$1",
     )
@@ -438,8 +511,16 @@ async fn send(
     .execute(&state.pool)
     .await
     .map_err(|_| AppError::internal("保存回复失败"))?;
+    Ok(json!({"send":send,"receive":{"id":receive_id,"conversationId":conversation_id,"type":"assistant","modelId":model_id,"content":result.content,"reasoningContent":result.reasoning}}))
+}
+
+async fn send(
+    user: CurrentUser,
+    State(state): State<AiState>,
+    Json(v): Json<SendRequest>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::new(
-        json!({"send":send,"receive":{"id":receive_id,"conversationId":v.conversation_id,"type":"assistant","modelId":model_id,"content":result.content,"reasoningContent":result.reasoning}}),
+        dispatch_send(&state, &user, &v).await?,
     )))
 }
 

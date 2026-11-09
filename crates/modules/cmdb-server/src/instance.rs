@@ -46,17 +46,7 @@ pub fn routes() -> ApiRouter<CmdbState> {
 }
 
 fn instance_row(row: &sqlx::postgres::PgRow) -> InstanceResponse {
-    InstanceResponse {
-        id: row.get("id"),
-        model_id: row.get("model_id"),
-        attributes: row.get("attributes"),
-        create_time: row
-            .get::<chrono::NaiveDateTime, _>("create_time")
-            .to_string(),
-        update_time: row
-            .get::<chrono::NaiveDateTime, _>("update_time")
-            .to_string(),
-    }
+    instance_service::instance_row(row)
 }
 
 fn page_bounds(page_no: Option<i64>, page_size: Option<i64>) -> (i64, i64) {
@@ -72,44 +62,16 @@ async fn instance_page(
 ) -> Result<Json<ApiResponse<InstancePageResponse>>, AppError> {
     require(&user, "cmdb:instance:query")?;
     let tenant = TenantContext::from_user(&user)?;
-    load_model(&state.pool, params.model_id).await?;
-    let (size, offset) = page_bounds(params.page_no, params.page_size);
-    let keyword = params
-        .keyword
-        .as_deref()
-        .map(str::trim)
-        .filter(|k| !k.is_empty())
-        .map(|k| format!("%{k}%"));
-    let total: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM cmdb_instance
-         WHERE model_id = $1 AND tenant_id = $3 AND deleted = 0
-           AND ($2::text IS NULL OR UPPER(attributes::text) LIKE UPPER($2))",
+    let result = instance_service::page_instances(
+        &state.pool,
+        &tenant,
+        params.model_id,
+        params.keyword.as_deref(),
+        params.page_no,
+        params.page_size,
     )
-    .bind(params.model_id)
-    .bind(&keyword)
-    .bind(tenant.id())
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|_| AppError::internal("failed to count instances"))?;
-    let rows = sqlx::query(
-        "SELECT id, model_id, attributes, create_time, update_time
-         FROM cmdb_instance
-         WHERE model_id = $1 AND tenant_id = $5 AND deleted = 0
-           AND ($2::text IS NULL OR UPPER(attributes::text) LIKE UPPER($2))
-         ORDER BY id DESC LIMIT $3 OFFSET $4",
-    )
-    .bind(params.model_id)
-    .bind(&keyword)
-    .bind(size)
-    .bind(offset)
-    .bind(tenant.id())
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|_| AppError::internal("failed to read instances"))?;
-    Ok(Json(ApiResponse::new(InstancePageResponse {
-        list: rows.iter().map(instance_row).collect(),
-        total,
-    })))
+    .await?;
+    Ok(Json(ApiResponse::new(result)))
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -124,17 +86,8 @@ async fn instance_get(
 ) -> Result<Json<ApiResponse<InstanceResponse>>, AppError> {
     require(&user, "cmdb:instance:query")?;
     let tenant = TenantContext::from_user(&user)?;
-    let row = sqlx::query(
-        "SELECT id, model_id, attributes, create_time, update_time
-         FROM cmdb_instance WHERE id = $1 AND tenant_id = $2 AND deleted = 0",
-    )
-    .bind(params.id)
-    .bind(tenant.id())
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|_| AppError::internal("failed to read instance"))?
-    .ok_or_else(|| AppError::not_found("instance not found"))?;
-    Ok(Json(ApiResponse::new(instance_row(&row))))
+    let row = instance_service::get_instance(&state.pool, &tenant, params.id).await?;
+    Ok(Json(ApiResponse::new(row)))
 }
 
 async fn instance_create(

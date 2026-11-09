@@ -23,6 +23,7 @@ rustset-infra-server.workspace = true
 rustset-ai-server.workspace = true
 rustset-cmdb-server.workspace = true
 rustset-system-server.workspace = true
+rustset-mcp-server.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

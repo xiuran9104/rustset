@@ -40,7 +40,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 59);
+    assert_eq!(applied, 60);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -57,6 +57,32 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect network-policy risk linkage");
     assert_eq!(risk_source_columns, 3);
+    // 0060：MCP API Key 表 + 基础设置菜单 + 超管授权。
+    let mcp_menu: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu WHERE id = 30370 AND deleted = 0 AND component = 'system/mcp/key/index'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read mcp menu baseline");
+    assert_eq!(mcp_menu, 1, "mcp-key menu must be seeded once");
+    let mcp_key_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='system_mcp_api_key'
+           AND column_name IN ('api_key_hash','key_prefix','user_id','enabled','expires_time','last_used_time')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect system_mcp_api_key columns");
+    assert_eq!(mcp_key_columns, 6);
+    let mcp_super_admin_grants: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_role_menu rm
+         JOIN system_role r ON r.id = rm.role_id AND r.code = 'super_admin'
+         WHERE rm.menu_id BETWEEN 30370 AND 30374 AND rm.deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read mcp menu grants");
+    assert_eq!(mcp_super_admin_grants, 5, "mcp page + 4 buttons granted to super_admin");
     let unique_constraint: bool = if matches!(flavor(), DatabaseFlavor::OpenGauss | DatabaseFlavor::Kingbase) {
         // og / 金仓链把 UNIQUE NULLS NOT DISTINCT 约束改写为表达式唯一索引。
         sqlx::query_scalar(

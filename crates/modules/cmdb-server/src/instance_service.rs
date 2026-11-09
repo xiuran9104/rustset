@@ -3,7 +3,7 @@
 //! Model key changes take the same lock. Migration 0025 also maintains a
 //! database unique-value registry for writers outside this service.
 
-use rustset_cmdb_api::AttrType;
+use rustset_cmdb_api::{AttrType, InstancePageResponse, InstanceResponse};
 use rustset_framework_tenant::TenantContext;
 use rustset_framework_web::AppError;
 use serde_json::{Map, Value};
@@ -51,6 +51,90 @@ pub(crate) async fn load_model(
         id: row.get("id"),
         unique_key: row.get("unique_key"),
     })
+}
+
+/// 行 → InstanceResponse（HTTP 处理器与 mcp-server 工具共用）。
+pub(crate) fn instance_row(row: &sqlx::postgres::PgRow) -> InstanceResponse {
+    InstanceResponse {
+        id: row.get("id"),
+        model_id: row.get("model_id"),
+        attributes: row.get("attributes"),
+        create_time: row
+            .get::<chrono::NaiveDateTime, _>("create_time")
+            .to_string(),
+        update_time: row
+            .get::<chrono::NaiveDateTime, _>("update_time")
+            .to_string(),
+    }
+}
+
+/// 实例关键词分页查询（HTTP 处理器与 mcp-server 工具共用）。
+/// 模型不存在时返回 404，与 HTTP 路径行为一致。
+pub async fn page_instances(
+    pool: &DbPool,
+    tenant: &TenantContext,
+    model_id: i64,
+    keyword: Option<&str>,
+    page_no: Option<i64>,
+    page_size: Option<i64>,
+) -> Result<InstancePageResponse, AppError> {
+    load_model(pool, model_id).await?;
+    let size = page_size.unwrap_or(20).clamp(1, 200);
+    let no = page_no.unwrap_or(1).max(1);
+    let offset = (no - 1).saturating_mul(size);
+    let keyword = keyword
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+        .map(|k| format!("%{k}%"));
+    let total: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM cmdb_instance
+         WHERE model_id = $1 AND tenant_id = $3 AND deleted = 0
+           AND ($2::text IS NULL OR UPPER(attributes::text) LIKE UPPER($2))",
+    )
+    .bind(model_id)
+    .bind(&keyword)
+    .bind(tenant.id())
+    .fetch_one(pool)
+    .await
+    .map_err(|_| AppError::internal("failed to count instances"))?;
+    let rows = sqlx::query(
+        "SELECT id, model_id, attributes, create_time, update_time
+         FROM cmdb_instance
+         WHERE model_id = $1 AND tenant_id = $5 AND deleted = 0
+           AND ($2::text IS NULL OR UPPER(attributes::text) LIKE UPPER($2))
+         ORDER BY id DESC LIMIT $3 OFFSET $4",
+    )
+    .bind(model_id)
+    .bind(&keyword)
+    .bind(size)
+    .bind(offset)
+    .bind(tenant.id())
+    .fetch_all(pool)
+    .await
+    .map_err(|_| AppError::internal("failed to read instances"))?;
+    Ok(InstancePageResponse {
+        list: rows.iter().map(instance_row).collect(),
+        total,
+    })
+}
+
+/// 实例详情（HTTP 处理器与 mcp-server 工具共用）。
+pub async fn get_instance(
+    pool: &DbPool,
+    tenant: &TenantContext,
+    id: i64,
+) -> Result<InstanceResponse, AppError> {
+    let row = sqlx::query(
+        "SELECT id, model_id, attributes, create_time, update_time
+         FROM cmdb_instance WHERE id = $1 AND tenant_id = $2 AND deleted = 0",
+    )
+    .bind(id)
+    .bind(tenant.id())
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| AppError::internal("failed to read instance"))?
+    .ok_or_else(|| AppError::not_found("instance not found"))?;
+    Ok(instance_row(&row))
 }
 
 pub(crate) async fn load_attributes(

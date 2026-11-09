@@ -434,11 +434,12 @@ pub(super) async fn list(
     )))
 }
 
-pub(super) async fn page(
+/// 纯数据分页（HTTP 处理器与 mcp-server 工具共用）。
+pub async fn page_data(
     pool: &DbPool,
     tenant: &TenantContext,
     params: QueryParams,
-) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+) -> Result<crate::Page<Value>, AppError> {
     let size = params.page_size.unwrap_or(10).clamp(1, 200);
     let offset = (params.page_no.unwrap_or(1).max(1) - 1).saturating_mul(size);
     let total = sqlx::query_scalar(
@@ -466,7 +467,17 @@ pub(super) async fn page(
     .into_iter()
     .map(crate::table_value)
     .collect();
-    Ok(Json(ApiResponse::new(crate::Page { list, total })))
+    Ok(crate::Page { list, total })
+}
+
+pub(super) async fn page(
+    pool: &DbPool,
+    tenant: &TenantContext,
+    params: QueryParams,
+) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+    Ok(Json(ApiResponse::new(
+        page_data(pool, tenant, params).await?,
+    )))
 }
 
 #[cfg(test)]

@@ -32,17 +32,18 @@ mod excel;
 mod monitor;
 pub mod object_storage;
 
-mod asset;
+// asset/task/ticket/risk 供 mcp-server 以库形式复用查询函数（对外 MCP 工具）。
+pub mod asset;
 mod business;
 mod cloud_platform;
 mod inspection;
 mod provider;
 mod resource_scope;
-mod risk;
+pub mod risk;
 mod room;
 mod security;
-mod task;
-mod ticket;
+pub mod task;
+pub mod ticket;
 mod zone;
 
 #[derive(Clone)]
@@ -69,9 +70,9 @@ impl InfraState {
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
-pub(crate) struct Page<T> {
-    pub(crate) list: Vec<T>,
-    pub(crate) total: i64,
+pub struct Page<T> {
+    pub list: Vec<T>,
+    pub total: i64,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -83,9 +84,9 @@ pub struct QueryParams {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct TableSpec {
-    pub(crate) table: &'static str,
-    pub(crate) seq: &'static str,
+pub struct TableSpec {
+    pub table: &'static str,
+    pub seq: &'static str,
 }
 
 pub(crate) fn request_value<T: Serialize>(request: T) -> Result<Value, AppError> {

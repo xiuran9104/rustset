@@ -1,6 +1,7 @@
 mod csv;
-mod policy_risk;
-mod repository;
+// policy_risk/repository 供 mcp-server 复用查询函数（对外 MCP 工具）。
+pub mod policy_risk;
+pub mod repository;
 use rustset_framework_database::{DbPool};
 use crate::{
     InfraState, QueryParams, TableSpec, id_param, ids_param, tenant_soft_delete,
@@ -25,7 +26,8 @@ use serde_json::{Value, json};
 use sqlx::Row;
 use std::collections::HashMap;
 
-const ASSET: TableSpec = TableSpec {
+/// 供 mcp-server 复用的表规格（对外 MCP 工具）。
+pub const ASSET: TableSpec = TableSpec {
     table: "infra_asset",
     seq: "infra_asset_seq",
 };
@@ -41,7 +43,8 @@ const PHYSICAL_RESOURCE: TableSpec = TableSpec {
     table: "infra_physical_resource",
     seq: "infra_physical_resource_seq",
 };
-const NETWORK_POLICY: TableSpec = TableSpec {
+/// 供 mcp-server 复用的表规格（对外 MCP 工具）。
+pub const NETWORK_POLICY: TableSpec = TableSpec {
     table: "infra_network_policy",
     seq: "infra_network_policy_seq",
 };
