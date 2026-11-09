@@ -38,14 +38,20 @@ pub(crate) async fn execute(
     name: &str,
     args: &Value,
 ) -> Result<String, String> {
-    let allowed: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM ai.tools WHERE name=$1 AND status=1)")
-            .bind(name)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-    if !allowed {
+    // 启用检查顺带取 executor：kind=mcp 的工具转发到登记的外部 MCP 服务器，
+    // 其余走下方内置 match。executor->> 为 PG-family jsonb 分支。
+    let executor: Option<Value> = sqlx::query_scalar::<_, Value>(
+        "SELECT executor FROM ai.tools WHERE name=$1 AND status=1",
+    )
+    .bind(name)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(executor) = executor else {
         return Err(format!("工具 {name} 未启用"));
+    };
+    if executor.get("kind").and_then(Value::as_str) == Some("mcp") {
+        return execute_mcp(pool, name, &executor, args).await;
     }
     match name {
         "current_time" => {
@@ -306,6 +312,41 @@ pub(crate) async fn execute(
         _ => Err(format!("工具 {name} 没有已注册的 Rust 执行器")),
     }
 }
+
+/// MCP 类型工具：按 executor 里的 server_id 找到登记的外部服务器并转发调用。
+async fn execute_mcp(
+    pool: &DbPool,
+    name: &str,
+    executor: &Value,
+    args: &Value,
+) -> Result<String, String> {
+    let server_id = executor
+        .get("server_id")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| format!("工具 {name} 缺少 server_id 配置"))?;
+    let tool = executor
+        .get("tool")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("工具 {name} 缺少远端工具名"))?;
+    let server = sqlx::query("SELECT url,auth_header,auth_token,status,name FROM ai.mcp_server WHERE id=$1")
+        .bind(server_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("工具 {name} 所属的 MCP 服务器已不存在"))?;
+    if server.get::<i32, _>("status") != 1 {
+        return Err(format!(
+            "工具 {name} 所属的 MCP 服务器已停用"
+        ));
+    }
+    let sealed: String = server.get("auth_token");
+    let remote = crate::mcp_client::McpRemote {
+        url: server.get("url"),
+        auth_header: server.get("auth_header"),
+        auth_token: crate::mcp_server_admin::open_secret(&sealed),
+    };
+    crate::mcp_client::call_tool(server_id, &remote, tool, args).await
+}
 fn parse_offset(value: &str) -> Result<i32, String> {
     let sign = if value.starts_with('-') { -1 } else { 1 };
     let clean = value.trim_start_matches(['+', '-']);
@@ -337,6 +378,28 @@ pub fn routes() -> ApiRouter<AiState> {
         .api_route("/ai/tool/create", post(create))
         .api_route("/ai/tool/update", put(update))
         .api_route("/ai/tool/delete", delete(remove))
+        .api_route("/ai/tool/test", post(test_run))
+}
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct TestRun {
+    name: String,
+    arguments: Option<Value>,
+}
+
+/// 试运行工具（内置或 MCP 均可）：管理员在工具页直接验证执行链路。
+async fn test_run(
+    u: CurrentUser,
+    State(s): State<AiState>,
+    Json(v): Json<TestRun>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    require(&u, "ai:tool:update")?;
+    let args = v.arguments.unwrap_or_else(|| json!({}));
+    match execute(&s.pool, &u, &v.name, &args).await {
+        Ok(output) => Ok(Json(ApiResponse::new(json!({ "ok": true, "output": output })))),
+        Err(error) => Ok(Json(ApiResponse::new(json!({ "ok": false, "error": error })))),
+    }
 }
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

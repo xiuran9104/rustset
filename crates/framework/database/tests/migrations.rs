@@ -40,7 +40,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 60);
+    assert_eq!(applied, 61);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -83,6 +83,32 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read mcp menu grants");
     assert_eq!(mcp_super_admin_grants, 5, "mcp page + 4 buttons granted to super_admin");
+    // 0061：平台作为 MCP 客户端的外部服务器登记表 + 控制台菜单。
+    let mcp_client_menu: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu WHERE id = 30375 AND deleted = 0 AND component = 'ai/model/mcpServer/index.vue'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read ai mcp-server menu baseline");
+    assert_eq!(mcp_client_menu, 1, "ai mcp-server menu must be seeded once");
+    let mcp_client_grants: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_role_menu rm
+         JOIN system_role r ON r.id = rm.role_id AND r.code = 'super_admin'
+         WHERE rm.menu_id BETWEEN 30375 AND 30380 AND rm.deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read ai mcp-server menu grants");
+    assert_eq!(mcp_client_grants, 6, "ai mcp-server page + 5 buttons granted to super_admin");
+    let mcp_server_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='ai' AND table_name='mcp_server'
+           AND column_name IN ('auth_header','auth_token','server_info','tool_count','last_sync_time','last_error')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect ai.mcp_server columns");
+    assert_eq!(mcp_server_columns, 6);
     let unique_constraint: bool = if matches!(flavor(), DatabaseFlavor::OpenGauss | DatabaseFlavor::Kingbase) {
         // og / 金仓链把 UNIQUE NULLS NOT DISTINCT 约束改写为表达式唯一索引。
         sqlx::query_scalar(

@@ -1,5 +1,7 @@
 // chat 供 mcp-server 复用 dispatch_send（对外 MCP 工具）。
 pub mod chat;
+mod mcp_client;
+mod mcp_server_admin;
 mod chat_role;
 mod factory;
 mod knowledge;
@@ -77,6 +79,7 @@ pub fn routes(state: AiState) -> ApiRouter {
         .merge(chat_role::routes())
         .merge(midjourney::routes())
         .merge(tools::routes())
+        .merge(mcp_server_admin::routes())
         .merge(media::routes())
         .merge(knowledge::routes())
         .merge(write::routes())
