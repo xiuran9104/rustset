@@ -1,6 +1,7 @@
 //! 自动动作注册表：auto 步骤的执行器（match 风格，同 ai tools.rs）。
 //!
 //! v1 动作：firewall_push / trigger_scan / create_ticket / set_context。
+//! v2 新增：ticket_approve / ticket_provision / ticket_deliver（工单链吸收）。
 //! firewall_push 走既有自动化框架（开关/熔断/审计）；失败进入退避重试
 //! （最多 3 次），重试由 runner 按 retry_at 到期后调 engine::advance 驱动。
 
@@ -11,7 +12,15 @@ use sqlx::Row;
 
 /// 已知动作名（校验用）。
 pub(crate) fn is_known_action(action: &str) -> Option<&'static str> {
-    const ACTIONS: [&str; 4] = ["firewall_push", "trigger_scan", "create_ticket", "set_context"];
+    const ACTIONS: [&str; 7] = [
+        "firewall_push",
+        "trigger_scan",
+        "create_ticket",
+        "set_context",
+        "ticket_approve",
+        "ticket_provision",
+        "ticket_deliver",
+    ];
     ACTIONS.iter().find(|a| **a == action).copied()
 }
 
@@ -19,22 +28,23 @@ pub(crate) fn is_known_action(action: &str) -> Option<&'static str> {
 /// 成功 → step done + engine::advance；失败 → attempt+1、retry_at 退避，
 /// attempt>=3 → failed（engine::advance 收尾实例为 failed）。
 pub(crate) async fn execute_step(
-    pool: &DbPool,
+    state: &crate::InfraState,
     tenant: &TenantContext,
     instance_id: i64,
     step_id: i64,
 ) {
-    if let Err(error) = execute_step_inner(pool, tenant, instance_id, step_id).await {
+    if let Err(error) = execute_step_inner(state, tenant, instance_id, step_id).await {
         tracing::warn!(instance_id, step_id, %error, "flow auto step failed");
     }
 }
 
 async fn execute_step_inner(
-    pool: &DbPool,
+    state: &crate::InfraState,
     tenant: &TenantContext,
     instance_id: i64,
     step_id: i64,
 ) -> Result<(), String> {
+    let pool = &state.pool;
     // 先置 running 标记（attempt 在此累加，退避由结果路径写回）。
     let step = sqlx::query(
         "SELECT step_key, name, config, attempt_count, status FROM infra_flow_step
@@ -76,6 +86,9 @@ async fn execute_step_inner(
         "trigger_scan" => trigger_scan(pool, tenant, instance_id, &payload, &params).await,
         "create_ticket" => create_ticket(pool, tenant, instance_id, &payload, &params).await,
         "set_context" => set_context(&mut context, &payload, &params),
+        "ticket_approve" => ticket_approve(state, tenant, instance_id, &params).await,
+        "ticket_provision" => ticket_provision(state, tenant, instance_id, &params).await,
+        "ticket_deliver" => ticket_deliver(state, tenant, instance_id, &params).await,
         other => Err(format!("未知自动动作：{other}")),
     };
 
@@ -135,7 +148,7 @@ async fn execute_step_inner(
             .map_err(|e| e.to_string())?;
         }
     }
-    super::engine::advance(pool, tenant, instance_id).await;
+    super::engine::advance(state, tenant, instance_id).await;
     Ok(())
 }
 
@@ -349,4 +362,89 @@ fn set_context(context: &mut Value, payload: &Value, params: &Value) -> Result<V
         object.insert(key.to_string(), value.clone());
     }
     Ok(json!({ "key": key, "value": value }))
+}
+
+/// 工单审批：params {ticketId 或 ticketIdFrom=instance biz_id, approved, comment}。
+/// 复用 ticket::approve_core（含防火墙自动化 + 既有资源回写）。
+async fn ticket_approve(
+    state: &crate::InfraState,
+    tenant: &TenantContext,
+    instance_id: i64,
+    params: &Value,
+) -> Result<Value, String> {
+    let ticket_id = resolve_ticket_id(state, tenant, instance_id, params).await?;
+    let approved = params.get("approved").and_then(Value::as_bool).unwrap_or(true);
+    let comment = params.get("comment").and_then(Value::as_str);
+    let operator = format!("flow:F{instance_id}");
+    let (new_status, _) = crate::ticket::approve_core(state, tenant, ticket_id, &operator, approved, comment)
+        .await
+        .map_err(|e| e.message().to_string())?;
+    Ok(json!({ "ticketId": ticket_id, "ticketStatus": new_status }))
+}
+
+/// 工单供应：params {ticketId, config?}。复用 provisioning::run（tofu）。
+async fn ticket_provision(
+    state: &crate::InfraState,
+    tenant: &TenantContext,
+    instance_id: i64,
+    params: &Value,
+) -> Result<Value, String> {
+    let ticket_id = resolve_ticket_id(state, tenant, instance_id, params).await?;
+    let config = params.get("config").cloned().unwrap_or_else(|| json!({}));
+    let operator = format!("flow:F{instance_id}");
+    let result = crate::ticket::provisioning::run(state, tenant, ticket_id, &operator, &config)
+        .await
+        .map_err(|e| e.message().to_string())?;
+    Ok(json!({ "ticketId": ticket_id, "provision": result }))
+}
+
+/// 工单交付：params {ticketId, comment?, fileIds?}。复用 ticket::deliver_core。
+async fn ticket_deliver(
+    state: &crate::InfraState,
+    tenant: &TenantContext,
+    instance_id: i64,
+    params: &Value,
+) -> Result<Value, String> {
+    let ticket_id = resolve_ticket_id(state, tenant, instance_id, params).await?;
+    let comment = params.get("comment").and_then(Value::as_str);
+    let file_ids: Option<Vec<i64>> = params
+        .get("fileIds")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_i64).collect());
+    let operator = format!("flow:F{instance_id}");
+    crate::ticket::deliver_core(
+        state,
+        tenant,
+        ticket_id,
+        &operator,
+        comment,
+        file_ids.as_deref(),
+    )
+    .await
+    .map_err(|e| e.message().to_string())?;
+    Ok(json!({ "ticketId": ticket_id, "delivered": true }))
+}
+
+/// 解析工单 id：params.ticketId 直填，或从实例 biz_id 取（create_ticket 落的关联）。
+async fn resolve_ticket_id(
+    state: &crate::InfraState,
+    tenant: &TenantContext,
+    instance_id: i64,
+    params: &Value,
+) -> Result<i64, String> {
+    if let Some(id) = params.get("ticketId").and_then(Value::as_i64) {
+        return Ok(id);
+    }
+    let biz_id: Option<String> = sqlx::query_scalar(
+        "SELECT biz_id FROM infra_flow_instance WHERE id=$1 AND tenant_id=$2",
+    )
+    .bind(instance_id)
+    .bind(tenant.id())
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .flatten();
+    biz_id
+        .and_then(|v| v.parse().ok())
+        .ok_or_else(|| "ticketId 未指定且实例无工单关联（biz_id）".to_string())
 }

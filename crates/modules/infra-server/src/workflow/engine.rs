@@ -68,6 +68,98 @@ fn compare(a: &Value, b: Option<&Value>) -> Option<i32> {
     None
 }
 
+/// DAG 可达性：从起点（index 0）和活跃步骤出发，沿已完成步骤的 next 出口
+/// BFS 传播。done 步骤按 next 顺序评估第一个命中 when 的出口（无 when 的
+/// 出口为无条件默认）；空 next 或无命中 → index+1（V1 线性语义）。
+/// 纯函数，无 IO，单测覆盖。
+pub(crate) fn compute_reachable(steps: &[sqlx::postgres::PgRow], payload: &Value, context: &Value) -> std::collections::HashSet<String> {
+    use std::collections::{HashSet, VecDeque};
+
+    let by_key: std::collections::HashMap<String, &sqlx::postgres::PgRow> = steps
+        .iter()
+        .map(|row| (row.get::<String, _>("step_key"), row))
+        .collect();
+    let ordered_keys: Vec<String> = steps.iter().map(|row| row.get::<String, _>("step_key")).collect();
+
+    let mut reachable: HashSet<String> = HashSet::new();
+    let mut queue: VecDeque<String> = VecDeque::new();
+
+    // 起点：index 0 或当前 active 的步骤。
+    if let Some(first) = ordered_keys.first() {
+        reachable.insert(first.clone());
+        queue.push_back(first.clone());
+    }
+    for row in steps {
+        if row.get::<&str, _>("status") == "active" {
+            let key: String = row.get("step_key");
+            if reachable.insert(key.clone()) {
+                queue.push_back(key);
+            }
+        }
+    }
+
+    while let Some(key) = queue.pop_front() {
+        let Some(row) = by_key.get(&key) else { continue };
+        let status: &str = row.get("status");
+        let next: Value = row.get("next");
+        let next_array = next.as_array().cloned().unwrap_or_default();
+        let index: i32 = row.get("step_index");
+
+        match status {
+            // done：沿实际选路的出口传播（评估条件，取第一个命中）。
+            "done" => {
+                let mut propagated = false;
+                for edge in &next_array {
+                    let target = edge.get("to").and_then(Value::as_str).unwrap_or_default();
+                    if target.is_empty() { continue; }
+                    let when = edge.get("when");
+                    let hit = when
+                        .filter(|w| !w.is_null())
+                        .map(|w| evaluate_condition(Some(w), payload, context))
+                        .unwrap_or(true);
+                    if hit {
+                        if reachable.insert(target.to_string()) {
+                            queue.push_back(target.to_string());
+                        }
+                        propagated = true;
+                        break; // 第一个命中即选路
+                    }
+                }
+                if !propagated {
+                    let next_index = index + 1;
+                    if let Some(next_key) = ordered_keys.get(next_index as usize) {
+                        if reachable.insert(next_key.clone()) {
+                            queue.push_back(next_key.clone());
+                        }
+                    }
+                }
+            }
+            // active / pending（可达集内的）：结局未知/即将激活，向所有出口传播（不剪枝）。
+            "active" | "pending" => {
+                for edge in &next_array {
+                    if let Some(target) = edge.get("to").and_then(Value::as_str) {
+                        if !target.is_empty() && reachable.insert(target.to_string()) {
+                            queue.push_back(target.to_string());
+                        }
+                    }
+                }
+                if next_array.is_empty() {
+                    let next_index = index + 1;
+                    if let Some(next_key) = ordered_keys.get(next_index as usize) {
+                        if reachable.insert(next_key.clone()) {
+                            queue.push_back(next_key.clone());
+                        }
+                    }
+                }
+            }
+            // skipped：不传播（被跳过的分支不向后延伸）。
+            // failed/cancelled：不传播（已终止）。
+            _ => {}
+        }
+    }
+    reachable
+}
+
 /// 步骤配置校验（definition.rs 保存时与实例展开时共用）。
 pub(crate) fn validate_definition(definition: &Value) -> Result<Vec<Value>, String> {
     let steps = definition
@@ -152,21 +244,96 @@ pub(crate) fn validate_definition(definition: &Value) -> Result<Vec<Value>, Stri
             }
         }
     }
+    // next 出口校验：to 必须引用存在的 key，且从任一步骤沿 next 走不能成环。
+    for step in steps.iter() {
+        let key = step.get("key").and_then(Value::as_str).unwrap_or_default();
+        if let Some(next_array) = step.get("next").and_then(Value::as_array) {
+            if next_array.is_empty() {
+                continue;
+            }
+            for edge in next_array {
+                let to = edge.get("to").and_then(Value::as_str).unwrap_or_default();
+                if to.is_empty() {
+                    return Err(format!("步骤 {key} 的 next 出口缺少 to 字段"));
+                }
+                if !keys.contains(&to.to_string()) {
+                    return Err(format!("步骤 {key} 的 next 出口指向不存在的步骤：{to}"));
+                }
+            }
+        }
+    }
+    if let Some(cycle) = find_cycle(steps) {
+        return Err(format!("流程存在环：{cycle}"));
+    }
     Ok(steps.clone())
+}
+
+/// 检测 next 出口构成的环（不含线性 index+1 回退——那天然无环）。
+/// 返回环上的某个 key 或 None。
+fn find_cycle(steps: &[Value]) -> Option<String> {
+    use std::collections::{HashMap, HashSet};
+    let edges: HashMap<&str, Vec<&str>> = steps
+        .iter()
+        .filter_map(|step| {
+            let key = step.get("key").and_then(Value::as_str)?;
+            let next = step
+                .get("next")
+                .and_then(Value::as_array)?
+                .iter()
+                .filter_map(|e| e.get("to").and_then(Value::as_str))
+                .collect::<Vec<_>>();
+            if next.is_empty() { None } else { Some((key, next)) }
+        })
+        .collect();
+
+    let mut visited: HashSet<&str> = HashSet::new();
+    let mut in_stack: HashSet<&str> = HashSet::new();
+
+    fn dfs<'a>(
+        node: &'a str,
+        edges: &HashMap<&'a str, Vec<&'a str>>,
+        visited: &mut HashSet<&'a str>,
+        in_stack: &mut HashSet<&'a str>,
+    ) -> Option<&'a str> {
+        if in_stack.contains(node) {
+            return Some(node);
+        }
+        if visited.contains(node) {
+            return None;
+        }
+        visited.insert(node);
+        in_stack.insert(node);
+        for next in edges.get(node).into_iter().flatten() {
+            if let Some(cycle) = dfs(next, edges, visited, in_stack) {
+                return Some(cycle);
+            }
+        }
+        in_stack.remove(node);
+        None
+    }
+
+    for step in steps {
+        if let Some(key) = step.get("key").and_then(Value::as_str) {
+            if let Some(cycle) = dfs(key, &edges, &mut visited, &mut in_stack) {
+                return Some(cycle.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// 实例推进：处理所有可推进的步骤，直到等待外部输入或全部终态。
 /// 返回 Ok(())；内部错误以 tracing 记录并保留现场（可重试）。
-pub(crate) async fn advance(pool: &DbPool, tenant: &TenantContext, instance_id: i64) {
-    if let Err(error) = advance_inner(pool, tenant, instance_id).await {
+pub(crate) async fn advance(state: &crate::InfraState, tenant: &TenantContext, instance_id: i64) {
+    if let Err(error) = advance_inner(state, tenant, instance_id).await {
         tracing::warn!(instance_id, %error, "flow advance failed");
     }
 }
 
-async fn advance_inner(pool: &DbPool, tenant: &TenantContext, instance_id: i64) -> Result<(), String> {
+async fn advance_inner(state: &crate::InfraState, tenant: &TenantContext, instance_id: i64) -> Result<(), String> {
     // 循环驱动：notification 落库后回到下一轮（避免 async 直接递归）。
     for _round in 0..64 {
-        let progressed = advance_once(pool, tenant, instance_id).await?;
+        let progressed = advance_once(state, tenant, instance_id).await?;
         if !progressed {
             break;
         }
@@ -175,7 +342,8 @@ async fn advance_inner(pool: &DbPool, tenant: &TenantContext, instance_id: i64) 
 }
 
 /// 单轮推进。返回 true = 有进展（notification 完成等），false = 等待外部或已收尾。
-async fn advance_once(pool: &DbPool, tenant: &TenantContext, instance_id: i64) -> Result<bool, String> {
+async fn advance_once(state: &crate::InfraState, tenant: &TenantContext, instance_id: i64) -> Result<bool, String> {
+    let pool = &state.pool;
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     // 实例级串行化：与工单 provisioning 相同的 advisory lock 模式。
     let locked = sqlx::query_scalar::<_, bool>(
@@ -213,7 +381,7 @@ async fn advance_once(pool: &DbPool, tenant: &TenantContext, instance_id: i64) -
         .to_string();
 
     let steps = sqlx::query(
-        "SELECT id, step_key, step_index, name, type, status, config, attempt_count
+        "SELECT id, step_key, step_index, name, type, status, config, attempt_count, next
          FROM infra_flow_step
          WHERE instance_id=$1 AND tenant_id=$2
          ORDER BY step_index",
@@ -223,6 +391,25 @@ async fn advance_once(pool: &DbPool, tenant: &TenantContext, instance_id: i64) -
     .fetch_all(&mut *tx)
     .await
     .map_err(|e| e.to_string())?;
+
+    // ---- DAG 可达性：从已完成/活跃步骤沿 next 出口 BFS，不可达 pending 置 skipped ----
+    let reachable = compute_reachable(&steps, &payload, &context);
+    for step in &steps {
+        let status: &str = step.get("status");
+        let step_key: String = step.get("step_key");
+        let step_id: i64 = step.get("id");
+        if status == "pending" && !reachable.contains(&step_key) {
+            sqlx::query(
+                "UPDATE infra_flow_step SET status='skipped', finished_at=now()
+                 WHERE id=$1 AND tenant_id=$2 AND status='pending'",
+            )
+            .bind(step_id)
+            .bind(tenant.id())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+    }
 
     let mut current_index: i64 = 0;
     let mut any_failed = false;
@@ -242,7 +429,11 @@ async fn advance_once(pool: &DbPool, tenant: &TenantContext, instance_id: i64) -
                 current_index = index as i64 + 1;
             }
             "pending" => {
-                // 条件跳过（对 payload/context 求值）
+                // DAG：不可达的 pending 已在上面批量置 skipped；这里跳过本轮已处理的
+                let step_key: String = step.get("step_key");
+                if !reachable.contains(&step_key) {
+                    continue;
+                }
                 let condition = config.get("condition");
                 if !evaluate_condition(condition, &payload, &context) {
                     sqlx::query(
@@ -358,7 +549,7 @@ async fn advance_once(pool: &DbPool, tenant: &TenantContext, instance_id: i64) -
                         // Box::pin 断开 execute_step ⇄ advance 的异步递归。
                         tx.commit().await.map_err(|e| e.to_string())?;
                         Box::pin(super::actions::execute_step(
-                            pool,
+                            state,
                             tenant,
                             instance_id,
                             step_id,
@@ -389,7 +580,7 @@ async fn advance_once(pool: &DbPool, tenant: &TenantContext, instance_id: i64) -
                     if retry_due && attempt_count < 3 {
                         tx.commit().await.map_err(|e| e.to_string())?;
                         Box::pin(super::actions::execute_step(
-                            pool,
+                            state,
                             tenant,
                             instance_id,
                             step_id,
@@ -508,5 +699,61 @@ mod tests {
             {"key":"a","name":"审批","type":"approval","config":{}}
         ]});
         assert!(validate_definition(&approval_no_assignee).is_err());
+    }
+
+    #[test]
+    fn next_edge_validation_rejects_unknown_target() {
+        let def = json!({"steps":[
+            {"key":"a","name":"A","type":"notification","config":{},
+             "next":[{"to":"nonexistent"}]}
+        ]});
+        let err = validate_definition(&def).unwrap_err();
+        assert!(err.contains("不存在的步骤"), "got: {err}");
+    }
+
+    #[test]
+    fn next_edge_validation_rejects_cycle() {
+        let def = json!({"steps":[
+            {"key":"a","name":"A","type":"notification","config":{},
+             "next":[{"to":"b"}]},
+            {"key":"b","name":"B","type":"notification","config":{},
+             "next":[{"to":"a"}]}
+        ]});
+        let err = validate_definition(&def).unwrap_err();
+        assert!(err.contains("环"), "got: {err}");
+    }
+
+    #[test]
+    fn next_edge_cycle_self_reference() {
+        let def = json!({"steps":[
+            {"key":"a","name":"A","type":"notification","config":{},
+             "next":[{"to":"a"}]}
+        ]});
+        assert!(validate_definition(&def).is_err());
+    }
+
+    #[test]
+    fn valid_dag_definition_passes() {
+        let def = json!({"steps":[
+            {"key":"route","name":"分支","type":"notification","config":{},
+             "next":[
+                {"when":{"field":"type","op":"eq","value":"a"},"to":"branch_a"},
+                {"to":"branch_b"}
+             ]},
+            {"key":"branch_a","name":"A分支","type":"notification","config":{}},
+            {"key":"branch_b","name":"B分支","type":"notification","config":{},
+             "next":[{"to":"final"}]},
+            {"key":"final","name":"结束","type":"notification","config":{}}
+        ]});
+        assert!(validate_definition(&def).is_ok());
+    }
+
+    #[test]
+    fn linear_definition_without_next_still_valid() {
+        let def = json!({"steps":[
+            {"key":"a","name":"A","type":"notification","config":{}},
+            {"key":"b","name":"B","type":"notification","config":{}}
+        ]});
+        assert!(validate_definition(&def).is_ok());
     }
 }

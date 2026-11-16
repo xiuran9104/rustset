@@ -11,22 +11,48 @@ use std::time::Duration;
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
 const TICKET_WAIT_INTERVAL: Duration = Duration::from_secs(30);
 
-pub(crate) fn start(pool: DbPool) {
+pub(crate) fn start(state: crate::InfraState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(POLL_INTERVAL);
         loop {
             tick.tick().await;
-            if let Err(error) = run_once(&pool).await {
+            if let Err(error) = run_once(&state).await {
                 tracing::warn!(%error, "flow runner pass failed");
             }
         }
     });
 }
 
-async fn run_once(pool: &DbPool) -> Result<(), String> {
+async fn run_once(state: &crate::InfraState) -> Result<(), String> {
+    let pool = &state.pool;
+    handle_pending_instances(state).await?;
     handle_timeouts(pool).await?;
-    handle_auto_retries(pool).await?;
-    handle_ticket_waits(pool).await?;
+    handle_auto_retries(state).await?;
+    handle_ticket_waits(state).await?;
+    Ok(())
+}
+
+/// 兜底：扫描 running 实例中仍有 pending 步骤的（事件触发创建后未推进），
+/// 调 advance 激活首个步骤。5 秒轮询内自动补推。
+async fn handle_pending_instances(state: &crate::InfraState) -> Result<(), String> {
+    let rows = sqlx::query(
+        "SELECT DISTINCT i.id, i.tenant_id
+         FROM infra_flow_instance i
+         JOIN infra_flow_step s ON s.instance_id=i.id AND s.tenant_id=i.tenant_id
+              AND s.status='pending'
+         WHERE i.status='running' AND i.deleted=0
+         LIMIT 10",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    for row in rows {
+        let instance_id: i64 = row.get("id");
+        let tenant_id: i64 = row.get("tenant_id");
+        if let Ok(tenant) = rustset_framework_tenant::TenantContext::from_persisted_id(Some(tenant_id)) {
+            super::engine::advance(state, &tenant, instance_id).await;
+        }
+    }
     Ok(())
 }
 
@@ -139,7 +165,7 @@ async fn handle_timeouts(pool: &DbPool) -> Result<(), String> {
 }
 
 /// auto 步骤重试到期：直接调 engine::advance（它会执行动作并推进）。
-async fn handle_auto_retries(pool: &DbPool) -> Result<(), String> {
+async fn handle_auto_retries(state: &crate::InfraState) -> Result<(), String> {
     let rows = sqlx::query_scalar::<_, (i64, Option<i64>)>(
         "SELECT s.instance_id, s.tenant_id FROM infra_flow_step s
          JOIN infra_flow_instance i ON i.id=s.instance_id AND i.tenant_id=s.tenant_id
@@ -148,7 +174,7 @@ async fn handle_auto_retries(pool: &DbPool) -> Result<(), String> {
            AND s.retry_at <= now() AND s.attempt_count < 3
          LIMIT 20",
     )
-    .fetch_all(pool)
+    .fetch_all(&state.pool)
     .await
     .map_err(|e| e.to_string())?;
     for (instance_id, tenant_id) in rows {
@@ -156,14 +182,14 @@ async fn handle_auto_retries(pool: &DbPool) -> Result<(), String> {
         let Ok(tenant) = rustset_framework_tenant::TenantContext::from_persisted_id(Some(tenant_id)) else {
             continue;
         };
-        super::engine::advance(pool, &tenant, instance_id).await;
+        super::engine::advance(state, &tenant, instance_id).await;
     }
     Ok(())
 }
 
 /// ticket_wait：轮询关联工单状态；终态（delivered/rejected/expired/cancelled）
 /// → 步骤 done 带结果；否则顺延 retry_at。
-async fn handle_ticket_waits(pool: &DbPool) -> Result<(), String> {
+async fn handle_ticket_waits(state: &crate::InfraState) -> Result<(), String> {
     let rows = sqlx::query(
         "SELECT s.id, s.instance_id, s.tenant_id, s.config, s.retry_at
          FROM infra_flow_step s
@@ -173,7 +199,7 @@ async fn handle_ticket_waits(pool: &DbPool) -> Result<(), String> {
            AND s.retry_at IS NOT NULL AND s.retry_at <= now()
          LIMIT 20",
     )
-    .fetch_all(pool)
+    .fetch_all(&state.pool)
     .await
     .map_err(|e| e.to_string())?;
     for row in rows {
@@ -204,7 +230,7 @@ async fn handle_ticket_waits(pool: &DbPool) -> Result<(), String> {
                      FROM infra_flow_instance WHERE id=$1",
                 )
                 .bind(instance_id)
-                .fetch_one(pool)
+                .fetch_one(&state.pool)
                 .await
                 .map_err(|e| e.to_string())?
                 .and_then(|v| v.parse().ok())
@@ -219,7 +245,7 @@ async fn handle_ticket_waits(pool: &DbPool) -> Result<(), String> {
                  WHERE id=$1",
             )
             .bind(step_id)
-            .execute(pool)
+            .execute(&state.pool)
             .await
             .map_err(|e| e.to_string())?;
             continue;
@@ -230,7 +256,7 @@ async fn handle_ticket_waits(pool: &DbPool) -> Result<(), String> {
         )
         .bind(ticket_id)
         .bind(tenant_id)
-        .fetch_optional(pool)
+        .fetch_optional(&state.pool)
         .await
         .map_err(|e| e.to_string())?
         .flatten();
@@ -242,7 +268,7 @@ async fn handle_ticket_waits(pool: &DbPool) -> Result<(), String> {
                  WHERE id=$1",
             )
             .bind(step_id)
-            .execute(pool)
+            .execute(&state.pool)
             .await
             .map_err(|e| e.to_string())?;
             continue;
@@ -256,12 +282,12 @@ async fn handle_ticket_waits(pool: &DbPool) -> Result<(), String> {
             )
             .bind(step_id)
             .bind(serde_json::json!({ "ticketStatus": status }))
-            .execute(pool)
+            .execute(&state.pool)
             .await
             .map_err(|e| e.to_string())?;
             if let Some(tenant_id) = tenant_id {
                 if let Ok(tenant) = rustset_framework_tenant::TenantContext::from_persisted_id(Some(tenant_id)) {
-                    super::engine::advance(pool, &tenant, instance_id).await;
+                    super::engine::advance(state, &tenant, instance_id).await;
                 }
             }
         } else {
@@ -279,7 +305,7 @@ async fn handle_ticket_waits(pool: &DbPool) -> Result<(), String> {
                 )
                     .map(|t| t.naive_utc()),
             )
-            .execute(pool)
+            .execute(&state.pool)
             .await
             .map_err(|e| e.to_string())?;
         }

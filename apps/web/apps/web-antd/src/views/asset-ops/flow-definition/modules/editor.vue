@@ -23,6 +23,8 @@ interface EditorStep extends AssetOpsFlowApi.FlowStep {
   condField: string;
   condOp: string;
   condValue: string;
+  /** DAG 出口编辑态（JSON 字符串，空串=线性） */
+  nextText: string;
 }
 
 const visible = ref(false);
@@ -49,6 +51,7 @@ function emptyStep(index: number): EditorStep {
     condField: '',
     condOp: 'eq',
     condValue: '',
+    nextText: '',
   };
 }
 
@@ -67,6 +70,7 @@ function open(row?: AssetOpsFlowApi.FlowDefinition) {
         condField: s.condition?.field ?? '',
         condOp: s.condition?.op ?? 'eq',
         condValue: s.condition ? JSON.stringify(s.condition.value) : '',
+        nextText: (s as any).next?.length ? JSON.stringify((s as any).next, null, 0) : '',
       }));
     });
   } else {
@@ -104,8 +108,23 @@ function buildDefinition() {
         }
         condition = { field: step.condField.trim(), op: step.condOp, value };
       }
+      let next: any[] | undefined;
+      if (step.nextText.trim()) {
+        try {
+          const parsed = JSON.parse(step.nextText);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            next = parsed;
+          }
+        } catch {
+          // JSON 无效时不带 next
+        }
+      }
       const config = { ...step.config };
-      return { ...step, config, condition };
+      const entry: any = { key: step.key, name: step.name, type: step.type, config, condition };
+      if (next) {
+        entry.next = next;
+      }
+      return entry;
     }),
   };
 }
@@ -283,7 +302,7 @@ defineExpose({ open });
         </template>
 
         <!-- 条件（全部类型可配） -->
-        <div class="col-span-5">
+        <div class="col-span-4">
           <div class="flex gap-1">
             <a-input v-model:value="step.condField" placeholder="条件字段（空=无条件）" />
             <a-select v-model:value="step.condOp" style="width: 110px">
@@ -297,6 +316,27 @@ defineExpose({ open });
             </a-select>
             <a-input v-model:value="step.condValue" placeholder='值，如 "high" 或 8080' />
           </div>
+        </div>
+        <!-- DAG 出口（全部类型可配） -->
+        <div class="col-span-4">
+          <a-input
+            v-model:value="step.nextText"
+            placeholder='出口（空=线性下一步），如 [{"to":"分支A"}] 或 [{"when":{"field":"t","op":"eq","value":"net"},"to":"分支A"},{"to":"默认"}]'
+          />
+        </div>
+        <!-- 会签（审批/人工） -->
+        <div
+          v-if="['approval', 'manual'].includes(step.type)"
+          class="col-span-4"
+        >
+          <a-select
+            :value="step.config.assignee?.multi ?? 'any'"
+            class="w-full"
+            @change="(v: any) => { if (!step.config.assignee) step.config.assignee = {}; step.config.assignee.multi = v; }"
+          >
+            <a-select-option value="any">任一人通过</a-select-option>
+            <a-select-option value="all">全员会签（全部通过）</a-select-option>
+          </a-select>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 mod expiry;
-mod provisioning;
+pub(crate) mod provisioning;
 pub mod repository;
 pub(crate) use provisioning::load_platform_target;
 
@@ -185,7 +185,69 @@ async fn create(
     if inserted && let Some(rule) = match_approval_rule(&s, &tenant, id).await? {
         apply_auto_approval(&s, &tenant, id, &rule).await?;
     }
+    // V2 工单链吸收：FLOW_TICKET_MODE=shadow|full 时启动影子流程实例。
+    if inserted && flow_ticket_mode() != "off" {
+        start_ticket_flow(&s, &tenant, id).await;
+    }
     Ok(Json(created))
+}
+
+/// FLOW_TICKET_MODE：off=完全走旧链（默认）；shadow=启动流程但不改按钮；
+/// full=流程为状态权威源。
+pub(crate) fn flow_ticket_mode() -> String {
+    std::env::var("FLOW_TICKET_MODE").unwrap_or_default().to_lowercase()
+}
+
+/// 工单创建钩子：查启用的「资源交付流程（标准）」并启动实例（payload=工单
+/// JSON，biz 关联）。幂等：同 biz_type+biz_id 已有实例则跳过。失败只告警
+/// 不阻断工单创建。
+async fn start_ticket_flow(s: &InfraState, tenant: &TenantContext, ticket_id: i64) {
+    let result: Result<(), String> = async {
+        let existing: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM infra_flow_instance
+             WHERE biz_type='ticket' AND biz_id=$1 AND tenant_id=$2 AND deleted=0",
+        )
+        .bind(ticket_id.to_string())
+        .bind(tenant.id())
+        .fetch_one(&s.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        if existing > 0 {
+            return Ok(());
+        }
+        let definition = sqlx::query(
+            "SELECT id, name, definition, version FROM infra_flow_definition
+             WHERE name='资源交付流程（标准）' AND tenant_id=$1 AND deleted=0 AND status=0",
+        )
+        .bind(tenant.id())
+        .fetch_optional(&s.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        let Some(definition) = definition else { return Ok(()) };
+        let payload = repository::get(&s.pool, tenant, ticket_id)
+            .await
+            .map_err(|e| e.message().to_string())?;
+        super::workflow::instance::start_instance(
+            s,
+            tenant,
+            definition.get::<i64, _>("id"),
+            &definition.get::<String, _>("name"),
+            definition.get::<i32, _>("version"),
+            &(definition.get::<Value, _>("definition")),
+            Some(format!("工单 #{} 交付流程", ticket_id)),
+            payload,
+            "ticket",
+            &ticket_id.to_string(),
+            "system:ticket-hook",
+        )
+        .await
+        .map_err(|e| e.message().to_string())?;
+        Ok(())
+    }
+    .await;
+    if let Err(error) = result {
+        tracing::warn!(ticket_id, %error, "failed to start ticket flow instance");
+    }
 }
 
 /// The first enabled rule whose resource type matches (empty = any) and
@@ -327,16 +389,18 @@ async fn delete_list(
     repository::delete(&s.pool, &TenantContext::from_user(&user)?, &ids).await
 }
 
-async fn approve(
-    State(s): State<InfraState>,
-    axum::extract::Path(id): axum::extract::Path<i64>,
-    user: CurrentUser,
-    Json(payload): Json<ApproveResourceTicketRequest>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let tenant = TenantContext::from_user(&user)?;
-    let approved = payload.approved;
+/// 工单审批内核（HTTP handler 与流程引擎共用）。
+/// 状态 UPDATE + 防火墙自动化 + 既有资源回写，返回 (新状态, 工单快照)。
+pub(crate) async fn approve_core(
+    s: &InfraState,
+    tenant: &TenantContext,
+    id: i64,
+    operator: &str,
+    approved: bool,
+    comment: Option<&str>,
+) -> Result<(&'static str, Value), AppError> {
     let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
-    let ticket = repository::get(&s.pool, &tenant, id).await?;
+    let ticket = repository::get(&s.pool, tenant, id).await?;
     if ticket.get("ticketStatus").and_then(|v| v.as_str()) != Some("pending_approval") {
         return Err(AppError::bad_request("只能审批待审批状态的工单"));
     }
@@ -348,7 +412,7 @@ async fn approve(
         approved_next_status(&ticket)
     };
     sqlx::query("UPDATE infra_resource_ticket SET ticket_status=$2, approver=$3, approve_time=$4, approve_comment=$5, update_time=now() WHERE id=$1 AND tenant_id=$6 AND deleted=0")
-        .bind(id).bind(new_status).bind(&user.username).bind(&now).bind(payload.comment.as_deref())
+        .bind(id).bind(new_status).bind(operator).bind(&now).bind(comment)
         .bind(tenant.id()).execute(&s.pool).await.map_err(|_| AppError::internal("failed"))?;
     // 防火墙策略自动化：网络工单审批后即触发（无论去向状态）
     if approved && ticket.get("resourceType").and_then(Value::as_str) == Some("network") {
@@ -385,10 +449,23 @@ async fn approve(
             }
         }
     if approved && new_status == "delivered" {
-        provisioning::apply_resource_side_effect(&s, &tenant, &ticket).await;
+        provisioning::apply_resource_side_effect(s, tenant, &ticket).await;
     }
+    Ok((new_status, ticket))
+}
+
+async fn approve(
+    State(s): State<InfraState>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+    user: CurrentUser,
+    Json(payload): Json<ApproveResourceTicketRequest>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let (new_status, _) = approve_core(
+        &s, &tenant, id, &user.username, payload.approved, payload.comment.as_deref(),
+    ).await?;
     Ok(Json(ApiResponse::new(
-        json!({"message": if approved { "工单审批通过" } else { "工单已拒绝" }, "id": id, "ticketStatus": new_status}),
+        json!({"message": if payload.approved { "工单审批通过" } else { "工单已拒绝" }, "id": id, "ticketStatus": new_status}),
     )))
 }
 
@@ -396,7 +473,7 @@ async fn approve(
 /// - 云资源新建 → pending_provision（走 OpenTofu 开通）
 /// - 物理资源新建 → pending_delivery（无开通环节，等待上架交付）
 /// - 既有资源工单（变更/停机/回收）→ delivered（执行完成并回写台账）
-fn approved_next_status(ticket: &Value) -> &'static str {
+pub(crate) fn approved_next_status(ticket: &Value) -> &'static str {
     let ticket_type = ticket
         .get("ticketType")
         .and_then(Value::as_str)
@@ -532,15 +609,18 @@ async fn rule_delete(
     .await
 }
 
-async fn deliver(
-    State(s): State<InfraState>,
-    axum::extract::Path(id): axum::extract::Path<i64>,
-    user: CurrentUser,
-    Json(payload): Json<DeliverResourceTicketRequest>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
-    let tenant = TenantContext::from_user(&user)?;
+/// 工单交付内核（HTTP handler 与流程引擎共用）。
+/// 状态 UPDATE + 台账落行 + 交付附件绑定，同事务。
+pub(crate) async fn deliver_core(
+    s: &InfraState,
+    tenant: &TenantContext,
+    id: i64,
+    operator: &str,
+    comment: Option<&str>,
+    file_ids: Option<&[i64]>,
+) -> Result<(), AppError> {
     let now = Utc::now().format("%Y-%m-%d %H:%M").to_string();
-    let ticket = repository::get(&s.pool, &tenant, id).await?;
+    let ticket = repository::get(&s.pool, tenant, id).await?;
     if ticket.get("ticketStatus").and_then(|v| v.as_str()) != Some("pending_delivery") {
         return Err(AppError::bad_request("只能交付待交付状态的工单"));
     }
@@ -550,7 +630,7 @@ async fn deliver(
         .await
         .map_err(|_| AppError::internal("failed to begin delivery"))?;
     sqlx::query("UPDATE infra_resource_ticket SET ticket_status='delivered', delivery_status='已交付', deliverer=$2, deliver_time=$3, deliver_comment=$4, update_time=now() WHERE id=$1 AND tenant_id=$5 AND deleted=0")
-        .bind(id).bind(&user.username).bind(&now).bind(payload.comment.as_deref())
+        .bind(id).bind(operator).bind(&now).bind(comment)
         .bind(tenant.id()).execute(&mut *tx).await.map_err(|_| AppError::internal("failed"))?;
     // 闭环：新建类工单交付完成后，自动在业务资源台账落一条对应记录，
     // 与工单状态更新同事务，避免"交付了但台账没有"的半程状态。
@@ -560,19 +640,34 @@ async fn deliver(
         .unwrap_or("create")
         == "create"
     {
-        insert_delivered_ledger_row(&mut tx, &tenant, &ticket, &user.username).await?;
+        insert_delivered_ledger_row(&mut tx, tenant, &ticket, operator).await?;
     }
     // 交付材料（验收报告、配置清单等）与状态更新同事务绑定。
-    if let Some(ids) = payload
-        .file_ids
-        .as_deref()
-        .filter(|ids| !ids.is_empty())
-    {
-        bind_ticket_files(&mut *tx, tenant.id(), id, ids, "delivery", &user.username).await?;
+    if let Some(ids) = file_ids.filter(|ids| !ids.is_empty()) {
+        bind_ticket_files(&mut *tx, tenant.id(), id, ids, "delivery", operator).await?;
     }
     tx.commit()
         .await
         .map_err(|_| AppError::internal("failed to commit delivery"))?;
+    Ok(())
+}
+
+async fn deliver(
+    State(s): State<InfraState>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+    user: CurrentUser,
+    Json(payload): Json<DeliverResourceTicketRequest>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    deliver_core(
+        &s,
+        &tenant,
+        id,
+        &user.username,
+        payload.comment.as_deref(),
+        payload.file_ids.as_deref(),
+    )
+    .await?;
     Ok(Json(ApiResponse::new(
         json!({"message": "工单交付完成", "id": id, "ticketStatus": "delivered"}),
     )))

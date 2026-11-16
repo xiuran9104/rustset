@@ -210,7 +210,7 @@ pub(super) async fn resurrect_application_if_archived(
     info!(application_id, "archived application resurrected by new binding");
 }
 
-pub(super) async fn run(
+pub(crate) async fn run(
     s: &InfraState,
     tenant: &TenantContext,
     id: i64,

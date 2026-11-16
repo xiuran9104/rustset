@@ -248,7 +248,22 @@ async fn run_claimed(pool: DbPool, owner: String, job: Job) {
                 Ok(result) if result.rows_affected() == 0 => {
                     let _ = finish_cancelled(&pool, &owner, &job.id).await;
                 }
-                Ok(_) => {}
+                Ok(_) => {
+                    // 事件触发：任务完成 → 匹配「扫描完成」流程
+                    crate::workflow::trigger_by_event(
+                        &pool,
+                        job.tenant_id,
+                        "扫描完成",
+                        "task",
+                        &job.id,
+                        serde_json::json!({
+                            "taskId": job.id,
+                            "taskKind": job.task_kind,
+                            "foundAssets": assets,
+                            "foundRisks": risks,
+                        }),
+                    ).await;
+                }
                 Err(error) => {
                     tracing::error!(task_id = job.id, ?error, "failed to complete scan task");
                 }
@@ -482,11 +497,26 @@ async fn save_open_port_risk(
     .bind(ip.to_string())
     .bind(port)
     .bind(format!("扫描任务发现 TCP 端口 {port} 开放"))
-    .bind(key)
+    .bind(&key)
     .bind(job.tenant_id)
     .execute(pool)
     .await
     .map_err(|error| error.to_string())?;
+    // 事件触发：风险新增/复发 → 匹配「风险新增」流程
+    // 幂等：biz_id=inspection_key（稳定标识），同风险只触发一次。
+    crate::workflow::trigger_by_event(
+        pool,
+        job.tenant_id,
+        "风险新增",
+        "risk",
+        &key,
+        serde_json::json!({
+            "inspectionKey": key,
+            "taskId": job.id,
+            "assetIp": ip.to_string(),
+            "port": port,
+        }),
+    ).await;
     Ok(())
 }
 

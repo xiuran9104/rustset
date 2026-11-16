@@ -67,7 +67,7 @@ impl InfraState {
     /// Start durable background executors after database migrations complete.
     pub fn start_workers(&self) {
         task::start_worker(self.pool.clone());
-        workflow::runner::start(self.pool.clone());
+        workflow::runner::start(self.clone());
         ticket::start_expiry_scanner(self.pool.clone());
     }
 }

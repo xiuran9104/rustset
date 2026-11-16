@@ -40,7 +40,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 62);
+    assert_eq!(applied, 63);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -143,6 +143,23 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read sample flow definition");
     assert_eq!(flow_sample, 1);
+    // 0063：DAG 出口列 + 工单链吸收种子流程。
+    let flow_next_column: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='infra_flow_step' AND column_name='next'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect infra_flow_step.next");
+    assert_eq!(flow_next_column, 1, "infra_flow_step.next must exist");
+    let ticket_flow: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_flow_definition
+         WHERE name = '资源交付流程（标准）' AND tenant_id = 1 AND deleted = 0 AND status = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read ticket flow seed");
+    assert_eq!(ticket_flow, 1, "standard ticket flow must be seeded enabled");
     let unique_constraint: bool = if matches!(flavor(), DatabaseFlavor::OpenGauss | DatabaseFlavor::Kingbase) {
         // og / 金仓链把 UNIQUE NULLS NOT DISTINCT 约束改写为表达式唯一索引。
         sqlx::query_scalar(

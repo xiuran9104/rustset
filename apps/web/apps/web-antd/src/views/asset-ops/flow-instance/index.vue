@@ -390,6 +390,18 @@ onMounted(loadTodos);
                 >
                   {{ step.result.lastError }}
                 </div>
+                <div
+                  v-if="step.result?.approvers && step.status === 'active'"
+                  class="text-xs text-blue-500"
+                >
+                  会签进度：{{ (step.result.approvers ?? []).length }} 人已通过
+                </div>
+                <div
+                  v-if="step.result?.ticketStatus"
+                  class="text-xs text-gray-500"
+                >
+                  工单状态：{{ step.result.ticketStatus }}
+                </div>
               </div>
               <a-button
                 v-if="step.status === 'failed' && step.type === 'auto'"

@@ -25,7 +25,13 @@ export namespace AssetOpsFlowApi {
     config: {
       action?: string;
       params?: Record<string, any>;
-      assignee?: { role?: string; userIds?: number[]; usernames?: string[] };
+      assignee?: {
+        role?: string;
+        userIds?: number[];
+        usernames?: string[];
+        /** any=任一人通过（默认）；all=全员会签 */
+        multi?: 'all' | 'any';
+      };
       timeoutHours?: number;
       onTimeout?: 'auto_reject' | 'escalate_notify';
       templateCode?: string;
