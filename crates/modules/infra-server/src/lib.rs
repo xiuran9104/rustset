@@ -44,6 +44,8 @@ mod room;
 mod security;
 pub mod task;
 pub mod ticket;
+// workflow：产品内流程引擎（定义/实例/步骤推进）。
+pub(crate) mod workflow;
 mod zone;
 
 #[derive(Clone)]
@@ -65,6 +67,7 @@ impl InfraState {
     /// Start durable background executors after database migrations complete.
     pub fn start_workers(&self) {
         task::start_worker(self.pool.clone());
+        workflow::runner::start(self.pool.clone());
         ticket::start_expiry_scanner(self.pool.clone());
     }
 }
@@ -194,6 +197,7 @@ pub fn routes(state: InfraState) -> ApiRouter {
         .merge(asset::routes())
         .merge(business::routes())
         .merge(ticket::routes())
+        .merge(workflow::routes())
         .merge(task::routes())
         .merge(inspection::routes())
         .merge(risk::routes())

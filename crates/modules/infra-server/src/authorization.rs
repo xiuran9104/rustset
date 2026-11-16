@@ -452,6 +452,12 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("GET", "/infra/file/page", Some("infra:file:query")),
     ("GET", "/infra/file/presigned-url", Some("infra:file:query")),
+    ("GET", "/infra/flow-definition/delete", Some("infra:flow-definition:delete")),
+    ("GET", "/infra/flow-definition/get", Some("infra:flow-definition:query")),
+    ("GET", "/infra/flow-definition/page", Some("infra:flow-definition:query")),
+    ("GET", "/infra/flow-instance/get", Some("infra:flow-instance:query")),
+    ("GET", "/infra/flow-instance/page", Some("infra:flow-instance:query")),
+    ("GET", "/infra/flow-instance/todo", Some("infra:flow-instance:query")),
     (
         "GET",
         "/infra/inspection/baseline",
@@ -686,6 +692,29 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("POST", "/infra/file/create", Some("infra:file:create")),
     ("POST", "/infra/file/upload", None),
+    ("POST", "/infra/flow-definition/create", Some("infra:flow-definition:create")),
+    ("POST", "/infra/flow-instance/cancel", Some("infra:flow-instance:operate")),
+    ("POST", "/infra/flow-instance/create", Some("infra:flow-instance:start")),
+    (
+        "POST",
+        "/infra/flow-instance/{id}/step/{step_key}/approve",
+        Some("infra:flow-instance:operate"),
+    ),
+    (
+        "POST",
+        "/infra/flow-instance/{id}/step/{step_key}/complete",
+        Some("infra:flow-instance:operate"),
+    ),
+    (
+        "POST",
+        "/infra/flow-instance/{id}/step/{step_key}/reject",
+        Some("infra:flow-instance:operate"),
+    ),
+    (
+        "POST",
+        "/infra/flow-instance/{id}/step/{step_key}/retry",
+        Some("infra:flow-instance:operate"),
+    ),
     ("POST", "/infra/inspection/run", Some("infra:task:execute")),
     ("POST", "/infra/job/create", Some("infra:job:create")),
     ("POST", "/infra/job/sync", Some("infra:job:update")),
@@ -839,6 +868,7 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
         "/infra/file-config/update-master",
         Some("infra:file-config:update"),
     ),
+    ("PUT", "/infra/flow-definition/update", Some("infra:flow-definition:update")),
     (
         "PUT",
         "/infra/inspection/baseline",
@@ -947,7 +977,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 217);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 231);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

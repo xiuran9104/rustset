@@ -40,7 +40,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 61);
+    assert_eq!(applied, 62);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -109,6 +109,40 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("inspect ai.mcp_server columns");
     assert_eq!(mcp_server_columns, 6);
+    // 0062：流程引擎三张表 + 运营流程菜单 + 通知模板 + 示例定义。
+    let flow_tables: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.tables
+         WHERE table_schema='public' AND table_name IN ('infra_flow_definition','infra_flow_instance','infra_flow_step')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect flow engine tables");
+    assert_eq!(flow_tables, 3, "flow engine tables must exist");
+    let flow_menu_grants: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_role_menu rm
+         JOIN system_role r ON r.id = rm.role_id AND r.code = 'super_admin'
+         WHERE rm.menu_id BETWEEN 30362 AND 30368 AND rm.deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read flow menu grants");
+    assert_eq!(flow_menu_grants, 7, "flow pages + buttons granted to super_admin");
+    let flow_templates: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_notify_template
+         WHERE code IN ('flow_step_todo','flow_step_timeout') AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read flow notify templates");
+    assert_eq!(flow_templates, 2);
+    let flow_sample: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_flow_definition
+         WHERE name = '网络开通标准流程（示例）' AND tenant_id = 1 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read sample flow definition");
+    assert_eq!(flow_sample, 1);
     let unique_constraint: bool = if matches!(flavor(), DatabaseFlavor::OpenGauss | DatabaseFlavor::Kingbase) {
         // og / 金仓链把 UNIQUE NULLS NOT DISTINCT 约束改写为表达式唯一索引。
         sqlx::query_scalar(
@@ -538,7 +572,10 @@ async fn applies_all_migrations_to_empty_postgres() {
     .fetch_one(&pool)
     .await
     .expect("read ops-center menu order");
-    assert_eq!(order_check, "资源工单,网络策略工单,审批规则,自动化配置");
+    assert_eq!(
+        order_check,
+        "资源工单,网络策略工单,审批规则,自动化配置,流程定义,流程实例"
+    );
     rerun_migration_file(&pool, "0056_automation_config.sql").await;
     let automation_types: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_automation_config WHERE deleted=0 AND tenant_id=1",
@@ -1068,8 +1105,8 @@ async fn applies_all_migrations_to_empty_postgres() {
     .fetch_one(&pool)
     .await
     .expect("read Kairos asset operations pages");
-    // 16 pages after 0021 + 资产核查 (0022) + 网络策略工单 (0054).
-    assert_eq!(asset_ops_pages, 19);
+    // 16 pages after 0021 + 资产核查 (0022) + 网络策略工单 (0054) + 流程引擎两页 (0062).
+    assert_eq!(asset_ops_pages, 21);
 
     let asset_ops_permissions: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
@@ -1081,8 +1118,9 @@ async fn applies_all_migrations_to_empty_postgres() {
     .fetch_one(&pool)
     .await
     .expect("read Kairos asset operations permissions");
-    // 0021 adds the four infra:physical-resource:* buttons.
-    assert_eq!(asset_ops_permissions, 67);
+    // 0021 adds the four infra:physical-resource:* buttons; 0062 adds the
+    // five infra:flow-* buttons.
+    assert_eq!(asset_ops_permissions, 72);
 
     let missing_super_admin_asset_links: i64 = sqlx::query_scalar(
         "SELECT count(*)

@@ -45,7 +45,7 @@ pub(super) async fn page(
     )))
 }
 
-pub(super) async fn create(
+pub(crate) async fn create(
     pool: &DbPool,
     tenant: &TenantContext,
     payload: Value,

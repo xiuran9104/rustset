@@ -157,3 +157,9 @@ bun run --cwd apps/web build:antd
 Cursor 等外部 AI 客户端调用资产/CMDB/风险/任务/工单查询与 AI 对话工具。
 密钥在管理端"基础设置 → MCP 服务"创建（绑定用户，权限与租户随该用户），
 `MCP_ENABLED=0` 可整体关闭。详见 [MCP 服务文档](mcp-service.md)。
+
+## 流程引擎
+
+运营流程 → 流程定义/流程实例 提供产品内编排（多级审批、条件跳过、自动动作、
+通知、等待工单）；后台 runner 随网关启动自动运行。详见
+[流程引擎文档](workflow-engine.md)。
