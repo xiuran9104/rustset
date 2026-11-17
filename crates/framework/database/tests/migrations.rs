@@ -40,7 +40,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 63);
+    assert_eq!(applied, 64);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -160,6 +160,16 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read ticket flow seed");
     assert_eq!(ticket_flow, 1, "standard ticket flow must be seeded enabled");
+    // 0064：流程定义 update/delete 按钮权限补齐。
+    let flow_def_perms: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu
+         WHERE permission IN ('infra:flow-definition:update','infra:flow-definition:delete')
+           AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read flow definition permissions");
+    assert_eq!(flow_def_perms, 2, "update/delete button permissions must exist");
     let unique_constraint: bool = if matches!(flavor(), DatabaseFlavor::OpenGauss | DatabaseFlavor::Kingbase) {
         // og / 金仓链把 UNIQUE NULLS NOT DISTINCT 约束改写为表达式唯一索引。
         sqlx::query_scalar(
@@ -1136,8 +1146,8 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read Kairos asset operations permissions");
     // 0021 adds the four infra:physical-resource:* buttons; 0062 adds the
-    // five infra:flow-* buttons.
-    assert_eq!(asset_ops_permissions, 72);
+    // five infra:flow-* buttons; 0064 adds two more flow-definition buttons.
+    assert_eq!(asset_ops_permissions, 74);
 
     let missing_super_admin_asset_links: i64 = sqlx::query_scalar(
         "SELECT count(*)
