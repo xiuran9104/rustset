@@ -1,0 +1,1 @@
+import{a as e,n as t,r as n,s as r}from"./compat-Dx7toK-1.js";function i(){return e(`machine-room`)}function a(e){return t(`machine-room`,e)}function o(e,t){return r(`machine-room`,e,t)}function s(e){return n(`machine-room`,e)}export{o as i,s as n,i as r,a as t};

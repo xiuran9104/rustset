@@ -1,0 +1,1 @@
+function e(e,t){let{VITE_GLOB_API_URL:n,VITE_GLOB_AUTH_DINGDING_CORP_ID:r,VITE_GLOB_AUTH_DINGDING_CLIENT_ID:i}=t?window._VBEN_ADMIN_PRO_APP_CONF_:e,a={apiURL:n,auth:{}};return r&&i&&(a.auth.dingding={clientId:i,corpId:r}),a}function t(){return!0}function n(){return!1}function r(){return!1}export{e as i,r as n,t as r,n as t};

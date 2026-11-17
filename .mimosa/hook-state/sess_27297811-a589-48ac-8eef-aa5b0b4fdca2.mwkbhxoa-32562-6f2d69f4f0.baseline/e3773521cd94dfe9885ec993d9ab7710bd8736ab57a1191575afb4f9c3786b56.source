@@ -1,0 +1,1 @@
+import{a as e,n as t,r as n,s as r}from"./compat-C0F_LKOp.js";function i(){return e(`security-product`)}function a(e){return t(`security-product`,e)}function o(e,t){return r(`security-product`,e,t)}function s(e){return n(`security-product`,e)}export{o as i,s as n,i as r,a as t};

@@ -50,6 +50,7 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 redis = { version = "0.32", default-features = false, features = ["aio", "tokio-comp"] }
 rust_xlsxwriter = "0.102"
+quick-xml = "0.36"
 rustset-framework-common = { path = "crates/framework/common" }
 rustset-framework-database = { path = "crates/framework/database" }
 rustset-framework-mq = { path = "crates/framework/mq" }

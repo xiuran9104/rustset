@@ -10,6 +10,7 @@ import {
   CONDITION_OPS,
   STEP_TYPES,
 } from '../data';
+import CanvasEditor from './canvas-editor.vue';
 import {
   createFlowDefinition,
   getFlowDefinition,
@@ -36,6 +37,7 @@ const form = reactive({
   status: 0,
 });
 const steps = ref<EditorStep[]>([]);
+const editMode = ref<'canvas' | 'table'>('canvas');
 
 const title = computed(() =>
   editingId.value ? '编辑流程定义' : '新建流程定义',
@@ -192,12 +194,30 @@ defineExpose({ open });
     </div>
 
     <div class="mb-2 flex items-center justify-between">
-      <div class="text-sm font-medium">步骤（按顺序执行；条件为假时跳过）</div>
-      <a-button size="small" @click="steps.push(emptyStep(steps.length))">
-        + 添加步骤
-      </a-button>
+      <div class="text-sm font-medium">步骤编排</div>
+      <div class="flex items-center gap-2">
+        <a-radio-group v-model:value="editMode" size="small" button-style="solid">
+          <a-radio-button value="canvas">画布</a-radio-button>
+          <a-radio-button value="table">表格</a-radio-button>
+        </a-radio-group>
+        <a-button
+          v-if="editMode === 'table'"
+          size="small"
+          @click="steps.push(emptyStep(steps.length))"
+        >
+          + 添加步骤
+        </a-button>
+      </div>
     </div>
 
+    <!-- 画布模式 -->
+    <CanvasEditor
+      v-if="editMode === 'canvas'"
+      v-model:steps="steps"
+    />
+
+    <!-- 表格模式 -->
+    <template v-if="editMode === 'table'">
     <div
       v-for="(step, i) in steps"
       :key="i"
@@ -340,6 +360,7 @@ defineExpose({ open });
         </div>
       </div>
     </div>
+    </template>
 
     <div class="text-right">
       <a-button class="mr-2" @click="visible = false">取消</a-button>

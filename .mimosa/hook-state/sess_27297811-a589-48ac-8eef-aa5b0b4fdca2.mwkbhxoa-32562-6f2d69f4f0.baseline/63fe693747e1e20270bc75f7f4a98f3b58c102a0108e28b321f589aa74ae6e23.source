@@ -1,0 +1,9 @@
+[package]
+name = "rustset-framework-telemetry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rustset-framework-common.workspace = true

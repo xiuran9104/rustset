@@ -355,5 +355,11 @@
   "resolutions": {
     "@scalar/snippetz": "0.10.0",
     "@scalar/json-magic": "0.15.0"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.1.3",
+    "@vue-flow/background": "^1.3.2",
+    "@vue-flow/controls": "^1.1.3",
+    "@vue-flow/core": "^1.48.2"
   }
 }

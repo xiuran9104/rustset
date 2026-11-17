@@ -1,0 +1,15 @@
+[package]
+name = "dm-odbc-spike"
+version = "0.1.0"
+edition = "2021"
+
+# 达梦 ODBC 技术路线 spike（信创方案 §4.1.6 / M0 清单第 3 项）：
+# unixODBC + 厂商 libdodbc.so + odbc-api，证明 Rust 经 ODBC 可达 DM8。
+# 独立 crate：不进工作区，生产适配器（M3）以此为路线依据。
+
+[dependencies]
+odbc-api = "8"
+anyhow = "1"
+
+[profile.release]
+opt-level = 2

@@ -1,0 +1,1 @@
+import{t as e}from"./request-BMpSKfzR.js";import{a as t}from"./compat-Dx7toK-1.js";function n(){return t(`risk`)}function r(t,n){var r;return n.status===`resolved`?e.put(`/infra/risk/${t}/resolve`):e.put(`/infra/risk/${t}/status/${(r=n.status)==null?`open`:r}`)}export{r as n,n as t};

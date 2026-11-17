@@ -1,0 +1,1 @@
+var e={today:`今天`,last7Days:`最近 7 天`,last30Days:`最近 30 天`,yesterday:`昨天`,thisWeek:`本周`,thisMonth:`本月`,lastWeek:`上周`,lastMonth:`上月`,beginTime:`开始时间`,endTime:`结束时间`},t={rangePicker:e};export{t as default,e as rangePicker};

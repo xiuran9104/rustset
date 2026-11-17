@@ -2,6 +2,7 @@
 //!
 //! v1 动作：firewall_push / trigger_scan / create_ticket / set_context。
 //! v2 新增：ticket_approve / ticket_provision / ticket_deliver（工单链吸收）。
+//! v3 新增：http_request（SSRF 防护）/ start_flow（跨实例调用）。
 //! firewall_push 走既有自动化框架（开关/熔断/审计）；失败进入退避重试
 //! （最多 3 次），重试由 runner 按 retry_at 到期后调 engine::advance 驱动。
 
@@ -12,7 +13,7 @@ use sqlx::Row;
 
 /// 已知动作名（校验用）。
 pub(crate) fn is_known_action(action: &str) -> Option<&'static str> {
-    const ACTIONS: [&str; 7] = [
+    const ACTIONS: [&str; 9] = [
         "firewall_push",
         "trigger_scan",
         "create_ticket",
@@ -20,6 +21,8 @@ pub(crate) fn is_known_action(action: &str) -> Option<&'static str> {
         "ticket_approve",
         "ticket_provision",
         "ticket_deliver",
+        "http_request",
+        "start_flow",
     ];
     ACTIONS.iter().find(|a| **a == action).copied()
 }
@@ -89,11 +92,29 @@ async fn execute_step_inner(
         "ticket_approve" => ticket_approve(state, tenant, instance_id, &params).await,
         "ticket_provision" => ticket_provision(state, tenant, instance_id, &params).await,
         "ticket_deliver" => ticket_deliver(state, tenant, instance_id, &params).await,
+        "http_request" => http_request(state, instance_id, &params).await,
+        "start_flow" => start_flow(state, tenant, instance_id, step_id, &params).await,
         other => Err(format!("未知自动动作：{other}")),
     };
 
     match outcome {
         Ok(result) => {
+            // start_flow wait 模式：步骤保持 active，由 runner 轮询子实例终态。
+            if result.get("mode").and_then(Value::as_str) == Some("wait") {
+                sqlx::query(
+                    "UPDATE infra_flow_step
+                     SET result=result || $3, retry_at=now(), attempt_count=attempt_count+1
+                     WHERE id=$1 AND tenant_id=$2",
+                )
+                .bind(step_id)
+                .bind(tenant.id())
+                .bind(&result)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                super::engine::advance(state, tenant, instance_id).await;
+                return Ok(());
+            }
             // set_context 需要把更新后的 context 写回实例。
             if action == "set_context" {
                 sqlx::query(
@@ -447,4 +468,231 @@ async fn resolve_ticket_id(
     biz_id
         .and_then(|v| v.parse().ok())
         .ok_or_else(|| "ticketId 未指定且实例无工单关联（biz_id）".to_string())
+}
+
+// ==================== V3: HTTP 通用节点 ====================
+
+/// SSRF 防护：校验 URL 安全性。
+/// 仅 http/https；解析 host 后拒绝 loopback/private/link-local/reserved。
+/// 返回 Err(原因) 或 Ok(解析后的 URL)。
+async fn validate_http_url(raw: &str) -> Result<reqwest::Url, String> {
+    let url = reqwest::Url::parse(raw).map_err(|e| format!("URL 无效：{e}"))?;
+    match url.scheme() {
+        "http" | "https" => {}
+        other => return Err(format!("不允许的协议 {other}（仅 http/https）")),
+    }
+    let host = url.host_str().ok_or("URL 缺少主机名")?;
+    // 直接 IP 检查
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        if is_forbidden_ip(&ip) {
+            return Err(format!("禁止访问受保护地址 {host}"));
+        }
+        return Ok(url);
+    }
+    // 域名：DNS 解析后逐 IP 检查
+    // 注意：TOCTOU（解析后请求时可能换 IP）由 redirect policy none 缓解
+    let addrs = tokio::net::lookup_host(format!("{host}:{}", url.port_or_known_default().unwrap_or(80)))
+        .await
+        .map_err(|e| format!("DNS 解析失败：{e}"))?;
+    for addr in addrs {
+        if is_forbidden_ip(&addr.ip()) {
+            return Err(format!("域名 {host} 解析到受保护地址 {}", addr.ip()));
+        }
+    }
+    Ok(url)
+}
+
+fn is_forbidden_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+                || v4.octets()[0] == 0 // 0.0.0.0/8
+                || v4.octets()[0] == 10 // 10.0.0.0/8（is_private 覆盖）
+                || v4.octets()[0] == 127 // 127.0.0.0/8（is_loopback 覆盖）
+                || (v4.octets()[0] == 172 && (v4.octets()[1] & 0xF0) == 16) // 172.16/12
+                || (v4.octets()[0] == 192 && v4.octets()[1] == 168) // 192.168/16
+                || (v4.octets()[0] == 169 && v4.octets()[1] == 254) // link-local
+        }
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.segments()[0] & 0xFE00 == 0xFC00 // ULA fc00::/7
+                || v6.segments()[0] & 0xFFC0 == 0xFE80 // link-local fe80::/10
+                || v6.segments()[0] & 0xFF00 == 0xFF00 // multicast ff00::/8
+        }
+    }
+}
+
+/// HTTP 请求节点：params {method, url, headers?, body?, timeoutSeconds?}。
+/// SSRF 防护：scheme 校验 + IP 黑名单 + 禁 redirect。
+async fn http_request(
+    _state: &crate::InfraState,
+    _instance_id: i64,
+    params: &Value,
+) -> Result<Value, String> {
+    let url_raw = params
+        .get("url")
+        .and_then(Value::as_str)
+        .ok_or("http_request 需要 url")?;
+    let url = validate_http_url(url_raw).await?;
+    let method = params
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or("GET")
+        .to_uppercase();
+    if !matches!(method.as_str(), "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD") {
+        return Err(format!("不支持的方法 {method}"));
+    }
+    let timeout_secs = params
+        .get("timeoutSeconds")
+        .and_then(Value::as_u64)
+        .unwrap_or(30)
+        .clamp(1, 120);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .redirect(reqwest::redirect::Policy::none()) // SSRF：禁 redirect
+        .build()
+        .map_err(|e| format!("HTTP 客户端构建失败：{e}"))?;
+
+    let mut request = client.request(
+        reqwest::Method::from_bytes(method.as_bytes()).map_err(|_| "无效方法")?,
+        url,
+    );
+    if let Some(headers) = params.get("headers").and_then(Value::as_object) {
+        for (key, value) in headers {
+            if let (Some(k), Some(v)) = (Some(key.as_str()), value.as_str()) {
+                request = request.header(k, v);
+            }
+        }
+    }
+    if let Some(body) = params.get("body") {
+        if !body.is_null() {
+            request = request.json(body);
+        }
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("HTTP 请求失败：{e}"))?;
+    let status = response.status().as_u16();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    let body_text = response
+        .text()
+        .await
+        .unwrap_or_default();
+    // 截断到 512 字符存结果
+    let truncated = if body_text.len() > 512 {
+        format!("{}...[截断，共 {} 字符]", &body_text[..512], body_text.len())
+    } else {
+        body_text
+    };
+    Ok(json!({
+        "status": status,
+        "contentType": content_type,
+        "body": truncated,
+    }))
+}
+
+// ==================== V3: 跨实例调用 ====================
+
+/// 启动子流程：params {definitionId 或 definitionName, payload?, wait?}。
+/// wait=false（默认）fire-and-forget；wait=true 转轮询等待子实例终态。
+async fn start_flow(
+    state: &crate::InfraState,
+    tenant: &TenantContext,
+    instance_id: i64,
+    step_id: i64,
+    params: &Value,
+) -> Result<Value, String> {
+    let pool = &state.pool;
+    // 定位目标定义
+    let definition = if let Some(def_id) = params.get("definitionId").and_then(Value::as_i64) {
+        sqlx::query(
+            "SELECT id, name, definition, version FROM infra_flow_definition
+             WHERE id=$1 AND tenant_id=$2 AND deleted=0 AND status=0",
+        )
+        .bind(def_id)
+        .bind(tenant.id())
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?
+    } else if let Some(def_name) = params.get("definitionName").and_then(Value::as_str) {
+        sqlx::query(
+            "SELECT id, name, definition, version FROM infra_flow_definition
+             WHERE name=$1 AND tenant_id=$2 AND deleted=0 AND status=0
+             ORDER BY id LIMIT 1",
+        )
+        .bind(def_name)
+        .bind(tenant.id())
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?
+    } else {
+        return Err("start_flow 需要 definitionId 或 definitionName".to_string());
+    };
+    let Some(definition) = definition else {
+        return Err("目标流程定义不存在或已停用".to_string());
+    };
+
+    let child_payload = params
+        .get("payload")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let starter = format!("flow:F{instance_id}");
+
+    let child_id = super::instance::start_instance(
+        state,
+        tenant,
+        definition.get::<i64, _>("id"),
+        &definition.get::<String, _>("name"),
+        definition.get::<i32, _>("version"),
+        &(definition.get::<Value, _>("definition")),
+        Some(format!("子流程（由 F{instance_id} 触发）")),
+        child_payload.clone(),
+        "flow_child",
+        &instance_id.to_string(),
+        &starter,
+    )
+    .await
+    .map_err(|e| e.message().to_string())?;
+
+    // 推进子实例（激活首个步骤）
+    super::engine::advance(state, tenant, child_id).await;
+
+    let wait = params.get("wait").and_then(Value::as_bool).unwrap_or(false);
+    if wait {
+        // 等待模式：本步骤转轮询，由 runner 检查子实例终态
+        sqlx::query(
+            "UPDATE infra_flow_step
+             SET result=result || $3, retry_at=now()
+             WHERE id=$1 AND tenant_id=$2",
+        )
+        .bind(step_id)
+        .bind(tenant.id())
+        .bind(json!({ "childInstanceId": child_id, "waiting": true }))
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        // 不返回 Ok——让调用方知道我们在等待；步骤保持 active 由 runner 轮询。
+        // 但 execute_step 的 Ok 分支会置 done，所以这里返回特殊标记。
+        // 实际上等待模式的处理在 runner 的 handle_ticket_waits 扩展中。
+        // 这里先返回 child_id，execute_step 会置 done——但这不对。
+        // 正确做法：等待时返回 Err 让步骤保持 active？
+        // 不，更好的做法：返回一个特殊 Ok 值，在 execute_step 里识别并跳过 done。
+        Ok(json!({ "childInstanceId": child_id, "mode": "wait" }))
+    } else {
+        Ok(json!({ "childInstanceId": child_id, "mode": "fire_and_forget" }))
+    }
 }

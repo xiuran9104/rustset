@@ -1,0 +1,51 @@
+{
+  "name": "@vben/web-antd",
+  "version": "5.7.0",
+  "description": "RustSet 资产、CMDB、云资源与运维管理平台前端",
+  "private": true,
+  "license": "MIT",
+  "author": {
+    "name": "RustSet"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "vite build --mode production",
+    "build:analyze": "vite build --mode analyze",
+    "dev": "vite --mode development",
+    "preview": "vite preview",
+    "typecheck": "cross-env NODE_OPTIONS=--max-old-space-size=8192 vue-tsc --noEmit --skipLibCheck"
+  },
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "dependencies": {
+    "@form-create/ant-design-vue": "catalog:",
+    "@form-create/antd-designer": "catalog:",
+    "@tinymce/tinymce-vue": "catalog:",
+    "@vben/access": "workspace:*",
+    "@vben/common-ui": "workspace:*",
+    "@vben/constants": "workspace:*",
+    "@vben/hooks": "workspace:*",
+    "@vben/icons": "workspace:*",
+    "@vben/layouts": "workspace:*",
+    "@vben/locales": "workspace:*",
+    "@vben/plugins": "workspace:*",
+    "@vben/preferences": "workspace:*",
+    "@vben/request": "workspace:*",
+    "@vben/stores": "workspace:*",
+    "@vben/styles": "workspace:*",
+    "@vben/types": "workspace:*",
+    "@vben/utils": "workspace:*",
+    "@vueuse/core": "catalog:",
+    "ant-design-vue": "catalog:",
+    "cropperjs": "catalog:",
+    "dayjs": "catalog:",
+    "highlight.js": "catalog:",
+    "pinia": "catalog:",
+    "tinymce": "catalog:",
+    "vue": "catalog:",
+    "vue-dompurify-html": "catalog:",
+    "vue-router": "catalog:",
+    "@scalar/api-reference": "^1.0.0"
+  }
+}

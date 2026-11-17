@@ -693,8 +693,14 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ("POST", "/infra/file/create", Some("infra:file:create")),
     ("POST", "/infra/file/upload", None),
     ("POST", "/infra/flow-definition/create", Some("infra:flow-definition:create")),
+    ("POST", "/infra/flow-definition/import-bpmn", Some("infra:flow-definition:create")),
     ("POST", "/infra/flow-instance/cancel", Some("infra:flow-instance:operate")),
     ("POST", "/infra/flow-instance/create", Some("infra:flow-instance:start")),
+    (
+        "POST",
+        "/infra/flow-instance/{id}/step/{step_key}/add-approver",
+        Some("infra:flow-instance:operate"),
+    ),
     (
         "POST",
         "/infra/flow-instance/{id}/step/{step_key}/approve",
@@ -977,7 +983,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 231);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 233);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

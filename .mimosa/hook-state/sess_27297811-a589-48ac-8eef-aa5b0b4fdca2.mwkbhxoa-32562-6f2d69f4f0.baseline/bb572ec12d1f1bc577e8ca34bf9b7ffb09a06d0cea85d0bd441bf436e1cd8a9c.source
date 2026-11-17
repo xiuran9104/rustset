@@ -1,0 +1,1 @@
+import{On as e,k as t,mt as n,v as r}from"./runtime-core.esm-bundler-hUqiKM-7.js";import{n as i,t as a}from"./objectSpread2-DYuuIzlJ.js";import{t as o}from"./fallback-CH9RJfBF.js";i();var s=t(a(a({},{name:`Fallback403Demo`}),{},{__name:`forbidden`,setup(t){return(t,i)=>(n(),r(e(o),{status:`403`}))}}));export{s as default};

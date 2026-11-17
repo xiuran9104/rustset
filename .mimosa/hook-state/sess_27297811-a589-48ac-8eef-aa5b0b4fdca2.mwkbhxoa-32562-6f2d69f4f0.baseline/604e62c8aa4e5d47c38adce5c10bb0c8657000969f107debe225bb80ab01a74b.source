@@ -1,0 +1,1 @@
+import{r as e}from"./rolldown-runtime-sJBDdmOt.js";import{D as t,On as n,b as r,k as i,mt as a}from"./runtime-core.esm-bundler-hUqiKM-7.js";import{t as o}from"./skeleton-EWi161-6.js";var s={class:`p-8`},c=i({__name:`loading`,setup(e){return(e,i)=>(a(),r(`div`,s,[t(n(o),{active:``})]))}}),l=e({default:()=>u}),u=c;export{l as n,u as t};

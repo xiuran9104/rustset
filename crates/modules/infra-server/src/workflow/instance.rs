@@ -43,6 +43,10 @@ pub fn routes() -> ApiRouter<InfraState> {
             "/infra/flow-instance/{id}/step/{step_key}/retry",
             post(step_retry),
         )
+        .api_route(
+            "/infra/flow-instance/{id}/step/{step_key}/add-approver",
+            post(step_add_approver),
+        )
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -604,5 +608,89 @@ async fn step_retry(
     .map_err(|_| AppError::internal("failed to reactivate step"))?;
     super::engine::advance(&state, &tenant, instance_id).await;
     let _ = user;
+    Ok(Json(ApiResponse::new(())))
+}
+
+/// 动态加签：向 active 的会签（multi=all）审批步骤追加审批人。
+/// 合并到 assignee（不覆盖已有），已有 approvers 保留。
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct AddApproverRequest {
+    usernames: Option<Vec<String>>,
+    user_ids: Option<Vec<i64>>,
+}
+
+async fn step_add_approver(
+    user: CurrentUser,
+    State(state): State<InfraState>,
+    Path((instance_id, step_key)): Path<(i64, String)>,
+    Json(request): Json<AddApproverRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    // 不用 load_active_step（那会校验操作人是否为审批人；加签者可能不是）
+    let row = sqlx::query(
+        "SELECT id, type, config, assignee, result FROM infra_flow_step
+         WHERE instance_id=$1 AND step_key=$2 AND tenant_id=$3 AND status='active'",
+    )
+    .bind(instance_id)
+    .bind(&step_key)
+    .bind(tenant.id())
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to read step"))?
+    .ok_or_else(|| AppError::bad_request("步骤不存在或不处于待处理状态"))?;
+    if row.get::<String, _>("type") != "approval" {
+        return Err(AppError::bad_request("只能对审批步骤加签"));
+    }
+    let config: Value = row.get("config");
+    let mut assignee: Value = row.get("assignee");
+    // 仅 multi=all 的会签步骤支持加签
+    if assignee.get("multi").and_then(Value::as_str) != Some("all") {
+        return Err(AppError::bad_request("仅会签（multi=all）步骤支持动态加签"));
+    }
+    // 合并新审批人
+    if let Some(names) = &request.usernames {
+        let existing = assignee
+            .get("usernames")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let mut merged = existing;
+        for name in names {
+            let entry = json!(name);
+            if !merged.contains(&entry) {
+                merged.push(entry);
+            }
+        }
+        if let Some(obj) = assignee.as_object_mut() {
+            obj.insert("usernames".to_string(), json!(merged));
+        }
+    }
+    if let Some(ids) = &request.user_ids {
+        let existing = assignee
+            .get("userIds")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let mut merged = existing;
+        for id in ids {
+            let entry = json!(id);
+            if !merged.contains(&entry) {
+                merged.push(entry);
+            }
+        }
+        if let Some(obj) = assignee.as_object_mut() {
+            obj.insert("userIds".to_string(), json!(merged));
+        }
+    }
+    sqlx::query(
+        "UPDATE infra_flow_step SET assignee=$3 WHERE id=$1 AND tenant_id=$2",
+    )
+    .bind(row.get::<i64, _>("id"))
+    .bind(tenant.id())
+    .bind(&assignee)
+    .execute(&state.pool)
+    .await
+    .map_err(|_| AppError::internal("failed to update assignee"))?;
     Ok(Json(ApiResponse::new(())))
 }

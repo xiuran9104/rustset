@@ -29,6 +29,91 @@ async fn run_once(state: &crate::InfraState) -> Result<(), String> {
     handle_timeouts(pool).await?;
     handle_auto_retries(state).await?;
     handle_ticket_waits(state).await?;
+    handle_flow_waits(state).await?;
+    Ok(())
+}
+
+/// start_flow wait 模式：轮询子实例终态。
+/// active auto 步骤 result 含 mode=wait + childInstanceId，30s 间隔轮询。
+async fn handle_flow_waits(state: &crate::InfraState) -> Result<(), String> {
+    let rows = sqlx::query(
+        "SELECT s.id, s.instance_id, s.tenant_id, s.result->>'childInstanceId' AS child_id,
+                s.retry_at, i.status AS parent_status
+         FROM infra_flow_step s
+         JOIN infra_flow_instance i ON i.id=s.instance_id AND i.tenant_id=s.tenant_id
+              AND i.status='running' AND i.deleted=0
+         WHERE s.status='active' AND s.type='auto'
+           AND s.result->>'mode'='wait'
+           AND s.result->>'childInstanceId' IS NOT NULL
+           AND s.retry_at IS NOT NULL AND s.retry_at <= now()
+         LIMIT 10",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    for row in rows {
+        let step_id: i64 = row.get("id");
+        let instance_id: i64 = row.get("instance_id");
+        let tenant_id: i64 = row.get("tenant_id");
+        let child_id: String = row.get("child_id");
+        let Ok(child_id) = child_id.parse::<i64>() else { continue };
+
+        let child_status: Option<String> = sqlx::query_scalar(
+            "SELECT status FROM infra_flow_instance WHERE id=$1 AND deleted=0",
+        )
+        .bind(child_id)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(None);
+
+        match child_status.as_deref() {
+            Some("completed") => {
+                sqlx::query(
+                    "UPDATE infra_flow_step
+                     SET status='done', finished_at=now(), operator='system',
+                         result=result || $2
+                     WHERE id=$1",
+                )
+                .bind(step_id)
+                .bind(serde_json::json!({ "childStatus": "completed" }))
+                .execute(&state.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                if let Ok(tenant) = rustset_framework_tenant::TenantContext::from_persisted_id(Some(tenant_id)) {
+                    super::engine::advance(state, &tenant, instance_id).await;
+                }
+            }
+            Some("failed") | Some("cancelled") => {
+                sqlx::query(
+                    "UPDATE infra_flow_step
+                     SET status='failed', finished_at=now(), operator='system',
+                         result=result || $2
+                     WHERE id=$1",
+                )
+                .bind(step_id)
+                .bind(serde_json::json!({ "childStatus": child_status }))
+                .execute(&state.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                if let Ok(tenant) = rustset_framework_tenant::TenantContext::from_persisted_id(Some(tenant_id)) {
+                    super::engine::advance(state, &tenant, instance_id).await;
+                }
+            }
+            _ => {
+                // 未终态：顺延 30s
+                sqlx::query("UPDATE infra_flow_step SET retry_at=$2 WHERE id=$1")
+                    .bind(step_id)
+                    .bind(
+                        chrono::Utc::now()
+                            .checked_add_signed(chrono::Duration::seconds(30))
+                            .map(|t| t.naive_utc()),
+                    )
+                    .execute(&state.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
     Ok(())
 }
 

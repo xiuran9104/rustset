@@ -1,0 +1,1 @@
+import{g as e,vn as t}from"./runtime-core.esm-bundler-hUqiKM-7.js";import{o as n}from"./useId-Lr0oDL0Z.js";function r(r){let i=n({dir:t(`ltr`)});return e(()=>{var e;return(r==null?void 0:r.value)||((e=i.dir)==null?void 0:e.value)||`ltr`})}export{r as t};

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-11-17T07:40:39.774Z",
+  "sessionId": "sess_27297811-a589-48ac-8eef-aa5b0b4fdca2",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "apps/web-antd/src/views/asset-ops/flow-definition/data.ts",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 4,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

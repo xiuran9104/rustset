@@ -1,0 +1,1 @@
+import{n as e}from"./pinia-CcL_tl55.js";var t=e(`core-user`,{actions:{setUserInfo(e){this.userInfo=e},setUserRoles(e){this.userRoles=e}},state:()=>({userInfo:null,userRoles:[]})});export{t};

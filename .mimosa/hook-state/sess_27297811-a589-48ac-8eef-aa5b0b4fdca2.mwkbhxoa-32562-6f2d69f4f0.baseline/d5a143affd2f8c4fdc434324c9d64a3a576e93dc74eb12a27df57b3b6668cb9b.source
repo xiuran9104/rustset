@@ -1,0 +1,28 @@
+[package]
+name = "rustset-mcp-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+axum.workspace = true
+futures-util.workspace = true
+rustset-ai-server.workspace = true
+rustset-cmdb-server.workspace = true
+rustset-framework-common.workspace = true
+rustset-framework-database.workspace = true
+rustset-framework-security.workspace = true
+rustset-framework-tenant.workspace = true
+rustset-framework-web.workspace = true
+rustset-infra-server.workspace = true
+rustset-system-server.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tower.workspace = true

@@ -1,0 +1,920 @@
+{
+  "schema_version": "mimosa-task-review/v2",
+  "run_id": "20261116T141927963Z-845996-e78807ac2763",
+  "run_status": "inconclusive",
+  "errors": [
+    {
+      "stage": "candidate-select",
+      "target": "dist-deploy/frontend/js/form-DilrEggS.js",
+      "reason": "candidate_limit_exceeded: 5 changed reviewable file(s) were not scanned because the limit is 20"
+    },
+    {
+      "stage": "baseline-read",
+      "target": "dist-deploy/frontend/jse/index-index-vOI_v-FY.js",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "baseline-read",
+      "target": "dist-deploy/frontend/js/about-DjuMMBbY.js",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "baseline-read",
+      "target": "dist-deploy/frontend/js/basic-Cg7pZIl2.js",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "baseline-read",
+      "target": "dist-deploy/frontend/js/bootstrap-BxIT-yA6.js",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "baseline-read",
+      "target": "dist-deploy/frontend/js/data-Da0T2P-A.js",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "baseline-read",
+      "target": "dist-deploy/frontend/js/editor-CmaUdzEG.js",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "baseline-read",
+      "target": "dist-deploy/frontend/js/flow-definition-DNeVLhFR.js",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "baseline-read",
+      "target": "dist-deploy/frontend/js/flow-instance-1tvE413x.js",
+      "reason": "baseline_snapshot_unreadable: file is missing from task baseline"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/framework/database/tests/migrations.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/ticket/repository.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/workflow/mod.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/workflow/notify.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/workflow/engine.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/workflow/actions.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/workflow/definition.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/workflow/instance.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/workflow/runner.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "crates/modules/infra-server/src/authorization.rs",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "apps/web/apps/web-antd/src/api/asset-ops/flow.ts",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "apps/web/apps/web-antd/src/views/asset-ops/flow-definition/data.ts",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "dist-deploy/frontend/jse/index-index-vOI_v-FY.js",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "dist-deploy/frontend/js/about-DjuMMBbY.js",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "dist-deploy/frontend/js/basic-Cg7pZIl2.js",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "dist-deploy/frontend/js/bootstrap-BxIT-yA6.js",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "dist-deploy/frontend/js/data-Da0T2P-A.js",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "dist-deploy/frontend/js/editor-CmaUdzEG.js",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "dist-deploy/frontend/js/flow-definition-DNeVLhFR.js",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "dist-deploy/frontend/js/flow-instance-1tvE413x.js",
+      "reason": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT"
+    }
+  ],
+  "coverage": {
+    "schema_version": "mimosa-hook-coverage/v1",
+    "status": "partial",
+    "scope": "hook_observed_diff",
+    "baseline": {
+      "complete": true,
+      "captured_files": 2234,
+      "candidate_limit": 5000,
+      "truncated": false,
+      "enumeration_error_count": 0,
+      "snapshot_error_count": 0,
+      "compensated_target_count": 13
+    },
+    "change_tracking": {
+      "touched_observed": 12,
+      "touched_retained": 12,
+      "truncated": false,
+      "bash_mutation": true,
+      "bash_discovered": 25,
+      "bash_discovery_limit": 80,
+      "bash_discovery_truncated": false
+    },
+    "candidates": {
+      "eligible_files": 25,
+      "selected_files": 20,
+      "limit": 20,
+      "truncated": true
+    },
+    "scanning": {
+      "required_files": 20,
+      "scanned_files": 0,
+      "skipped_files": 0,
+      "failed_files": 20,
+      "project_checks_required": 0,
+      "project_checks_completed": 0
+    },
+    "notification": {
+      "eligible_findings": 0,
+      "detailed_findings": 0,
+      "detail_limit": 3,
+      "truncated": false
+    },
+    "reason_counts": {
+      "candidate_limit_exceeded": 1,
+      "baseline_snapshot_unreadable": 8,
+      "scanner_failed": 20,
+      "project_check_failed": 29
+    },
+    "reasons": [
+      {
+        "code": "candidate_limit_exceeded",
+        "stage": "candidate-select",
+        "target": "dist-deploy/frontend/js/form-DilrEggS.js",
+        "detail": "5 changed reviewable file(s) were not scanned because the limit is 20",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/jse/index-index-vOI_v-FY.js",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/about-DjuMMBbY.js",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/basic-Cg7pZIl2.js",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/bootstrap-BxIT-yA6.js",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/data-Da0T2P-A.js",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/editor-CmaUdzEG.js",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/flow-definition-DNeVLhFR.js",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/flow-instance-1tvE413x.js",
+        "detail": "file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/framework/database/tests/migrations.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/ticket/repository.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/mod.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/notify.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/engine.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/actions.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/definition.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/instance.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/runner.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/authorization.rs",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "apps/web/apps/web-antd/src/api/asset-ops/flow.ts",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "apps/web/apps/web-antd/src/views/asset-ops/flow-definition/data.ts",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/jse/index-index-vOI_v-FY.js",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/about-DjuMMBbY.js",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/basic-Cg7pZIl2.js",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/bootstrap-BxIT-yA6.js",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/data-Da0T2P-A.js",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/editor-CmaUdzEG.js",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/flow-definition-DNeVLhFR.js",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/flow-instance-1tvE413x.js",
+        "detail": "spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "dist-deploy/frontend/js/form-DilrEggS.js",
+        "detail": "candidate_limit_exceeded: 5 changed reviewable file(s) were not scanned because the limit is 20",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/jse/index-index-vOI_v-FY.js",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/about-DjuMMBbY.js",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/basic-Cg7pZIl2.js",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/bootstrap-BxIT-yA6.js",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/data-Da0T2P-A.js",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/editor-CmaUdzEG.js",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/flow-definition-DNeVLhFR.js",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "dist-deploy/frontend/js/flow-instance-1tvE413x.js",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/framework/database/tests/migrations.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/ticket/repository.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/mod.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/notify.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/engine.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/actions.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/definition.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/instance.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/workflow/runner.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "crates/modules/infra-server/src/authorization.rs",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "apps/web/apps/web-antd/src/api/asset-ops/flow.ts",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "apps/web/apps/web-antd/src/views/asset-ops/flow-definition/data.ts",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/jse/index-index-vOI_v-FY.js",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/about-DjuMMBbY.js",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/basic-Cg7pZIl2.js",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/bootstrap-BxIT-yA6.js",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/data-Da0T2P-A.js",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/editor-CmaUdzEG.js",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/flow-definition-DNeVLhFR.js",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "dist-deploy/frontend/js/flow-instance-1tvE413x.js",
+        "detail": "scanner_failed: spawnSync /home/xiuran/.local/share/mise/installs/node/24.22.1/bin/node ETIMEDOUT",
+        "affects_completion": true
+      }
+    ],
+    "reasons_truncated": false
+  },
+  "generated_at": "2026-11-16T14:19:27.963Z",
+  "session_id": "sess_27297811-a589-48ac-8eef-aa5b0b4fdca2",
+  "target": ".",
+  "revision": "46a16901feb55eb66cc737d8e826e993a60a13ae",
+  "rules_version": "unavailable",
+  "diff_hash": "2278c35544397e5212986bca2078fcb01d08ef6d400895205a79d5927548025e",
+  "diff": {
+    "algorithm": "sha256",
+    "changed_file_count": 20,
+    "changed_files": [
+      {
+        "file": "apps/web/apps/web-antd/src/api/asset-ops/flow.ts",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 172
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "03e6720b4edbb5086b3a958d0ced93ce3207be76952dc1945c664fa3cf6a0b3d"
+      },
+      {
+        "file": "apps/web/apps/web-antd/src/views/asset-ops/flow-definition/data.ts",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 57
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "15923c2b48abd8de0d4e0a246daa596a4ae9e8160dff461b3428cf387c6180c0"
+      },
+      {
+        "file": "crates/framework/database/tests/migrations.rs",
+        "ranges": [
+          {
+            "start": 43,
+            "end": 43
+          },
+          {
+            "start": 112,
+            "end": 145
+          },
+          {
+            "start": 575,
+            "end": 578
+          },
+          {
+            "start": 1108,
+            "end": 1109
+          },
+          {
+            "start": 1121,
+            "end": 1123
+          }
+        ],
+        "before_hash": "0f6a1dbfad7a0ac0886b0bf2a82cbd759dcb6fa209e0c7ca04bc47bef47b9833",
+        "after_hash": "429c84fbbcb0efc032d7c94d8e84a43e58ffd86c2068dc654fcc4d0543110ae7"
+      },
+      {
+        "file": "crates/modules/infra-server/src/authorization.rs",
+        "ranges": [
+          {
+            "start": 455,
+            "end": 460
+          },
+          {
+            "start": 695,
+            "end": 717
+          },
+          {
+            "start": 871,
+            "end": 871
+          },
+          {
+            "start": 980,
+            "end": 980
+          }
+        ],
+        "before_hash": "6cb861a2ad3b8162b2fd0aa24974390113b443aee0012d87f6d9c1c12aa2a92d",
+        "after_hash": "25a9887109385f2f30747c9324b6d7884a984642e5575ea4fdf5e6caf3d24d2f"
+      },
+      {
+        "file": "crates/modules/infra-server/src/ticket/repository.rs",
+        "ranges": [
+          {
+            "start": 48,
+            "end": 48
+          }
+        ],
+        "before_hash": "9d15ba9a41baf71c4aca119889d61482d676a9f6cf943924bad1f7acde48f294",
+        "after_hash": "868fae29ddfa48929afbe0d6fa5403c3c5b7eec9e094925fd8c22752eb29f1cf"
+      },
+      {
+        "file": "crates/modules/infra-server/src/workflow/actions.rs",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 352
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "b9ec27917ac8592210d79caafd49e5b71729185fc0f0c339993db90735a718f7"
+      },
+      {
+        "file": "crates/modules/infra-server/src/workflow/definition.rs",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 222
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "b5d03385840922041c6e7945c237b0a5bf209de02c7aa9fd0393b8e7e01aa8b9"
+      },
+      {
+        "file": "crates/modules/infra-server/src/workflow/engine.rs",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 512
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "39818dc61d98c719927d809af16d4751fde30a501af6794d7a52c2243b278506"
+      },
+      {
+        "file": "crates/modules/infra-server/src/workflow/instance.rs",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 498
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "a4d4bc39ba1acb5fd593ad567b41289a9e32b1faae8039cfa414677728b7fc3d"
+      },
+      {
+        "file": "crates/modules/infra-server/src/workflow/mod.rs",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 24
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "ff4bf280f0d3a914774374a15a31e179b8b0294136b4c74343ad3db11bfbe3ba"
+      },
+      {
+        "file": "crates/modules/infra-server/src/workflow/notify.rs",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 154
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "b67dd5e0b4372155c4d0bfad9b4d721733be90f5e8c8b4551cda87692a342524"
+      },
+      {
+        "file": "crates/modules/infra-server/src/workflow/runner.rs",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 288
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "ae27ed91ddaaa72ca4061c72e492e7d75c50e249bb8f0477aa590fe8d8d61a3f"
+      },
+      {
+        "file": "dist-deploy/frontend/js/about-DjuMMBbY.js",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 1
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "51a393404d1dea3af8ba0bb03a765f16410dde5b2a8aa43963a6fc71bccf0301"
+      },
+      {
+        "file": "dist-deploy/frontend/js/basic-Cg7pZIl2.js",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "1c25112c653837523d7904daaf04b1b03a5d73d286e33748e813819add5d7295"
+      },
+      {
+        "file": "dist-deploy/frontend/js/bootstrap-BxIT-yA6.js",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 11
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "2053eefe7a83eb1ceecb7ef7fb9cb9dfe53c91e0cddbf65338f9926b0a639a08"
+      },
+      {
+        "file": "dist-deploy/frontend/js/data-Da0T2P-A.js",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 1
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "c238d88732f59317a407e918b9aa992b09022c59942a8baaadf09e5c36443c76"
+      },
+      {
+        "file": "dist-deploy/frontend/js/editor-CmaUdzEG.js",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 1
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "704b7cd6d1a276eec2ec37cb9dc36dfbf07dc75e4776e2411b4eec0bbe6ab385"
+      },
+      {
+        "file": "dist-deploy/frontend/js/flow-definition-DNeVLhFR.js",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 1
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "7166d7a757a371715a9751c19252616f01c374a03f155302b200445f247a0da5"
+      },
+      {
+        "file": "dist-deploy/frontend/js/flow-instance-1tvE413x.js",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 1
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "0847f2aca0a1fb6823414ef74880a8315910d17c3bbe9b452d1c8c95d184859c"
+      },
+      {
+        "file": "dist-deploy/frontend/jse/index-index-vOI_v-FY.js",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 13
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "4183ead87ad993e6daf4db3e53f480c0d57c9a56e96b52ecdcdba3628147d7c4"
+      }
+    ]
+  },
+  "timing": {
+    "started_at": "2026-11-16T14:19:25.668Z",
+    "completed_at": "2026-11-16T14:19:27.963Z",
+    "duration_ms": 2295,
+    "measurement": "hook_wall_clock"
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "model_calls": 0,
+    "measurement": "known-zero"
+  },
+  "telemetry": {
+    "schemaVersion": "mimosa-gate-telemetry/v1",
+    "profile": "gate",
+    "operation": "Stop",
+    "outcome": "partial/INCONCLUSIVE",
+    "latencyMs": 2295,
+    "peakMemoryBytes": 182272000,
+    "memoryMeasurement": "max-observed-process-rss",
+    "scannedFiles": 0,
+    "cache": {
+      "hits": 0,
+      "misses": 0,
+      "measurement": "not-applicable"
+    },
+    "denyCount": 0,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "total": 0,
+      "modelCalls": 0,
+      "measurement": "known-zero"
+    }
+  },
+  "finding_count": 0,
+  "rewake_finding_count": 0,
+  "evidence_boundary": {
+    "scan": "candidate",
+    "static_fix_verification": "observed_static_only",
+    "runtime_verification": "not_performed"
+  },
+  "finding_events": [],
+  "findings": [],
+  "artifacts": {
+    "immutable_report": ".mimosa/reports/task-review-sess_27297811-a589-48ac-8eef-aa5b0b4fdca2-20261116T141927963Z-845996-e78807ac2763.json",
+    "latest_report": ".mimosa/reports/task-review-sess_27297811-a589-48ac-8eef-aa5b0b4fdca2.json",
+    "history_summary": ".mimosa/history/run-20261116T141927963Z-845996-e78807ac2763.json"
+  }
+}

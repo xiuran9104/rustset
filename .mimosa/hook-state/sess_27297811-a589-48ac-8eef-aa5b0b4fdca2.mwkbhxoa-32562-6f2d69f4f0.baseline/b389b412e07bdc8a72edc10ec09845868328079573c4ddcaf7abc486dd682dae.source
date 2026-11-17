@@ -1,0 +1,1 @@
+import{t as e}from"./request-BMpSKfzR.js";function t(t){return e.get(`/infra/file/page`,{params:t})}function n(t){return e.delete(`/infra/file/delete?id=${t}`)}function r(t){return e.delete(`/infra/file/delete-list?ids=${t.join(`,`)}`)}function i(t,n){return t.directory||delete t.directory,e.upload(`/infra/file/upload`,t,{onUploadProgress:n})}export{i,r as n,t as r,n as t};

@@ -1,0 +1,17 @@
+[package]
+name = "rustset-framework-common"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+csv.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+schemars.workspace = true
+chrono.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

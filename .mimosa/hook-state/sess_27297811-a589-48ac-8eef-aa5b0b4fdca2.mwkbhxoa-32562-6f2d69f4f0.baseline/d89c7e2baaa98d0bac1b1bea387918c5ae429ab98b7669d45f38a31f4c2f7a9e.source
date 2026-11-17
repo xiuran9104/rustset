@@ -1,0 +1,1 @@
+import{a as e,n as t,r as n,s as r}from"./compat-C0F_LKOp.js";function i(){return e(`service-provider`)}function a(e){return t(`service-provider`,e)}function o(e,t){return r(`service-provider`,e,t)}function s(e){return n(`service-provider`,e)}export{o as i,s as n,i as r,a as t};

@@ -1,0 +1,1 @@
+function e(){let e=t=>{e.current=t};return e}export{e as t};

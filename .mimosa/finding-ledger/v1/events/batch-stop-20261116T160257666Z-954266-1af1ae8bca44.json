@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20261116T160257666Z-954266-1af1ae8bca44",
+  "runId": "20261116T160257666Z-954266-1af1ae8bca44",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "72764038fe1e8c28be9543641d16c7b233c08557",
+  "diffHash": "afa8e04d0619b03cb1c791e73d3c15cdeaf251aa65fa2b570ed7fe34cc71833c",
+  "rulesVersion": "unavailable",
+  "sessionHash": "36b3adb19f001cccfc02a7ec7c7b488c1aa05d43337476a7a9e545c10b1d216f",
+  "reportRef": ".mimosa/reports/task-review-sess_27297811-a589-48ac-8eef-aa5b0b4fdca2-20261116T160257666Z-954266-1af1ae8bca44.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "crates/modules/infra-server/src/ticket.rs",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "crates/modules/infra-server/src/workflow/mod.rs",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "crates/modules/infra-server/src/workflow/runner.rs",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "crates/modules/infra-server/src/task/worker.rs",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "crates/modules/infra-server/src/workflow/engine.rs",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "apps/web/apps/web-antd/src/api/asset-ops/flow.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-11-16T16:02:57.972Z"
+}

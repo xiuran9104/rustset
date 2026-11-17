@@ -10,10 +10,15 @@ export const STEP_TYPES = [
 ] as const;
 
 export const AUTO_ACTIONS = [
+  { value: 'http_request', label: 'HTTP 请求（SSRF 防护）' },
+  { value: 'start_flow', label: '启动子流程' },
   { value: 'firewall_push', label: '防火墙策略下发' },
   { value: 'trigger_scan', label: '触发扫描任务' },
   { value: 'create_ticket', label: '创建资源工单' },
   { value: 'set_context', label: '写流程上下文' },
+  { value: 'ticket_approve', label: '工单审批' },
+  { value: 'ticket_provision', label: '工单供应（Tofu）' },
+  { value: 'ticket_deliver', label: '工单交付' },
 ] as const;
 
 export const CONDITION_OPS = [

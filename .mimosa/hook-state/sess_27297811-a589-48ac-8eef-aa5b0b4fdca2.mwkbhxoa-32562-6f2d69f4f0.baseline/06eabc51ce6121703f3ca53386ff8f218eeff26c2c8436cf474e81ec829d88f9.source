@@ -1,0 +1,1 @@
+import{i as e}from"./warning-BLl3S_cO.js";var t=((t,n,r)=>{e(t,`[ant-design-vue: ${n}] ${r}`)});export{t};

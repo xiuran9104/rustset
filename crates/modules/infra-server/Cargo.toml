@@ -7,6 +7,7 @@ repository.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+quick-xml.workspace = true
 reqwest.workspace = true
 aws-sdk-s3.workspace = true
 rustset-framework-tenant.workspace = true

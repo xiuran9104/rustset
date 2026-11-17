@@ -50,6 +50,30 @@ function handleCreate() {
 function handleEdit(row: AssetOpsFlowApi.FlowDefinition) {
   editorRef.value?.open(row);
 }
+
+/* BPMN 导入 */
+const bpmnFileInput = ref<HTMLInputElement>();
+function handleImportBpmn() {
+  bpmnFileInput.value?.click();
+}
+async function onBpmnFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const xml = await file.text();
+  const { requestClient } = await import('#/api/request');
+  try {
+    const result = await requestClient.post(
+      '/infra/flow-definition/import-bpmn',
+      { xml },
+    );
+    message.success(`BPMN 导入成功：${result.name}（${result.stepCount} 步）`, 4);
+    gridApi.query();
+  } catch (error: any) {
+    message.error(`BPMN 导入失败：${error?.message ?? error}`, 5);
+  }
+  input.value = ''; // 清空以便重复选择同一文件
+}
 async function handleToggle(
   row: AssetOpsFlowApi.FlowDefinition,
   enabled: boolean,
@@ -75,19 +99,34 @@ async function handleDelete(row: AssetOpsFlowApi.FlowDefinition) {
 <template>
   <Page auto-content-height>
     <Editor ref="editorRef" @success="gridApi.query()" />
+    <input
+      ref="bpmnFileInput"
+      type="file"
+      accept=".bpmn,.xml"
+      class="hidden"
+      @change="onBpmnFileSelected"
+    />
     <Grid table-title="流程定义">
       <template #toolbar-tools>
-        <TableAction
-          :actions="[
-            {
-              label: '新建流程',
-              type: 'primary',
-              icon: ACTION_ICON.ADD,
-              auth: ['infra:flow-definition:create'],
-              onClick: handleCreate,
-            },
-          ]"
-        />
+        <div class="flex gap-2">
+          <TableAction
+            :actions="[
+              {
+                label: '新建流程',
+                type: 'primary',
+                icon: ACTION_ICON.ADD,
+                auth: ['infra:flow-definition:create'],
+                onClick: handleCreate,
+              },
+              {
+                label: '导入 BPMN',
+                icon: ACTION_ICON.UPLOAD,
+                auth: ['infra:flow-definition:create'],
+                onClick: handleImportBpmn,
+              },
+            ]"
+          />
+        </div>
       </template>
       <template #status="{ row }">
         <Switch
