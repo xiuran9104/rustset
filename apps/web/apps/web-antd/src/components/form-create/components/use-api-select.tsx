@@ -190,12 +190,36 @@ export function useApiSelect(option: ApiSelectProps) {
       }
 
       function parseFunc() {
+        // 安全修复：用正则解析常见的数据转换函数（如 "data => data.list"），
+        // 替代 new Function 动态求值，消除代码注入面。
+        // 仅支持简单的属性访问链；复杂表达式返回 null 并告警。
         let parse: any = null;
         if (props.parseFunc) {
-          // 解析字符串函数
-          // oxlint-disable-next-line typescript/no-implied-eval
-          // oxlint-disable-next-line no-new-func, typescript/no-implied-eval
-          parse = new Function(`return ${props.parseFunc}`)();
+          const fnStr = props.parseFunc.trim();
+          // 匹配 "param => param.a.b.c" 或 "(param) => param.a.b.c" 形式
+          const match = fnStr.match(
+            /^\(?(\w+)\)?\s*=>\s*(\w+(?:\.\w+)*)$/,
+          );
+          if (match?.[1] && match[2]) {
+            const param = match[1];
+            const path = match[2];
+            if (param === path.split('.')[0]) {
+              const keys = path.split('.').slice(1);
+              parse = (data: any) => {
+                let result = data;
+                for (const key of keys) {
+                  result = result?.[key];
+                }
+                return result;
+              };
+            }
+          }
+          if (!parse) {
+            console.warn(
+              '[use-api-select] parseFunc 不支持的表达式（仅支持 param => param.a.b 形式），已忽略:',
+              fnStr,
+            );
+          }
         }
         return parse;
       }

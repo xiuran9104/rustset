@@ -1,6 +1,6 @@
 import type { CAC } from 'cac';
 
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { availableParallelism, freemem } from 'node:os';
 
 import { execaCommand } from '@vben/node-utils';
@@ -66,9 +66,14 @@ async function runParallel(commands: string[]) {
     for (const subprocess of subprocesses) {
       try {
         if (process.platform === 'win32' && subprocess.pid) {
-          execSync(`taskkill /F /T /PID ${subprocess.pid}`, {
-            stdio: 'ignore',
-          });
+          // 安全修复：用 execFileSync 参数传递替代 execSync 模板字符串，
+          // 消除命令注入面（pid 经 Number 校验后作为独立参数传入）。
+          const pid = Number(subprocess.pid);
+          if (Number.isInteger(pid) && pid > 0) {
+            execFileSync('taskkill', ['/F', '/T', '/PID', String(pid)], {
+              stdio: 'ignore',
+            });
+          }
         } else {
           subprocess.kill('SIGKILL');
         }

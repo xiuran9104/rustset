@@ -18,13 +18,11 @@ import {
 import {
   approveFlowStep,
   cancelFlowInstance,
-  getFlowDefinitionPage,
   getFlowInstance,
   getFlowInstancePage,
   getFlowTodo,
   rejectFlowStep,
   retryFlowStep,
-  startFlowInstance,
 } from '#/api/asset-ops/flow';
 import { stepTypeLabel } from '#/views/asset-ops/flow-definition/data';
 
@@ -164,102 +162,13 @@ async function handleRetryStep(step: AssetOpsFlowApi.FlowStepInstance) {
   gridApi.query();
 }
 
-/* ---------- 发起流程 ---------- */
-const startVisible = ref(false);
-const startForm = reactive({
-  definitionId: undefined as number | undefined,
-  title: '',
-  payloadText: '{}',
-  ticketId: undefined as number | undefined,
-});
-const definitionOptions = ref<AssetOpsFlowApi.FlowDefinition[]>([]);
-const ticketOptions = ref<{ label: string; value: number }[]>([]);
-function openStart() {
-  startVisible.value = true;
-  startForm.definitionId = undefined;
-  startForm.title = '';
-  startForm.payloadText = '{}';
-  startForm.ticketId = undefined;
-  getFlowDefinitionPage({ pageNo: 1, pageSize: 100 }).then((page) => {
-    definitionOptions.value = (page.list ?? []).filter((d) => d.status === 0);
-  });
-  // 加载工单选项（取前 50 条）
-  import('#/api/request').then(({ requestClient }) => {
-    requestClient
-      .get('/infra/resource-ticket/page', {
-        params: { pageNo: 1, pageSize: 50 },
-      })
-      .then((page: any) => {
-        ticketOptions.value = (page.list ?? []).map((t: any) => ({
-          label: `#${t.id} ${t.ecsName || ''} (${t.ticketStatus})`,
-          value: t.id,
-        }));
-      });
-  });
-}
-function onTicketSelect(ticketId: number) {
-  import('#/api/request').then(({ requestClient }) => {
-    requestClient
-      .get(`/infra/resource-ticket/get?id=${ticketId}`)
-      .then((ticket: any) => {
-        startForm.title = `工单 #${ticketId} 流程`;
-        startForm.payloadText = JSON.stringify(
-          {
-            resourceType: ticket.resourceType,
-            ticketType: ticket.ticketType,
-            ecsName: ticket.ecsName,
-            cpuCores: ticket.cpuCores,
-            memoryGb: ticket.memoryGb,
-            ticketId,
-          },
-          null,
-          2,
-        );
-      });
-  });
-}
-async function submitStart() {
-  if (!startForm.definitionId) {
-    message.error('请选择流程定义');
-    return;
-  }
-  let payload = {};
-  try {
-    payload = JSON.parse(startForm.payloadText || '{}');
-  } catch {
-    message.error('payload 不是合法 JSON');
-    return;
-  }
-  const id = await startFlowInstance({
-    definitionId: startForm.definitionId,
-    title: startForm.title || undefined,
-    payload,
-  });
-  message.success(`流程实例 F${id} 已发起`);
-  startVisible.value = false;
-  gridApi.query();
-  setTimeout(loadTodos, 600);
-}
-
 onMounted(loadTodos);
 </script>
 
 <template>
   <Page auto-content-height>
     <Grid table-title="流程实例">
-      <template #toolbar-tools>
-        <TableAction
-          :actions="[
-            {
-              label: '发起流程',
-              type: 'primary',
-              icon: ACTION_ICON.ADD,
-              auth: ['infra:flow-instance:start'],
-              onClick: openStart,
-            },
-          ]"
-        />
-      </template>
+
       <template #status="{ row }">
         <span>{{ STATUS_LABEL[row.status] ?? row.status }}</span>
       </template>
@@ -342,64 +251,6 @@ onMounted(loadTodos);
         :rows="3"
         :placeholder="actionState.mode === 'reject' ? '拒绝原因（必填）' : '备注（可选）'"
       />
-    </a-modal>
-
-    <!-- 发起流程弹窗 -->
-    <a-modal
-      v-model:open="startVisible"
-      title="发起流程"
-      :mask-closable="false"
-      @ok="submitStart"
-    >
-      <div class="mb-3">
-        <div class="mb-1 text-sm">流程定义 *</div>
-        <a-select
-          v-model:value="startForm.definitionId"
-          class="w-full"
-          placeholder="选择已启用的流程"
-        >
-          <a-select-option
-            v-for="d in definitionOptions"
-            :key="d.id"
-            :value="d.id"
-          >
-            {{ d.name }}（{{ d.stepCount }} 步）
-          </a-select-option>
-        </a-select>
-      </div>
-      <div class="mb-3">
-        <div class="mb-1 text-sm">
-          关联工单（可选；选中后自动填 payload）
-        </div>
-        <a-select
-          v-model:value="startForm.ticketId"
-          class="w-full"
-          placeholder="选择已有工单，自动填充 payload"
-          allow-clear
-          show-search
-          :filter-option="(input: string, option: any) => option.label?.toLowerCase().includes(input.toLowerCase())"
-          @change="(val: any) => { if (val) onTicketSelect(val); }"
-        >
-          <a-select-option
-            v-for="t in ticketOptions"
-            :key="t.value"
-            :value="t.value"
-            :label="t.label"
-          >
-            {{ t.label }}
-          </a-select-option>
-        </a-select>
-      </div>
-      <div class="mb-3">
-        <div class="mb-1 text-sm">标题</div>
-        <a-input v-model:value="startForm.title" placeholder="默认取流程名" />
-      </div>
-      <div>
-        <div class="mb-1 text-sm">
-          payload（JSON，供条件求值与自动动作取参）
-        </div>
-        <a-textarea v-model:value="startForm.payloadText" :rows="4" />
-      </div>
     </a-modal>
 
     <!-- 详情：步骤时间线 -->
