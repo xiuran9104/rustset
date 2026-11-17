@@ -1,1 +1,0 @@
-import{g as e,vn as t}from"./runtime-core.esm-bundler-hUqiKM-7.js";function n(n,r){let i=t(``);return{filteredRows:e(()=>{let e=i.value.trim().toLowerCase();return e?n.value.filter(t=>r.some(n=>{var r;return String((r=t[n])==null?``:r).toLowerCase().includes(e)})):n.value}),searchText:i}}export{n as t};

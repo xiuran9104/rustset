@@ -1,1 +1,0 @@
-import{r as e}from"./rolldown-runtime-sJBDdmOt.js";import{b as t,mt as n}from"./runtime-core.esm-bundler-hUqiKM-7.js";import{t as r}from"./_plugin-vue_export-helper-BDNMzG2s.js";var i={};function a(e,r){return n(),t(`div`)}var o=r(i,[[`render`,a]]),s=e({IFrameView:()=>o});export{s as t};

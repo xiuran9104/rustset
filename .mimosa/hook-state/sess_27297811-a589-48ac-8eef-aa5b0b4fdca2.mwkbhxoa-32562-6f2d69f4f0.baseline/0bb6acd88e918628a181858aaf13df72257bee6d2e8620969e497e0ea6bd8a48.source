@@ -1,1 +1,0 @@
-import{t as e}from"./request-D_QSqFZh.js";function t(){return e.get(`/system/area/tree`)}function n(t){return e.get(`/system/area/get-by-ip?ip=${t}`)}export{t as n,n as t};

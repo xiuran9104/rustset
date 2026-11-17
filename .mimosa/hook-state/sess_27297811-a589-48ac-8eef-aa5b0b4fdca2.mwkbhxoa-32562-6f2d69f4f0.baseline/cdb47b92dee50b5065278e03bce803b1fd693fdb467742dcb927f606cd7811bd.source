@@ -1,1 +1,0 @@
-import{Ut as e,xn as t}from"./runtime-core.esm-bundler-hUqiKM-7.js";function n(n){let r=t();return e(()=>{r.value=n()},{flush:`sync`}),r}export{n as t};

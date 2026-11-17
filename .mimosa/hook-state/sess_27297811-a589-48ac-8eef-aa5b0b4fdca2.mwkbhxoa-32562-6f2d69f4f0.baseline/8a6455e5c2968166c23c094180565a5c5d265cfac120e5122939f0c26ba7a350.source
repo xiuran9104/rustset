@@ -1,1 +1,0 @@
-import{h as e}from"./_getTag-2z2WZcIh.js";var t=function(){try{var t=e(Object,`defineProperty`);return t({},``,{}),t}catch(e){}}();function n(e,n,r){n==`__proto__`&&t?t(e,n,{configurable:!0,enumerable:!0,value:r,writable:!0}):e[n]=r}export{t as n,n as t};

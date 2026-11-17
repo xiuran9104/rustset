@@ -31,3 +31,4 @@ dist-deploy
 
 # 离线交付构建产物（package-offline.sh 输出）
 dist-offline/
+.mimosa/

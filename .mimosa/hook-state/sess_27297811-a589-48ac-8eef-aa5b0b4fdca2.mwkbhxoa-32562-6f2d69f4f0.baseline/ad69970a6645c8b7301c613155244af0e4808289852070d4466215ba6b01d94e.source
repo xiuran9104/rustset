@@ -1,1 +1,0 @@
-var e=!1;try{let t=Object.defineProperty({},"passive",{get(){e=!0}});window.addEventListener(`testPassive`,null,t),window.removeEventListener(`testPassive`,null,t)}catch(e){}var t=e;export{t};

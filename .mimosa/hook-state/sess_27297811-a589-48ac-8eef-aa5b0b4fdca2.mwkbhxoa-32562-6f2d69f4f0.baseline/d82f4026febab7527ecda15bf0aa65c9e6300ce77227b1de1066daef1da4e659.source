@@ -1,1 +1,0 @@
-import{r as e}from"./rolldown-runtime-sJBDdmOt.js";import{n as t,r as n,t as r}from"./RadioButton-CmIXWgp-.js";var i=e({Button:()=>r,Group:()=>t,RadioButton:()=>r,RadioGroup:()=>t,default:()=>a});n.Group=t,n.Button=r,n.install=function(e){return e.component(n.name,n),e.component(n.Group.name,n.Group),e.component(n.Button.name,n.Button),e};var a=n;export{i as n,a as t};

@@ -1,1 +1,0 @@
-import{t as e}from"./request-D_QSqFZh.js";var t=()=>e.get(`/infra/monitor/postgresql`),n=()=>e.get(`/infra/monitor/rust`),r=()=>e.get(`/infra/monitor/traces`);export{n,r,t};

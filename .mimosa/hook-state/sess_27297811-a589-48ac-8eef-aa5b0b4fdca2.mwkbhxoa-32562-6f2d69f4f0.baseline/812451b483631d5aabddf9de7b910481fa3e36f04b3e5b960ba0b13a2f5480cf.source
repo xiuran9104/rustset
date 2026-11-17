@@ -1,1 +1,0 @@
-import{k as e,mt as t,v as n}from"./runtime-core.esm-bundler-hUqiKM-7.js";import{n as r,t as i}from"./objectSpread2-DYuuIzlJ.js";import{t as a}from"./ResourceLedger-D0QcXLJU.js";r();var o=e(i(i({},{name:`AssetOpsPhysicalResource`}),{},{__name:`index`,setup(e){return(e,r)=>(t(),n(a,{"fixed-resource-type":`physical`}))}}));export{o as default};
