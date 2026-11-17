@@ -42,13 +42,23 @@ const TYPE_COLORS: Record<string, string> = {
   ticket_wait: '#722ed1',
 };
 
-// AI 资源选项（模型/知识库/工具）
+// AI 资源选项（模型/知识库/工具/角色）
 const modelOptions = ref<{ label: string; value: number }[]>([]);
 const knowledgeOptions = ref<{ label: string; value: number }[]>([]);
 const toolOptions = ref<{ label: string; value: number }[]>([]);
+const roleOptions = ref<{ label: string; value: string }[]>([]);
 
 async function loadAIOptions() {
   const { requestClient } = await import('#/api/request');
+  // 拉取系统角色列表
+  requestClient.get('/system/role/simple-list')
+    .then((list: any[]) => {
+      roleOptions.value = (list ?? []).map((r) => ({
+        label: `${r.name}（${r.code}）`,
+        value: r.code,
+      }));
+    })
+    .catch(() => {});
   // 拉取 chat 模型列表
   requestClient.get('/ai/model/simple-list', { params: { type: 'chat' } })
     .then((list: any[]) => {
@@ -314,11 +324,27 @@ watch(
         </div>
         <div v-if="['approval', 'manual', 'notification'].includes(selectedStep.type)">
           <div class="mb-1 text-xs text-gray-500">办理角色</div>
-          <a-input
-            v-model:value="selectedStep.config.assignee!.role"
+          <a-select
+            :value="selectedStep.config.assignee?.role"
+            class="w-full"
             size="small"
-            placeholder="super_admin"
-          />
+            placeholder="选择角色"
+            show-search
+            :filter-option="(input: string, option: any) => option.label?.toLowerCase().includes(input.toLowerCase())"
+            @change="(v: any) => {
+              if (!selectedStep!.config.assignee) selectedStep!.config.assignee = {};
+              selectedStep!.config.assignee.role = v;
+            }"
+          >
+            <a-select-option
+              v-for="r in roleOptions"
+              :key="r.value"
+              :value="r.value"
+              :label="r.label"
+            >
+              {{ r.label }}
+            </a-select-option>
+          </a-select>
         </div>
         <div v-if="selectedStep.type === 'auto'">
           <div class="mb-1 text-xs text-gray-500">自动动作</div>
