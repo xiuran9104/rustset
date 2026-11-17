@@ -20,6 +20,7 @@ use crate::{InfraState, Page, QueryParams};
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
+        .api_route("/infra/flow-node-types", get(flow_node_types))
         .api_route("/infra/flow-definition/import-bpmn", post(import_bpmn))
         .api_route("/infra/flow-definition/page", get(page))
         .api_route("/infra/flow-definition/get", get(get_one))
@@ -404,4 +405,85 @@ async fn import_bpmn(
     .await
     .map_err(|e| AppError::bad_request(format!("BPMN 导入失败: {e}")))?;
     Ok(Json(ApiResponse::new(json!({ "id": id, "name": name, "stepCount": steps.len() }))))
+}
+
+// ==================== 节点注册表（前端属性面板自动渲染） ====================
+
+/// 返回所有可用节点类型及其参数 schema，前端按 widget 自动渲染表单。
+/// 新增节点类型只需在此处注册 schema，前端无需改动。
+async fn flow_node_types(
+    _user: CurrentUser,
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    Ok(Json(ApiResponse::new(vec![
+        json!({
+            "type": "llm", "name": "AI 处理", "icon": "sparkles", "color": "#6a5acd",
+            "fields": [
+                { "key": "modelId", "label": "模型", "widget": "model_select", "required": true },
+                { "key": "systemPrompt", "label": "系统提示词", "widget": "textarea", "default": "" },
+                { "key": "userPrompt", "label": "用户提示词", "widget": "textarea_with_vars", "required": true,
+                  "placeholder": "分析 {{payload.fieldName}} 的风险" },
+                { "key": "temperature", "label": "温度", "widget": "slider", "min": 0, "max": 2, "step": 0.1, "default": 0.7 },
+                { "key": "maxTokens", "label": "最大 Token", "widget": "number", "default": 4096 },
+                { "key": "outputFormat", "label": "输出格式", "widget": "select", "options": ["text", "json"], "default": "text" },
+                { "key": "outputKey", "label": "输出变量名", "widget": "text", "default": "llm_output" }
+            ]
+        }),
+        json!({
+            "type": "knowledge", "name": "知识检索", "icon": "book", "color": "#20b2aa",
+            "fields": [
+                { "key": "knowledgeIds", "label": "知识库", "widget": "knowledge_multiselect", "required": true },
+                { "key": "query", "label": "检索内容", "widget": "textarea_with_vars", "required": true,
+                  "placeholder": "{{payload.resourceType}} {{payload.ecsName}}" },
+                { "key": "topK", "label": "Top K", "widget": "number", "default": 5 },
+                { "key": "outputKey", "label": "输出变量名", "widget": "text", "default": "kb_context" }
+            ]
+        }),
+        json!({
+            "type": "agent", "name": "AI Agent", "icon": "bot", "color": "#ff1493",
+            "fields": [
+                { "key": "modelId", "label": "模型", "widget": "model_select", "required": true },
+                { "key": "systemPrompt", "label": "系统提示词", "widget": "textarea", "default": "你是运维助手" },
+                { "key": "userPrompt", "label": "用户提示词", "widget": "textarea_with_vars", "required": true },
+                { "key": "toolIds", "label": "可用工具", "widget": "tool_multiselect" },
+                { "key": "maxIterations", "label": "最大迭代", "widget": "number", "default": 5 },
+                { "key": "outputKey", "label": "输出变量名", "widget": "text", "default": "agent_result" }
+            ]
+        }),
+        json!({
+            "type": "approval", "name": "人工审批", "icon": "user-check", "color": "#fa8c16",
+            "fields": [
+                { "key": "assignee.role", "label": "审批角色", "widget": "text", "default": "super_admin" },
+                { "key": "assignee.multi", "label": "审批模式", "widget": "select", "options": ["any", "all"], "default": "any" },
+                { "key": "timeoutHours", "label": "超时(小时)", "widget": "number" },
+                { "key": "onTimeout", "label": "超时策略", "widget": "select", "options": ["escalate_notify", "auto_reject"] }
+            ]
+        }),
+        json!({
+            "type": "manual", "name": "人工执行", "icon": "hand", "color": "#52c41a",
+            "fields": [
+                { "key": "assignee.role", "label": "执行角色", "widget": "text", "default": "super_admin" }
+            ]
+        }),
+        json!({
+            "type": "auto", "name": "自动动作", "icon": "zap", "color": "#1677ff",
+            "fields": [
+                { "key": "action", "label": "动作", "widget": "select", "required": true,
+                  "options": ["http_request", "start_flow", "firewall_push", "trigger_scan", "create_ticket", "set_context", "ticket_approve", "ticket_provision", "ticket_deliver"] },
+                { "key": "params", "label": "参数 JSON", "widget": "json_editor" }
+            ]
+        }),
+        json!({
+            "type": "notification", "name": "通知", "icon": "bell", "color": "#8c8c8c",
+            "fields": [
+                { "key": "assignee.role", "label": "通知角色", "widget": "text", "default": "super_admin" }
+            ]
+        }),
+        json!({
+            "type": "ticket_wait", "name": "等待工单", "icon": "clock", "color": "#722ed1",
+            "fields": [
+                { "key": "ticketId", "label": "工单 ID", "widget": "number" },
+                { "key": "ticketIdFrom", "label": "从上下文取 ID", "widget": "text", "placeholder": "ticket_id" }
+            ]
+        }),
+    ])))
 }

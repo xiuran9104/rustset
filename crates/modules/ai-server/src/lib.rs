@@ -1,14 +1,15 @@
 // chat 供 mcp-server 复用 dispatch_send（对外 MCP 工具）。
 pub mod chat;
+// knowledge/tools 供 infra-server 流程引擎复用 RAG 检索与工具执行（AI 节点）。
+pub mod knowledge;
+pub mod tools;
 mod mcp_client;
 mod mcp_server_admin;
 mod chat_role;
 mod factory;
-mod knowledge;
 mod media;
 mod midjourney;
 mod provider;
-mod tools;
 mod vector;
 mod write;
 

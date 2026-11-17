@@ -8,8 +8,11 @@ repository.workspace = true
 [dependencies]
 async-trait.workspace = true
 quick-xml.workspace = true
+regex.workspace = true
 reqwest.workspace = true
 aws-sdk-s3.workspace = true
+rustset-ai-server.workspace = true
+rustset-ai-api.workspace = true
 rustset-framework-tenant.workspace = true
 axum.workspace = true
 aide.workspace = true

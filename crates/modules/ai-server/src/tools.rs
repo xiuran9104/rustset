@@ -15,7 +15,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
 
-pub(crate) async fn load_definitions(
+pub async fn load_definitions(
     pool: &DbPool,
     ids: &[i64],
 ) -> Result<Vec<Value>, AppError> {
@@ -32,7 +32,7 @@ pub(crate) async fn load_definitions(
     .map_err(|_| AppError::internal("读取对话工具失败"))?;
     Ok(rows.into_iter().map(|r|json!({"type":"function","function":{"name":r.get::<String,_>("name"),"description":r.get::<String,_>("description"),"parameters":r.get::<Value,_>("input_schema")}})).collect())
 }
-pub(crate) async fn execute(
+pub async fn execute(
     pool: &DbPool,
     user: &CurrentUser,
     name: &str,

@@ -7,11 +7,13 @@
 //! 与既有资源工单并存：`create_ticket` 自动节点把工单接入流程。
 
 pub(crate) mod actions;
+pub(crate) mod ai_nodes;
 pub(crate) mod definition;
 pub(crate) mod engine;
 pub(crate) mod instance;
 pub(crate) mod notify;
 pub(crate) mod runner;
+pub(crate) mod variables;
 
 use aide::axum::ApiRouter;
 

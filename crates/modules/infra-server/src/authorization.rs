@@ -458,6 +458,7 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ("GET", "/infra/flow-instance/get", Some("infra:flow-instance:query")),
     ("GET", "/infra/flow-instance/page", Some("infra:flow-instance:query")),
     ("GET", "/infra/flow-instance/todo", Some("infra:flow-instance:query")),
+    ("GET", "/infra/flow-node-types", Some("infra:flow-definition:query")),
     (
         "GET",
         "/infra/inspection/baseline",
@@ -983,7 +984,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 233);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 234);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),

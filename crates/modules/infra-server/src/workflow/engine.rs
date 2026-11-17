@@ -169,7 +169,16 @@ pub(crate) fn validate_definition(definition: &Value) -> Result<Vec<Value>, Stri
     if steps.is_empty() {
         return Err("至少需要一个步骤".to_string());
     }
-    let valid_types = ["approval", "manual", "auto", "notification", "ticket_wait"];
+    let valid_types = [
+        "approval",
+        "manual",
+        "auto",
+        "notification",
+        "ticket_wait",
+        "llm",
+        "knowledge",
+        "agent",
+    ];
     let mut keys: Vec<String> = Vec::new();
     for (index, step) in steps.iter().enumerate() {
         let key = step
@@ -543,10 +552,12 @@ async fn advance_once(state: &crate::InfraState, tenant: &TenantContext, instanc
                         // 有进展：回到驱动循环处理下一步。
                         return Ok(true);
                     }
-                    "auto" => {
+                    "auto" | "llm" | "knowledge" | "agent" => {
                         // 提交当前事务再执行动作（动作内含网络 IO 与独立写入），
                         // 执行结果由 execute_step 落库并触发下一轮推进；
                         // Box::pin 断开 execute_step ⇄ advance 的异步递归。
+                        // AI 节点（llm/knowledge/agent）走同一路径——execute_step
+                        // 内部按类型分发到 ai_nodes 执行器。
                         tx.commit().await.map_err(|e| e.to_string())?;
                         Box::pin(super::actions::execute_step(
                             state,
@@ -567,7 +578,7 @@ async fn advance_once(state: &crate::InfraState, tenant: &TenantContext, instanc
                     tx.commit().await.map_err(|e| e.to_string())?;
                     return Ok(false);
                 }
-                if step_type == "auto" {
+                if step_type == "auto" || step_type == "llm" || step_type == "knowledge" || step_type == "agent" {
                     // auto 步骤 active：要么重试到期（runner 调来），要么退避中。
                     let retry_due = sqlx::query_scalar::<_, bool>(
                         "SELECT retry_at IS NULL OR retry_at <= now() FROM infra_flow_step

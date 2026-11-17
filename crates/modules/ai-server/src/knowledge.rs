@@ -499,7 +499,7 @@ struct Search {
     top_k: Option<usize>,
     similarity_threshold: Option<f32>,
 }
-pub(crate) async fn retrieve(
+pub async fn retrieve(
     state: &AiState,
     knowledge_ids: &[i64],
     content: &str,

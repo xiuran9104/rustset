@@ -2,6 +2,9 @@ import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 
 /** 步骤类型元数据（编辑器与列表共用） */
 export const STEP_TYPES = [
+  { value: 'llm', label: 'AI 处理' },
+  { value: 'knowledge', label: '知识检索' },
+  { value: 'agent', label: 'AI Agent' },
   { value: 'approval', label: '审批' },
   { value: 'manual', label: '人工执行' },
   { value: 'auto', label: '自动动作' },

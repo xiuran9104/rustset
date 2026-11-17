@@ -50,7 +50,7 @@ async fn execute_step_inner(
     let pool = &state.pool;
     // 先置 running 标记（attempt 在此累加，退避由结果路径写回）。
     let step = sqlx::query(
-        "SELECT step_key, name, config, attempt_count, status FROM infra_flow_step
+        "SELECT step_key, name, type, config, attempt_count, status FROM infra_flow_step
          WHERE id=$1 AND tenant_id=$2 AND instance_id=$3",
     )
     .bind(step_id)
@@ -84,7 +84,37 @@ async fn execute_step_inner(
     let payload: Value = instance.get("payload");
     let mut context: Value = instance.get("context");
 
-    let outcome: Result<Value, String> = match action.as_str() {
+    // AI 节点（llm/knowledge/agent）：按 step type 分发，不走 action 注册表。
+    let step_type: String = step.get("type");
+    let outcome: Result<Value, String> = match step_type.as_str() {
+        "llm" => {
+            let result = super::ai_nodes::execute_llm(pool, &config, &payload, &mut context).await;
+            // context 被修改，回写实例
+            if result.is_ok() {
+                let _ = super::ai_nodes::persist_context(pool, tenant, instance_id, &context).await;
+            }
+            result
+        }
+        "knowledge" => {
+            let result =
+                super::ai_nodes::execute_knowledge(pool, &config, &payload, &mut context).await;
+            if result.is_ok() {
+                let _ = super::ai_nodes::persist_context(pool, tenant, instance_id, &context).await;
+            }
+            result
+        }
+        "agent" => {
+            let sys_user = super::ai_nodes::system_user();
+            let result =
+                super::ai_nodes::execute_agent(pool, &sys_user, &config, &payload, &mut context).await;
+            if result.is_ok() {
+                let _ = super::ai_nodes::persist_context(pool, tenant, instance_id, &context).await;
+            }
+            result
+        }
+        // auto 节点：按 action 分发（原有逻辑）
+        _ => {
+            let outcome: Result<Value, String> = match action.as_str() {
         "firewall_push" => firewall_push(pool, tenant, instance_id, &payload, &params).await,
         "trigger_scan" => trigger_scan(pool, tenant, instance_id, &payload, &params).await,
         "create_ticket" => create_ticket(pool, tenant, instance_id, &payload, &params).await,
@@ -95,6 +125,9 @@ async fn execute_step_inner(
         "http_request" => http_request(state, instance_id, &params).await,
         "start_flow" => start_flow(state, tenant, instance_id, step_id, &params).await,
         other => Err(format!("未知自动动作：{other}")),
+            };
+            outcome
+        }
     };
 
     match outcome {

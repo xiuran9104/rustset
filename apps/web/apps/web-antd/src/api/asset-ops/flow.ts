@@ -21,7 +21,15 @@ export namespace AssetOpsFlowApi {
   export interface FlowStep {
     key: string;
     name: string;
-    type: 'approval' | 'auto' | 'manual' | 'notification' | 'ticket_wait';
+    type:
+      | 'agent'
+      | 'approval'
+      | 'auto'
+      | 'knowledge'
+      | 'llm'
+      | 'manual'
+      | 'notification'
+      | 'ticket_wait';
     config: {
       action?: string;
       params?: Record<string, any>;

@@ -32,12 +32,52 @@ const selectedStep = ref<EditorStep | null>(null);
 const selectedKey = ref('');
 
 const TYPE_COLORS: Record<string, string> = {
+  llm: '#6a5acd',
+  knowledge: '#20b2aa',
+  agent: '#ff1493',
   approval: '#fa8c16',
   manual: '#52c41a',
   auto: '#1677ff',
   notification: '#8c8c8c',
   ticket_wait: '#722ed1',
 };
+
+// AI 资源选项（模型/知识库/工具）
+const modelOptions = ref<{ label: string; value: number }[]>([]);
+const knowledgeOptions = ref<{ label: string; value: number }[]>([]);
+const toolOptions = ref<{ label: string; value: number }[]>([]);
+
+async function loadAIOptions() {
+  const { requestClient } = await import('#/api/request');
+  // 拉取 chat 模型列表
+  requestClient.get('/ai/model/simple-list', { params: { type: 'chat' } })
+    .then((list: any[]) => {
+      modelOptions.value = (list ?? []).map((m) => ({
+        label: `${m.name}（${m.model}）`,
+        value: m.id,
+      }));
+    })
+    .catch(() => {});
+  // 拉取知识库列表
+  requestClient.get('/ai/knowledge/base/simple-list')
+    .then((list: any[]) => {
+      knowledgeOptions.value = (list ?? []).map((kb) => ({
+        label: kb.name,
+        value: kb.id,
+      }));
+    })
+    .catch(() => {});
+  // 拉取工具列表
+  requestClient.get('/ai/tool/simple-list')
+    .then((list: any[]) => {
+      toolOptions.value = (list ?? []).map((t) => ({
+        label: t.name,
+        value: t.id,
+      }));
+    })
+    .catch(() => {});
+}
+loadAIOptions();
 
 // steps → nodes + edges
 function syncToCanvas() {
@@ -309,6 +349,196 @@ watch(
             }"
           />
         </div>
+        <!-- LLM 节点 -->
+        <template v-if="selectedStep.type === 'llm'">
+          <div>
+            <div class="mb-1 text-xs text-gray-500">模型</div>
+            <a-select
+              :value="selectedStep.config.modelId"
+              class="w-full"
+              size="small"
+              placeholder="选择 AI 模型"
+              @change="(v: any) => (selectedStep!.config.modelId = v)"
+            >
+              <a-select-option v-for="m in modelOptions" :key="m.value" :value="m.value">
+                {{ m.label }}
+              </a-select-option>
+            </a-select>
+          </div>
+          <div>
+            <div class="mb-1 text-xs text-gray-500">系统提示词</div>
+            <a-textarea
+              v-model:value="selectedStep.config.systemPrompt"
+              :rows="3"
+              size="small"
+              placeholder="你是安全分析师..."
+            />
+          </div>
+          <div>
+            <div class="mb-1 text-xs text-gray-500">
+              用户提示词
+              <span class="text-blue-400" v-pre>（可用 {{payload.x}} {{context.x}}）</span>
+            </div>
+            <a-textarea
+              v-model:value="selectedStep.config.userPrompt"
+              :rows="3"
+              size="small"
+              placeholder="分析 {{payload.ecsName}} 的风险"
+            />
+          </div>
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <div class="mb-1 text-xs text-gray-500">温度</div>
+              <a-input-number
+                v-model:value="selectedStep.config.temperature"
+                :min="0" :max="2" :step="0.1"
+                size="small" class="!w-full"
+              />
+            </div>
+            <div class="flex-1">
+              <div class="mb-1 text-xs text-gray-500">最大 Token</div>
+              <a-input-number
+                v-model:value="selectedStep.config.maxTokens"
+                :min="100" :max="32000"
+                size="small" class="!w-full"
+              />
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <div class="mb-1 text-xs text-gray-500">输出格式</div>
+              <a-select
+                :value="selectedStep.config.outputFormat ?? 'text'"
+                class="w-full" size="small"
+                @change="(v: any) => (selectedStep!.config.outputFormat = v)"
+              >
+                <a-select-option value="text">文本</a-select-option>
+                <a-select-option value="json">JSON 提取</a-select-option>
+              </a-select>
+            </div>
+            <div class="flex-1">
+              <div class="mb-1 text-xs text-gray-500">输出变量名</div>
+              <a-input
+                v-model:value="selectedStep.config.outputKey"
+                size="small" placeholder="llm_output"
+              />
+            </div>
+          </div>
+        </template>
+        <!-- 知识检索节点 -->
+        <template v-if="selectedStep.type === 'knowledge'">
+          <div>
+            <div class="mb-1 text-xs text-gray-500">知识库</div>
+            <a-select
+              :value="selectedStep.config.knowledgeIds ?? []"
+              mode="multiple"
+              class="w-full"
+              size="small"
+              placeholder="选择知识库"
+              @change="(v: any) => (selectedStep!.config.knowledgeIds = v)"
+            >
+              <a-select-option v-for="kb in knowledgeOptions" :key="kb.value" :value="kb.value">
+                {{ kb.label }}
+              </a-select-option>
+            </a-select>
+          </div>
+          <div>
+            <div class="mb-1 text-xs text-gray-500">
+              检索内容
+              <span class="text-blue-400" v-pre>（支持 {{payload.x}}）</span>
+            </div>
+            <a-textarea
+              v-model:value="selectedStep.config.query"
+              :rows="2"
+              size="small"
+              placeholder="{{payload.resourceType}} {{payload.ecsName}}"
+            />
+          </div>
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <div class="mb-1 text-xs text-gray-500">Top K</div>
+              <a-input-number
+                v-model:value="selectedStep.config.topK"
+                :min="1" :max="20"
+                size="small" class="!w-full"
+              />
+            </div>
+            <div class="flex-1">
+              <div class="mb-1 text-xs text-gray-500">输出变量名</div>
+              <a-input
+                v-model:value="selectedStep.config.outputKey"
+                size="small" placeholder="kb_context"
+              />
+            </div>
+          </div>
+        </template>
+        <!-- Agent 节点 -->
+        <template v-if="selectedStep.type === 'agent'">
+          <div>
+            <div class="mb-1 text-xs text-gray-500">模型</div>
+            <a-select
+              :value="selectedStep.config.modelId"
+              class="w-full"
+              size="small"
+              placeholder="选择 AI 模型"
+              @change="(v: any) => (selectedStep!.config.modelId = v)"
+            >
+              <a-select-option v-for="m in modelOptions" :key="m.value" :value="m.value">
+                {{ m.label }}
+              </a-select-option>
+            </a-select>
+          </div>
+          <div>
+            <div class="mb-1 text-xs text-gray-500">系统提示词</div>
+            <a-textarea
+              v-model:value="selectedStep.config.systemPrompt"
+              :rows="2"
+              size="small"
+              placeholder="你是运维助手..."
+            />
+          </div>
+          <div>
+            <div class="mb-1 text-xs text-gray-500">用户提示词</div>
+            <a-textarea
+              v-model:value="selectedStep.config.userPrompt"
+              :rows="2"
+              size="small"
+              placeholder="工单：{{payload.ecsName}}"
+            />
+          </div>
+          <div>
+            <div class="mb-1 text-xs text-gray-500">可用工具</div>
+            <a-select
+              :value="selectedStep.config.toolIds ?? []"
+              mode="multiple"
+              class="w-full"
+              size="small"
+              placeholder="选择工具"
+              @change="(v: any) => (selectedStep!.config.toolIds = v)"
+            >
+              <a-select-option v-for="t in toolOptions" :key="t.value" :value="t.value">
+                {{ t.label }}
+              </a-select-option>
+            </a-select>
+          </div>
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <div class="mb-1 text-xs text-gray-500">最大迭代</div>
+              <a-input-number
+                v-model:value="selectedStep.config.maxIterations"
+                :min="1" :max="10"
+                size="small" class="!w-full"
+              />
+            </div>
+            <div class="flex-1">
+              <div class="mb-1 text-xs text-gray-500">输出变量名</div>
+              <a-input
+                v-model:value="selectedStep.config.outputKey"
+                size="small" placeholder="agent_result"
+              />
+            </div>
+          </div>
+        </template>
         <div>
           <div class="mb-1 text-xs text-gray-500">出口（JSON）</div>
           <a-textarea
