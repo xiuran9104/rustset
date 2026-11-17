@@ -55,6 +55,8 @@ fn row_value(row: &sqlx::postgres::PgRow) -> Value {
         "version": row.get::<i32, _>("version"),
         "stepCount": row.get::<Value, _>("definition")
             .get("steps").and_then(Value::as_array).map(|a| a.len()).unwrap_or(0),
+        "creator": row.get::<String, _>("creator"),
+        "updater": row.get::<String, _>("updater"),
         "createTime": row.get::<chrono::NaiveDateTime, _>("create_time").to_string(),
         "updateTime": row.get::<chrono::NaiveDateTime, _>("update_time").to_string(),
     })
@@ -75,11 +77,11 @@ async fn page(
     .fetch_one(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to count flow definitions"))?;
-    let rows = sqlx::query_scalar::<_, Value>(
-        "SELECT to_jsonb(d) - 'tenant_id' - 'creator' - 'updater' - 'deleted'
-         FROM infra_flow_definition d
-         WHERE d.tenant_id=$1 AND d.deleted=0
-         ORDER BY d.id DESC LIMIT $2 OFFSET $3",
+    let rows = sqlx::query(
+        "SELECT id, name, description, status, definition, version, creator, updater, create_time, update_time
+         FROM infra_flow_definition
+         WHERE tenant_id=$1 AND deleted=0
+         ORDER BY id DESC LIMIT $2 OFFSET $3",
     )
     .bind(tenant.id())
     .bind(ps)
@@ -87,22 +89,7 @@ async fn page(
     .fetch_all(&state.pool)
     .await
     .map_err(|_| AppError::internal("failed to list flow definitions"))?;
-    // 补 camelCase 展示字段（to_jsonb 是 snake_case 列名）。
-    let list: Vec<Value> = rows
-        .into_iter()
-        .map(|mut row| {
-            if let Some(object) = row.as_object_mut() {
-                let step_count = object
-                    .get("definition")
-                    .and_then(|d| d.get("steps"))
-                    .and_then(Value::as_array)
-                    .map(|a| a.len())
-                    .unwrap_or(0);
-                object.insert("stepCount".into(), json!(step_count));
-            }
-            row
-        })
-        .collect();
+    let list: Vec<Value> = rows.iter().map(row_value).collect();
     Ok(Json(ApiResponse::new(Page { list, total })))
 }
 
@@ -113,7 +100,7 @@ async fn get_one(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
     let row = sqlx::query(
-        "SELECT id, name, description, status, definition, version, create_time, update_time
+        "SELECT id, name, description, status, definition, version, creator, updater, create_time, update_time
          FROM infra_flow_definition WHERE id=$1 AND tenant_id=$2 AND deleted=0",
     )
     .bind(params.id)

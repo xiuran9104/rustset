@@ -50,6 +50,7 @@ export function useGridColumns(): VxeTableGridOptions['columns'] {
       slots: { default: 'status' },
     },
     { field: 'version', title: '版本', width: 70 },
+    { field: 'updater', title: '更新人', width: 100 },
     { field: 'updateTime', title: '更新时间', width: 170 },
     {
       field: 'action',
