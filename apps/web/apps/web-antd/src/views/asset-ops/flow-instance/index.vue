@@ -170,15 +170,52 @@ const startForm = reactive({
   definitionId: undefined as number | undefined,
   title: '',
   payloadText: '{}',
+  ticketId: undefined as number | undefined,
 });
 const definitionOptions = ref<AssetOpsFlowApi.FlowDefinition[]>([]);
+const ticketOptions = ref<{ label: string; value: number }[]>([]);
 function openStart() {
   startVisible.value = true;
   startForm.definitionId = undefined;
   startForm.title = '';
   startForm.payloadText = '{}';
+  startForm.ticketId = undefined;
   getFlowDefinitionPage({ pageNo: 1, pageSize: 100 }).then((page) => {
     definitionOptions.value = (page.list ?? []).filter((d) => d.status === 0);
+  });
+  // 加载工单选项（取前 50 条）
+  import('#/api/request').then(({ requestClient }) => {
+    requestClient
+      .get('/infra/resource-ticket/page', {
+        params: { pageNo: 1, pageSize: 50 },
+      })
+      .then((page: any) => {
+        ticketOptions.value = (page.list ?? []).map((t: any) => ({
+          label: `#${t.id} ${t.ecsName || ''} (${t.ticketStatus})`,
+          value: t.id,
+        }));
+      });
+  });
+}
+function onTicketSelect(ticketId: number) {
+  import('#/api/request').then(({ requestClient }) => {
+    requestClient
+      .get(`/infra/resource-ticket/get?id=${ticketId}`)
+      .then((ticket: any) => {
+        startForm.title = `工单 #${ticketId} 流程`;
+        startForm.payloadText = JSON.stringify(
+          {
+            resourceType: ticket.resourceType,
+            ticketType: ticket.ticketType,
+            ecsName: ticket.ecsName,
+            cpuCores: ticket.cpuCores,
+            memoryGb: ticket.memoryGb,
+            ticketId,
+          },
+          null,
+          2,
+        );
+      });
   });
 }
 async function submitStart() {
@@ -327,6 +364,29 @@ onMounted(loadTodos);
             :value="d.id"
           >
             {{ d.name }}（{{ d.stepCount }} 步）
+          </a-select-option>
+        </a-select>
+      </div>
+      <div class="mb-3">
+        <div class="mb-1 text-sm">
+          关联工单（可选；选中后自动填 payload）
+        </div>
+        <a-select
+          v-model:value="startForm.ticketId"
+          class="w-full"
+          placeholder="选择已有工单，自动填充 payload"
+          allow-clear
+          show-search
+          :filter-option="(input: string, option: any) => option.label?.toLowerCase().includes(input.toLowerCase())"
+          @change="(val: any) => { if (val) onTicketSelect(val); }"
+        >
+          <a-select-option
+            v-for="t in ticketOptions"
+            :key="t.value"
+            :value="t.value"
+            :label="t.label"
+          >
+            {{ t.label }}
           </a-select-option>
         </a-select>
       </div>
