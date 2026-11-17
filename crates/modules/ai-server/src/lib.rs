@@ -3,6 +3,7 @@ pub mod chat;
 // knowledge/tools 供 infra-server 流程引擎复用 RAG 检索与工具执行（AI 节点）。
 pub mod knowledge;
 pub mod tools;
+pub mod agent_preset;
 mod mcp_client;
 mod mcp_server_admin;
 mod chat_role;
@@ -80,6 +81,7 @@ pub fn routes(state: AiState) -> ApiRouter {
         .merge(chat_role::routes())
         .merge(midjourney::routes())
         .merge(tools::routes())
+        .merge(agent_preset::routes())
         .merge(mcp_server_admin::routes())
         .merge(media::routes())
         .merge(knowledge::routes())

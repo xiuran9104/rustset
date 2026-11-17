@@ -35,7 +35,7 @@ pub(crate) async fn execute_llm(
         .and_then(Value::as_u64)
         .map(|v| v as u32);
 
-    let system = interpolate(system_prompt, payload, context);
+    let system = interpolate(&system_prompt, payload, context);
     let user = interpolate(user_prompt, payload, context);
 
     let messages = vec![
@@ -176,23 +176,59 @@ pub(crate) async fn execute_agent(
     payload: &Value,
     context: &mut Value,
 ) -> Result<Value, String> {
-    let model_id = config
-        .get("modelId")
-        .and_then(Value::as_i64)
-        .ok_or("Agent 节点需要 modelId")?;
-    let system_prompt = config
-        .get("systemPrompt")
-        .and_then(Value::as_str)
-        .unwrap_or("你是运维助手");
+    // 优先从 Agent 预设加载配置（agentPresetId），回退到内联 config
+    let (model_id, system_prompt, tool_ids, _knowledge_ids, _temp, _max_tok) =
+        if let Some(preset_id) = config.get("agentPresetId").and_then(Value::as_i64) {
+            let row = sqlx::query(
+                "SELECT model_id, system_prompt, tool_ids, knowledge_ids, temperature, max_tokens
+                 FROM ai_agent_preset WHERE id=$1 AND deleted=0 AND status=0",
+            )
+            .bind(preset_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| format!("加载 Agent 预设失败：{e}"))?
+            .ok_or("Agent 预设不存在或已停用")?;
+            let tool_ids: Vec<i64> = row
+                .get::<Value, _>("tool_ids")
+                .as_array()
+                .map(|a| a.iter().filter_map(Value::as_i64).collect())
+                .unwrap_or_default();
+            (
+                row.get::<i64, _>("model_id"),
+                row.get::<String, _>("system_prompt"),
+                tool_ids,
+                row.get::<Value, _>("knowledge_ids"),
+                row.get::<f64, _>("temperature"),
+                row.get::<i32, _>("max_tokens"),
+            )
+        } else {
+            // 回退到内联配置
+            let model_id = config
+                .get("modelId")
+                .and_then(Value::as_i64)
+                .ok_or("Agent 节点需要 agentPresetId 或 modelId")?;
+            let tool_ids: Vec<i64> = config
+                .get("toolIds")
+                .and_then(Value::as_array)
+                .map(|arr| arr.iter().filter_map(Value::as_i64).collect())
+                .unwrap_or_default();
+            (
+                model_id,
+                config
+                    .get("systemPrompt")
+                    .and_then(Value::as_str)
+                    .unwrap_or("你是运维助手")
+                    .to_string(),
+                tool_ids,
+                json!([]),
+                0.7,
+                4096,
+            )
+        };
     let user_prompt = config
         .get("userPrompt")
         .and_then(Value::as_str)
         .ok_or("Agent 节点需要 userPrompt")?;
-    let tool_ids: Vec<i64> = config
-        .get("toolIds")
-        .and_then(Value::as_array)
-        .map(|arr| arr.iter().filter_map(Value::as_i64).collect())
-        .unwrap_or_default();
     let max_iterations = config
         .get("maxIterations")
         .and_then(Value::as_u64)
@@ -200,7 +236,7 @@ pub(crate) async fn execute_agent(
         .min(10) as usize;
     let _ = user; // Agent 工具执行可能需要 CurrentUser，暂由 tools::execute 内部处理
 
-    let system = interpolate(system_prompt, payload, context);
+    let system = interpolate(&system_prompt, payload, context);
     let user_msg = interpolate(user_prompt, payload, context);
 
     let factory = rustset_ai_server::AiModelFactory::new(pool.clone());

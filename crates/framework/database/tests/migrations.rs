@@ -40,7 +40,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 64);
+    assert_eq!(applied, 65);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )

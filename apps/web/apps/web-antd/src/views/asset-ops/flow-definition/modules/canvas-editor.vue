@@ -42,11 +42,13 @@ const TYPE_COLORS: Record<string, string> = {
   ticket_wait: '#722ed1',
 };
 
-// AI 资源选项（模型/知识库/工具/角色）
+// AI 资源选项（模型/知识库/工具/角色/Agent预设/通知模板）
 const modelOptions = ref<{ label: string; value: number }[]>([]);
 const knowledgeOptions = ref<{ label: string; value: number }[]>([]);
 const toolOptions = ref<{ label: string; value: number }[]>([]);
 const roleOptions = ref<{ label: string; value: string }[]>([]);
+const agentPresetOptions = ref<{ label: string; value: number }[]>([]);
+const notifyTemplateOptions = ref<{ label: string; value: string }[]>([]);
 
 async function loadAIOptions() {
   const { requestClient } = await import('#/api/request');
@@ -56,6 +58,24 @@ async function loadAIOptions() {
       roleOptions.value = (list ?? []).map((r) => ({
         label: `${r.name}（${r.code}）`,
         value: r.code,
+      }));
+    })
+    .catch(() => {});
+  // 拉取 Agent 预设列表
+  requestClient.get('/ai/agent-preset/simple-list')
+    .then((list: any[]) => {
+      agentPresetOptions.value = (list ?? []).map((a) => ({
+        label: `${a.name}（${a.description?.slice(0, 20) ?? ''}）`,
+        value: a.id,
+      }));
+    })
+    .catch(() => {});
+  // 拉取通知模板列表
+  requestClient.get('/system/notify-template/page', { params: { pageNo: 1, pageSize: 100 } })
+    .then((page: any) => {
+      notifyTemplateOptions.value = (page?.list ?? []).map((t: any) => ({
+        label: `${t.name}（${t.code}）`,
+        value: t.code,
       }));
     })
     .catch(() => {});
@@ -285,10 +305,10 @@ watch(
       </VueFlow>
     </div>
 
-    <!-- 属性面板 -->
+    <!-- 属性面板（宽面板 + 滚动，防溢出） -->
     <div
       v-if="selectedStep"
-      class="w-72 rounded border border-gray-200 p-3 dark:border-gray-700"
+      class="w-96 max-h-[520px] overflow-y-auto rounded border border-gray-200 p-3 dark:border-gray-700"
     >
       <div class="mb-2 flex items-center justify-between">
         <span class="text-sm font-medium">节点属性</span>
@@ -343,6 +363,28 @@ watch(
               :label="r.label"
             >
               {{ r.label }}
+            </a-select-option>
+          </a-select>
+        </div>
+        <!-- 通知节点：模板选择 -->
+        <div v-if="selectedStep.type === 'notification'">
+          <div class="mb-1 text-xs text-gray-500">通知模板</div>
+          <a-select
+            :value="selectedStep.config.templateCode"
+            class="w-full"
+            size="small"
+            placeholder="选择通知模板"
+            show-search
+            :filter-option="(input: string, option: any) => option.label?.toLowerCase().includes(input.toLowerCase())"
+            @change="(v: any) => (selectedStep!.config.templateCode = v)"
+          >
+            <a-select-option
+              v-for="t in notifyTemplateOptions"
+              :key="t.value"
+              :value="t.value"
+              :label="t.label"
+            >
+              {{ t.label }}
             </a-select-option>
           </a-select>
         </div>
@@ -498,33 +540,37 @@ watch(
             </div>
           </div>
         </template>
-        <!-- Agent 节点 -->
+        <!-- Agent 节点：选择预配置的 Agent -->
         <template v-if="selectedStep.type === 'agent'">
           <div>
-            <div class="mb-1 text-xs text-gray-500">模型</div>
+            <div class="mb-1 text-xs text-gray-500">Agent 预设</div>
             <a-select
-              :value="selectedStep.config.modelId"
+              :value="selectedStep.config.agentPresetId"
               class="w-full"
               size="small"
-              placeholder="选择 AI 模型"
-              @change="(v: any) => (selectedStep!.config.modelId = v)"
+              placeholder="选择已配置的 AI Agent"
+              show-search
+              :filter-option="(input: string, option: any) => option.label?.toLowerCase().includes(input.toLowerCase())"
+              @change="(v: any) => (selectedStep!.config.agentPresetId = v)"
             >
-              <a-select-option v-for="m in modelOptions" :key="m.value" :value="m.value">
-                {{ m.label }}
+              <a-select-option
+                v-for="a in agentPresetOptions"
+                :key="a.value"
+                :value="a.value"
+                :label="a.label"
+              >
+                {{ a.label }}
               </a-select-option>
             </a-select>
+            <div class="mt-1 text-xs text-gray-400">
+              在「AI 大模型 → AI Agent 管理」中配置模型/提示词/工具
+            </div>
           </div>
           <div>
-            <div class="mb-1 text-xs text-gray-500">系统提示词</div>
-            <a-textarea
-              v-model:value="selectedStep.config.systemPrompt"
-              :rows="2"
-              size="small"
-              placeholder="你是运维助手..."
-            />
-          </div>
-          <div>
-            <div class="mb-1 text-xs text-gray-500">用户提示词</div>
+            <div class="mb-1 text-xs text-gray-500">
+              用户提示词
+              <span class="text-blue-400" v-pre>（支持 {{payload.x}}）</span>
+            </div>
             <a-textarea
               v-model:value="selectedStep.config.userPrompt"
               :rows="2"
@@ -533,36 +579,11 @@ watch(
             />
           </div>
           <div>
-            <div class="mb-1 text-xs text-gray-500">可用工具</div>
-            <a-select
-              :value="selectedStep.config.toolIds ?? []"
-              mode="multiple"
-              class="w-full"
-              size="small"
-              placeholder="选择工具"
-              @change="(v: any) => (selectedStep!.config.toolIds = v)"
-            >
-              <a-select-option v-for="t in toolOptions" :key="t.value" :value="t.value">
-                {{ t.label }}
-              </a-select-option>
-            </a-select>
-          </div>
-          <div class="flex gap-2">
-            <div class="flex-1">
-              <div class="mb-1 text-xs text-gray-500">最大迭代</div>
-              <a-input-number
-                v-model:value="selectedStep.config.maxIterations"
-                :min="1" :max="10"
-                size="small" class="!w-full"
-              />
-            </div>
-            <div class="flex-1">
-              <div class="mb-1 text-xs text-gray-500">输出变量名</div>
-              <a-input
-                v-model:value="selectedStep.config.outputKey"
-                size="small" placeholder="agent_result"
-              />
-            </div>
+            <div class="mb-1 text-xs text-gray-500">输出变量名</div>
+            <a-input
+              v-model:value="selectedStep.config.outputKey"
+              size="small" placeholder="agent_result"
+            />
           </div>
         </template>
         <div>
