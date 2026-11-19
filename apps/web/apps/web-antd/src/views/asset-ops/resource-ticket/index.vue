@@ -233,10 +233,10 @@ function openProvision(ticket:Ticket){
   provisionForm.value={...emptyProvisionForm(),config_id:saved.configId??(configs.length===1?configs[0]?.id:undefined),image_id:saved.imageId||'',flavor:saved.flavor||ticket.ecs_type||'',availability_zone:saved.availabilityZone||'',subnet_id:saved.subnetId||'',vpc_id:saved.vpcId||'',security_groups:Array.isArray(saved.securityGroups)?saved.securityGroups:[]};
   provisionVisible.value=true;
 }
-async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}const form=provisionForm.value;const availableConfigs=providerConfigs.value.filter(item=>item.platform_id===provisionTicketRecord.value.cloud_platform_id&&['active','enabled'].includes(item.status));const manualMode=!form.config_id;// 无云凭据：人工登记模式（后端不跑 Tofu，记录配置并推进待交付）
+async function handleProvision(){const record=provisionTicketRecord.value;if(!record?.id){return;}const form=provisionForm.value;const availableConfigs=providerConfigs.value.filter(item=>item.platform_id===record.cloud_platform_id&&['active','enabled'].includes(item.status));const manualMode=!form.config_id;// 无云凭据：人工登记模式（后端不跑 Tofu，记录配置并推进待交付）
   if(availableConfigs.length===0&&!form.details.trim()){message.warning('无可用云凭据，人工登记模式必须填写配置说明');return;}
   if(!manualMode&&(!form.image_id.trim()||!form.flavor.trim()||!form.availability_zone.trim()||!form.subnet_id.trim()||!form.security_groups.length)){message.warning('请填写镜像、规格、可用区、子网和安全组');return;}
-  const config=providerConfigs.value.find(item=>item.id===form.config_id);if(['tencent','tencentcloud'].includes(config?.provider)&&!form.vpc_id.trim()){message.warning('腾讯云开通需要 VPC ID');return;}provisioning.value=true;try{await provisionTicket(provisionTicketRecord.value.id,form);await advanceFlowManual(provisionTicketRecord.value.flowInstanceId,'配置登记完成（工单页）');message.success(manualMode?'配置已人工登记，工单进入待交付':'云资源开通完成，工单进入待交付');provisionVisible.value=false;await fetchData();}catch{message.error('开通失败，请查看工单执行日志');}finally{provisioning.value=false;}}
+  const config=providerConfigs.value.find(item=>item.id===form.config_id);if(['tencent','tencentcloud'].includes(config?.provider)&&!form.vpc_id.trim()){message.warning('腾讯云开通需要 VPC ID');return;}provisioning.value=true;try{await provisionTicket(record.id,form);await advanceFlowManual(record.flowInstanceId,'配置登记完成（工单页）');message.success(manualMode?'配置已人工登记，工单进入待交付':'云资源开通完成，工单进入待交付');provisionVisible.value=false;await fetchData();}catch{message.error('开通失败，请查看工单执行日志');}finally{provisioning.value=false;}}
 </script>
 
 <template>
