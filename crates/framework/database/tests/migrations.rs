@@ -41,7 +41,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 73);
+    assert_eq!(applied, 74);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -311,6 +311,14 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read terminal menu");
     assert_eq!(terminal_menu, 1, "0072 起终端设备排在发现资产之后");
+    // 0074：网络策略排到物理资源之后。
+    let network_policy_pos: i64 = sqlx::query_scalar(
+        "SELECT sort FROM system_menu WHERE id = 30311 AND parent_id = 30342 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read network policy menu sort");
+    assert_eq!(network_policy_pos, 5, "网络策略排在物理资源（4）之后");
     let terminal_grants: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_role_menu rm
          JOIN system_role r ON r.id = rm.role_id AND r.code = 'super_admin'
