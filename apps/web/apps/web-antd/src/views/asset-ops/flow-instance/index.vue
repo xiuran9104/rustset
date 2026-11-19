@@ -4,7 +4,7 @@ import type {
   AssetOpsFlowApi,
 } from '#/api/asset-ops/flow';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -102,6 +102,26 @@ async function openDetail(row: any) {
   detail.instance = data.instance;
   detail.steps = data.steps;
   detailVisible.value = true;
+}
+
+/** 申报数据（payload）键值直出：对象/数组 JSON 化，值截断展示。 */
+const detailPayload = computed(() => {
+  const payload = (detail.instance as any)?.payload;
+  if (!payload || typeof payload !== 'object') return [];
+  return Object.entries(payload)
+    .filter(([, v]) => v !== null && v !== '' && v !== undefined)
+    .map(([k, v]) => [
+      k,
+      typeof v === 'object' ? JSON.stringify(v) : String(v),
+    ]);
+});
+
+/** auto 步骤输出摘要（output JSON 化，截断展示）。 */
+function stepOutput(step: AssetOpsFlowApi.FlowStepInstance): string {
+  const output = (step.result as any)?.output;
+  if (!output) return '';
+  const text = JSON.stringify(output);
+  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
 }
 
 /* ---------- 步骤操作 ---------- */
@@ -266,6 +286,20 @@ onMounted(loadTodos);
           }}
           ｜ 发起人：{{ detail.instance.starter }}
         </div>
+        <!-- 申报数据跟踪（payload 键值直出） -->
+        <template v-if="detailPayload.length > 0">
+          <a-divider orientation="left">申报数据</a-divider>
+          <a-descriptions bordered size="small" :column="2">
+            <a-descriptions-item
+              v-for="[key, value] in detailPayload"
+              :key="key"
+              :label="key"
+            >
+              {{ value }}
+            </a-descriptions-item>
+          </a-descriptions>
+        </template>
+        <a-divider orientation="left">步骤执行</a-divider>
         <a-timeline>
           <a-timeline-item
             v-for="step in detail.steps"
@@ -311,6 +345,17 @@ onMounted(loadTodos);
                   class="text-xs text-gray-500"
                 >
                   工单状态：{{ step.result.ticketStatus }}
+                </div>
+                <div
+                  v-if="stepOutput(step)"
+                  class="max-w-[520px] text-xs text-gray-500"
+                  style="
+                    font-family: monospace;
+                    white-space: pre-wrap;
+                    word-break: break-all;
+                  "
+                >
+                  输出：{{ stepOutput(step) }}
                 </div>
               </div>
               <a-button

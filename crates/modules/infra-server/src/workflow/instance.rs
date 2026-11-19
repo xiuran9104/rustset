@@ -90,10 +90,16 @@ async fn page(
     let list = sqlx::query_scalar::<_, Value>(
         "SELECT to_jsonb(i) || jsonb_build_object(
              'definitionName', d.name,
-             'currentStepName', (
-                 SELECT s.name FROM infra_flow_step s
-                 WHERE s.instance_id=i.id AND s.tenant_id=i.tenant_id
-                   AND s.status='active' ORDER BY s.step_index LIMIT 1
+             'currentStepName', COALESCE(
+                 (SELECT s.name FROM infra_flow_step s
+                  WHERE s.instance_id=i.id AND s.tenant_id=i.tenant_id
+                    AND s.status='active' ORDER BY s.step_index LIMIT 1),
+                 CASE i.status
+                     WHEN 'completed' THEN '已完成'
+                     WHEN 'failed' THEN '已失败'
+                     WHEN 'cancelled' THEN '已取消'
+                     ELSE '待启动'
+                 END
              )
          ) - 'tenant_id' - 'deleted' - 'definition_snapshot' - 'context'
          FROM infra_flow_instance i
