@@ -13,11 +13,12 @@ use sqlx::Row;
 
 /// 已知动作名（校验用）。
 pub(crate) fn is_known_action(action: &str) -> Option<&'static str> {
-    const ACTIONS: [&str; 9] = [
+    const ACTIONS: [&str; 10] = [
         "firewall_push",
         "trigger_scan",
         "create_ticket",
         "set_context",
+        "check_risk_port",
         "ticket_approve",
         "ticket_provision",
         "ticket_deliver",
@@ -112,13 +113,18 @@ async fn execute_step_inner(
             }
             result
         }
-        // auto 节点：按 action 分发（原有逻辑）
+        // auto 节点：按 action 分发（原有逻辑）。
+        // 参数先做 Value 级变量插值（Windmill 风格：任何动作参数都可引用
+        // payload/context，http_request 的 URL/body、start_flow 的 payload 等
+        // 全部生效）；SSRF 校验在插值后的 URL 上照常执行。
         _ => {
+            let params = super::variables::interpolate_value(&params, &payload, &context);
             let outcome: Result<Value, String> = match action.as_str() {
         "firewall_push" => firewall_push(pool, tenant, instance_id, &payload, &params).await,
         "trigger_scan" => trigger_scan(pool, tenant, instance_id, &payload, &params).await,
         "create_ticket" => create_ticket(pool, tenant, instance_id, &payload, &params).await,
         "set_context" => set_context(&mut context, &payload, &params),
+        "check_risk_port" => check_risk_port(pool, &mut context, &params).await,
         "ticket_approve" => ticket_approve(state, tenant, instance_id, &params).await,
         "ticket_provision" => ticket_provision(state, tenant, instance_id, &params).await,
         "ticket_deliver" => ticket_deliver(state, tenant, instance_id, &params).await,
@@ -148,8 +154,8 @@ async fn execute_step_inner(
                 super::engine::advance(state, tenant, instance_id).await;
                 return Ok(());
             }
-            // set_context 需要把更新后的 context 写回实例。
-            if action == "set_context" {
+            // set_context / check_risk_port 需要把更新后的 context 写回实例。
+            if action == "set_context" || action == "check_risk_port" {
                 sqlx::query(
                     "UPDATE infra_flow_instance SET context=$3, update_time=now()
                      WHERE id=$1 AND tenant_id=$2",
@@ -364,25 +370,45 @@ async fn trigger_scan(
     Ok(json!({ "taskId": task_id }))
 }
 
-/// 创建资源工单：params 即工单字段（camelCase），applicant 默认发起人 system。
+/// 创建资源工单：params 即工单字段（camelCase，支持 {{payload.x}} 插值——
+/// 插值在 execute_step 分发前统一完成）。流程路径无登录态，DB 必填列
+/// （ticket_status/created_by）与工单链默认值在此补齐。
 async fn create_ticket(
     pool: &DbPool,
     tenant: &TenantContext,
     instance_id: i64,
-    _payload: &Value,
+    payload: &Value,
     params: &Value,
 ) -> Result<Value, String> {
     let mut ticket_payload = params.clone();
-    if !ticket_payload
-        .as_object()
-        .is_some_and(|o| o.contains_key("name"))
-    {
-        if let Some(object) = ticket_payload.as_object_mut() {
-            object.insert(
-                "name".to_string(),
-                json!(format!("流程创建 F{instance_id}")),
-            );
+    if let Some(object) = ticket_payload.as_object_mut() {
+        // 工单名称默认（工单链的 name 即 ecs_name 之外展示名，流程里用工单名）。
+        object
+            .entry("ecsName".to_string())
+            .or_insert_with(|| json!(format!("流程创建 F{instance_id}")));
+        // DB NOT NULL 无默认的列 + 工单链缺省（同 ticket.rs HTTP 路径语义）。
+        object
+            .entry("ticketStatus".to_string())
+            .or_insert_with(|| json!("pending_approval"));
+        object
+            .entry("createdBy".to_string())
+            .or_insert_with(|| json!("flow"));
+        object
+            .entry("ticketType".to_string())
+            .or_insert_with(|| json!("create"));
+        object
+            .entry("riskLevel".to_string())
+            .or_insert_with(|| json!("normal"));
+        // 申请人：申报 payload 带 applicantName 时透传（通知/台账归属）。
+        if !object.contains_key("applicantName") {
+            if let Some(name) = payload.get("applicantName") {
+                if !name.is_null() {
+                    object.insert("applicantName".to_string(), name.clone());
+                }
+            }
         }
+    } else {
+        return Err("create_ticket params 必须是对象".to_string());
     }
     let (response, _) = crate::ticket::repository::create(pool, tenant, ticket_payload)
         .await
@@ -416,6 +442,132 @@ fn set_context(context: &mut Value, payload: &Value, params: &Value) -> Result<V
         object.insert(key.to_string(), value.clone());
     }
     Ok(json!({ "key": key, "value": value }))
+}
+
+// ==================== 高危端口检测（网络策略申请前置） ====================
+
+/// 解析端口描述为区间列表："443"、"8000-8010"、"80,443"（逗号/空白分隔，
+/// `a-b` 区间）。空串返回空列表（视为无检测目标）；非法片段报错。
+fn parse_port_ranges(spec: &str) -> Result<Vec<(i32, i32)>, String> {
+    let mut ranges = Vec::new();
+    for token in spec.split([',', ' ', '\t', '，']) {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        let (start, end) = if let Some((a, b)) = token.split_once('-') {
+            let start: i32 = a.trim().parse().map_err(|_| format!("无效端口：{token}"))?;
+            let end: i32 = b.trim().parse().map_err(|_| format!("无效端口：{token}"))?;
+            (start, end)
+        } else {
+            let port: i32 = token.parse().map_err(|_| format!("无效端口：{token}"))?;
+            (port, port)
+        };
+        if !(1..=65535).contains(&start) || !(1..=65535).contains(&end) {
+            return Err(format!("端口超出范围（1-65535）：{token}"));
+        }
+        if start > end {
+            return Err(format!("端口区间起点大于终点：{token}"));
+        }
+        ranges.push((start, end));
+    }
+    Ok(ranges)
+}
+
+/// 端口区间与规则区间是否相交。
+fn ranges_overlap(rule: (i32, i32), port: (i32, i32)) -> bool {
+    rule.0 <= port.1 && rule.1 >= port.0
+}
+
+/// 高危端口检测（通用前置节点）：params {port, sourcePort?, protocol?}——
+/// 支持插值（如 "port":"{{payload.fwDestPort}}"）。与
+/// infra_high_risk_port_rule（启用规则，协议 any 或与请求一致）求区间交集，
+/// 结果写入实例 context，供下游引用：
+///   risk_port_hit（bool）/ risk_level（"high"|"normal"）/
+///   risk_port_rules（命中规则名逗号串）/ risk_ports（命中端口区间串）
+/// 下游用法：安全会签 condition {"field":"risk_port_hit","op":"eq","value":true}；
+/// create_ticket 参数 "riskLevel":"{{context.risk_level}}"（类型保型）。
+/// 检测口径是 ticket.rs 内联检测的超集：全区间交集（旧口径只查首个端口）。
+async fn check_risk_port(
+    pool: &DbPool,
+    context: &mut Value,
+    params: &Value,
+) -> Result<Value, String> {
+    let port_spec = params.get("port").and_then(Value::as_str).unwrap_or_default();
+    let source_spec = params
+        .get("sourcePort")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let protocol = params
+        .get("protocol")
+        .and_then(Value::as_str)
+        .unwrap_or("any")
+        .to_lowercase();
+    // 插值未命中保留的 {{...}} 占位视为未提供（通用动作防御：缺失字段
+    // 不应让步骤失败，等同空串）。
+    let unresolved = |spec: &str| spec.contains("{{") && spec.contains("}}");
+    let port_spec = if unresolved(port_spec) { "" } else { port_spec };
+    let source_spec = if unresolved(source_spec) { "" } else { source_spec };
+    let protocol = if unresolved(&protocol) { "any".to_string() } else { protocol };
+
+    let mut ranges = parse_port_ranges(port_spec)?;
+    if !source_spec.trim().is_empty() {
+        ranges.extend(parse_port_ranges(source_spec)?);
+    }
+
+    let write_context = |context: &mut Value, hit: bool, rules: &[String], ports: &[String]| {
+        let level = if hit { "high" } else { "normal" };
+        if let Some(object) = context.as_object_mut() {
+            object.insert("risk_port_hit".into(), json!(hit));
+            object.insert("risk_level".into(), json!(level));
+            object.insert("risk_port_rules".into(), json!(rules.join(", ")));
+            object.insert("risk_ports".into(), json!(ports.join(", ")));
+        }
+    };
+
+    if ranges.is_empty() {
+        write_context(context, false, &[], &[]);
+        return Ok(json!({ "riskPortHit": false, "riskLevel": "normal", "checkedRanges": 0 }));
+    }
+
+    // 规则表为全局基线（同 ticket.rs 检测口径，无租户过滤）。
+    let rules: Vec<(String, String, i32, i32)> = sqlx::query_as(
+        "SELECT name, protocol, port_start, port_end FROM infra_high_risk_port_rule
+         WHERE enabled AND deleted=0 ORDER BY id",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut hit_rules: Vec<String> = Vec::new();
+    let mut hit_ports: Vec<String> = Vec::new();
+    for (name, rule_protocol, rule_start, rule_end) in &rules {
+        // 协议匹配：规则 any 或请求 any（不限协议）匹配一切；否则需一致。
+        if rule_protocol != "any" && protocol != "any" && *rule_protocol != protocol {
+            continue;
+        }
+        for port_range in &ranges {
+            if ranges_overlap((*rule_start, *rule_end), *port_range) {
+                if !hit_rules.contains(name) {
+                    hit_rules.push(name.clone());
+                }
+                hit_ports.push(format!(
+                    "{}-{}",
+                    port_range.0.max(*rule_start),
+                    port_range.1.min(*rule_end)
+                ));
+                break;
+            }
+        }
+    }
+    let hit = !hit_rules.is_empty();
+    write_context(context, hit, &hit_rules, &hit_ports);
+    Ok(json!({
+        "riskPortHit": hit,
+        "riskLevel": if hit { "high" } else { "normal" },
+        "matchedRules": hit_rules,
+        "checkedRanges": ranges.len(),
+    }))
 }
 
 /// 工单审批：params {ticketId 或 ticketIdFrom=instance biz_id, approved, comment}。
@@ -727,5 +879,48 @@ async fn start_flow(
         Ok(json!({ "childInstanceId": child_id, "mode": "wait" }))
     } else {
         Ok(json!({ "childInstanceId": child_id, "mode": "fire_and_forget" }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_port_single_and_range() {
+        assert_eq!(parse_port_ranges("443").unwrap(), vec![(443, 443)]);
+        assert_eq!(parse_port_ranges("8000-8010").unwrap(), vec![(8000, 8010)]);
+        // 逗号/空白/中文逗号分隔
+        assert_eq!(
+            parse_port_ranges("80, 443，9000-9002").unwrap(),
+            vec![(80, 80), (443, 443), (9000, 9002)]
+        );
+    }
+
+    #[test]
+    fn parse_port_empty_is_no_target() {
+        assert!(parse_port_ranges("").unwrap().is_empty());
+        assert!(parse_port_ranges("  ").unwrap().is_empty());
+        // "任意"/"ANY" 等非数字占位视为非法——调用方传空前应自行过滤
+        assert!(parse_port_ranges("任意").is_err());
+    }
+
+    #[test]
+    fn parse_port_invalid_values() {
+        assert!(parse_port_ranges("0").is_err()); // 越界（<1）
+        assert!(parse_port_ranges("65536").is_err()); // 越界（>65535）
+        assert!(parse_port_ranges("9000-8000").is_err()); // 起点>终点
+        assert!(parse_port_ranges("80-abc").is_err()); // 非数字
+        assert!(parse_port_ranges("-1").is_err()); // 负数（且非区间语法）
+    }
+
+    #[test]
+    fn ranges_overlap_semantics() {
+        assert!(ranges_overlap((80, 80), (80, 80))); // 点重叠
+        assert!(ranges_overlap((1, 100), (50, 150))); // 部分相交
+        assert!(ranges_overlap((1, 10), (5, 5))); // 规则包含端口
+        assert!(ranges_overlap((8080, 8090), (8000, 9000))); // 端口包含规则
+        assert!(!ranges_overlap((80, 443), (444, 65535))); // 相邻不交
+        assert!(!ranges_overlap((22, 22), (23, 80))); // 错开
     }
 }

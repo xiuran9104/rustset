@@ -484,10 +484,41 @@ async fn advance_once(state: &crate::InfraState, tenant: &TenantContext, instanc
 
                 match step_type {
                     "approval" | "manual" => {
+                        // 动态审批人：fromContext 指向 context 中的用户名（点路径），
+                        // 命中则并入步骤 assignee 列——待办列表、审批校验
+                        // （assignee_matches）与会签期望集共用该列，无需另行适配。
+                        let mut assignee = config.get("assignee").cloned().unwrap_or_else(|| json!({}));
+                        if let Some(username) = config
+                            .get("fromContext")
+                            .and_then(Value::as_str)
+                            .and_then(|path| super::variables::context_string_at(&context, path))
+                            .filter(|name| !name.is_empty())
+                        {
+                            let mut names = assignee
+                                .get("usernames")
+                                .and_then(Value::as_array)
+                                .cloned()
+                                .unwrap_or_default();
+                            let entry = json!(username);
+                            if !names.contains(&entry) {
+                                names.push(entry);
+                            }
+                            if let Some(obj) = assignee.as_object_mut() {
+                                obj.insert("usernames".to_string(), json!(names));
+                            }
+                            sqlx::query(
+                                "UPDATE infra_flow_step SET assignee=$3 WHERE id=$1 AND tenant_id=$2",
+                            )
+                            .bind(step_id)
+                            .bind(tenant.id())
+                            .bind(&assignee)
+                            .execute(&mut *tx)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        }
                         // 等待外部输入。先提交事务再发通知：事务持有的连接
                         // 不释放时用池发通知会自我死锁（小池下 PoolTimedOut）。
                         tx.commit().await.map_err(|e| e.to_string())?;
-                        let assignee = config.get("assignee").cloned().unwrap_or_else(|| json!({}));
                         let recipients =
                             super::notify::resolve_recipients(pool, tenant.id(), &assignee).await;
                         super::notify::send_step_notice(
@@ -498,6 +529,7 @@ async fn advance_once(state: &crate::InfraState, tenant: &TenantContext, instanc
                             &step_name,
                             &title,
                             &recipients,
+                            &json!({}),
                         )
                         .await;
                         return Ok(false);
@@ -535,10 +567,17 @@ async fn advance_once(state: &crate::InfraState, tenant: &TenantContext, instanc
                             .get("templateCode")
                             .and_then(Value::as_str)
                             .unwrap_or("flow_step_todo");
+                        // 自定义模板参数：先做 Value 级插值（{{payload.x}}/
+                        // {{context.x}}），再交给 send_step_notice 做 {key} 替换。
+                        let notice_params = config
+                            .get("params")
+                            .map(|p| super::variables::interpolate_value(p, &payload, &context))
+                            .unwrap_or_else(|| json!({}));
                         let recipients =
                             super::notify::resolve_recipients(pool, tenant.id(), &assignee).await;
                         super::notify::send_step_notice(
-                            pool, tenant.id(), template, &flow_name, &step_name, &title, &recipients,
+                            pool, tenant.id(), template, &flow_name, &step_name, &title,
+                            &recipients, &notice_params,
                         )
                         .await;
                         let notified = json!({ "notified": recipients.len() });

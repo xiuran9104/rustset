@@ -366,6 +366,18 @@ watch(
             </a-select-option>
           </a-select>
         </div>
+        <!-- 审批/人工节点：动态审批人（fromContext） -->
+        <div v-if="['approval', 'manual'].includes(selectedStep.type)">
+          <div class="mb-1 text-xs text-gray-500">动态办理人（可选）</div>
+          <a-input
+            v-model:value="selectedStep.config.fromContext"
+            size="small"
+            placeholder="context 中的用户名字段，如 risk_analysis.approver_username"
+          />
+          <div class="mt-1 text-xs text-gray-400">
+            激活时从 context 按点路径取用户名，并入办理人（点路径不含花括号）
+          </div>
+        </div>
         <!-- 通知节点：模板选择 -->
         <div v-if="selectedStep.type === 'notification'">
           <div class="mb-1 text-xs text-gray-500">通知模板</div>
@@ -388,6 +400,25 @@ watch(
             </a-select-option>
           </a-select>
         </div>
+        <!-- 通知节点：模板自定义参数（插值后做 {key} 占位符替换） -->
+        <div v-if="selectedStep.type === 'notification'">
+          <div class="mb-1 text-xs text-gray-500">
+            模板参数 JSON
+            <span class="text-blue-400" v-pre>（值可用 {{payload.x}} {{context.x}}）</span>
+          </div>
+          <a-textarea
+            :rows="3"
+            :value="JSON.stringify(selectedStep.config.params ?? {})"
+            size="small"
+            placeholder='{"ticketName":"{{payload.ecsName}}"}'
+            @change="(e: any) => {
+              try { selectedStep!.config.params = JSON.parse(e.target.value || '{}'); } catch {}
+            }"
+          />
+          <div class="mt-1 text-xs text-gray-400" v-pre>
+            参数键对应模板里的 {key} 占位符，如 ticketName → {ticketName}
+          </div>
+        </div>
         <div v-if="selectedStep.type === 'auto'">
           <div class="mb-1 text-xs text-gray-500">自动动作</div>
           <a-select
@@ -407,11 +438,15 @@ watch(
           </a-select>
         </div>
         <div v-if="selectedStep.type === 'auto'">
-          <div class="mb-1 text-xs text-gray-500">参数 JSON</div>
+          <div class="mb-1 text-xs text-gray-500">
+            参数 JSON
+            <span class="text-blue-400" v-pre>（值可用 {{payload.x}} {{context.x}} {{steps.key.output.x}}，类型保留）</span>
+          </div>
           <a-textarea
             :rows="3"
             :value="JSON.stringify(selectedStep.config.params ?? {})"
             size="small"
+            placeholder='{"url":"https://api.example.com/host/{{payload.ecsName}}"}'
             @change="(e: any) => {
               try { selectedStep!.config.params = JSON.parse(e.target.value || '{}'); } catch {}
             }"

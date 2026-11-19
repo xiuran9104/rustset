@@ -15,6 +15,9 @@ pub async fn get(pool: &DbPool, tenant: &TenantContext, id: i64) -> Result<Value
 }
 
 /// 纯数据分页（HTTP 处理器与 mcp-server 工具共用）。
+/// 附加工单绑定的最新流程实例（原生审批路径）：flowInstanceId / flowStatus，
+/// 前端据此把旧审批按钮换成「流程审批中」。biz_id 为 varchar，绑定列做
+/// 同族 `::text` 内联转换（PG 家族便携）。
 pub async fn page_data(
     pool: &DbPool,
     tenant: &TenantContext,
@@ -29,9 +32,20 @@ pub async fn page_data(
     .fetch_one(pool)
     .await
     .map_err(|_| AppError::internal("failed to count tickets"))?;
-    let list = sqlx::query_scalar::<_, Value>("SELECT to_jsonb(t) FROM infra_resource_ticket t WHERE tenant_id=$1 AND deleted=0 ORDER BY id DESC LIMIT $2 OFFSET $3")
-        .bind(tenant.id()).bind(size).bind(offset).fetch_all(pool).await
-        .map_err(|_| AppError::internal("failed to list tickets"))?.into_iter().map(crate::table_value).collect();
+    let list = sqlx::query_scalar::<_, Value>(
+        "SELECT to_jsonb(t) || jsonb_build_object('flowInstanceId', fi.id, 'flowStatus', fi.status)
+         FROM infra_resource_ticket t
+         LEFT JOIN LATERAL (
+             SELECT f.id, f.status FROM infra_flow_instance f
+             WHERE f.biz_type='ticket' AND f.biz_id=t.id::text
+               AND f.tenant_id=t.tenant_id AND f.deleted=0
+             ORDER BY f.id DESC LIMIT 1
+         ) fi ON true
+         WHERE t.tenant_id=$1 AND t.deleted=0
+         ORDER BY t.id DESC LIMIT $2 OFFSET $3",
+    )
+    .bind(tenant.id()).bind(size).bind(offset).fetch_all(pool).await
+    .map_err(|_| AppError::internal("failed to list tickets"))?.into_iter().map(crate::table_value).collect();
     Ok(crate::Page { list, total })
 }
 

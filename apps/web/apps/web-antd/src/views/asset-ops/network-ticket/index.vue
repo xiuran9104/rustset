@@ -17,10 +17,10 @@ import {
 
 import {
   approveTicket,
-  createResourceTicket,
   deliverTicket,
   getResourceTicketList,
 } from '#/api/scan/resource-ticket';
+import { getFlowDefinitionPage, startFlowInstance } from '#/api/asset-ops/flow';
 import { getBusinessApplicationList } from '#/api/scan/business-application';
 import { getUserPage } from '#/api/system/user';
 import { useUserStore } from '@vben/stores';
@@ -45,6 +45,8 @@ interface NetworkTicket {
   fw_valid_until?: string;
   created_at?: string;
   approve_comment?: string;
+  flowInstanceId?: number;
+  flowStatus?: string;
 }
 
 const data = ref<NetworkTicket[]>([]);
@@ -74,6 +76,8 @@ const form = ref({
   fw_direction: '正向',
   fw_valid_until: '',
   remarks: '',
+  department: '',
+  supervisorUsername: '',
 });
 
 const statusMap: Record<string, { color: string; label: string }> = {
@@ -126,8 +130,12 @@ async function fetchData() {
       getUserPage({ pageNo: 1, pageSize: 500 }),
     ]);
     const all = tickets as any[];
+    // 原生流程路径落单 ticketType=network_change（0067 种子流程），与存量
+    // create 类网络工单一并展示。
     data.value = all.filter(
-      (ticket) => ticket.resource_type === 'network' && ticket.ticket_type === 'create',
+      (ticket) =>
+        ticket.resource_type === 'network' &&
+        ['create', 'network_change'].includes(ticket.ticket_type || ''),
     );
     applications.value = appRows as any;
     users.value = ((userPage as any)?.list ?? []) as any;
@@ -158,6 +166,8 @@ function openCreate() {
     fw_direction: '正向',
     fw_valid_until: '',
     remarks: '',
+    department: '',
+    supervisorUsername: '',
   };
   modalVisible.value = true;
 }
@@ -179,29 +189,41 @@ async function handleSubmit() {
     message.warning('请填写目的地址和端口');
     return;
   }
+  // 原生流程：按名字定位启用中的「网络策略申请流程」（0067 种子）。
+  const page = await getFlowDefinitionPage({ pageNo: 1, pageSize: 100 });
+  const definition = (page?.list ?? []).find(
+    (d: any) => d.name === '网络策略申请流程' && d.status === 0,
+  );
+  if (!definition) {
+    message.error('未找到启用中的「网络策略申请流程」定义');
+    return;
+  }
+  const applicantName =
+    userStore.userInfo?.nickname || userStore.userInfo?.username || '';
   submitting.value = true;
   try {
-    await createResourceTicket({
-      resource_type: 'network',
-      ecs_name: form.value.ecs_name,
-      ticket_type: 'create',
-      application_id: form.value.application_id,
-      application_name: form.value.application_name,
-      // 客户=申请人，由后端从登录态自动取
-      // 申请人由后端从登录态自动取，不由表单指定
-      fw_firewall_name: form.value.fw_firewall_name,
-      fw_source_zone: form.value.fw_source_zone,
-      fw_source_address: form.value.fw_source_address,
-      fw_source_port: form.value.fw_source_port,
-      fw_dest_zone: form.value.fw_dest_zone,
-      fw_dest_address: form.value.fw_dest_address,
-      fw_dest_port: form.value.fw_dest_port,
-      fw_protocol: form.value.fw_protocol,
-      fw_direction: form.value.fw_direction,
-      fw_valid_until: form.value.fw_valid_until,
-      remarks: form.value.remarks,
-    } as any);
-    message.success('策略申请单已提交审批');
+    await startFlowInstance({
+      definitionId: definition.id,
+      title: `${applicantName} 网络策略申请 ${form.value.ecs_name}`,
+      payload: {
+        applicantName,
+        department: form.value.department.trim(),
+        supervisorUsername: form.value.supervisorUsername.trim(),
+        ecsName: form.value.ecs_name.trim(),
+        fwSourceZone: form.value.fw_source_zone.trim(),
+        fwSourceAddress: form.value.fw_source_address.trim(),
+        fwSourcePort: form.value.fw_source_port.trim(),
+        fwFirewallName: form.value.fw_firewall_name.trim(),
+        fwDestZone: form.value.fw_dest_zone.trim(),
+        fwDestAddress: form.value.fw_dest_address.trim(),
+        fwDestPort: form.value.fw_dest_port.trim(),
+        fwProtocol: form.value.fw_protocol,
+        fwDirection: form.value.fw_direction,
+        fwValidUntil: form.value.fw_valid_until,
+        reason: form.value.remarks,
+      },
+    });
+    message.success('策略申请已提交流程审批（我的待办/流程实例处理）');
     modalVisible.value = false;
     await fetchData();
   } finally {
@@ -269,24 +291,32 @@ async function handleDeliver(ticket: NetworkTicket) {
           <template v-else-if="column.key === 'actions'">
             <Space :size="8">
               <template v-if="record.ticket_status === 'pending_approval'">
-                <Button
-                  v-access:code="['infra:resource-ticket:approve']"
-                  type="link"
-                  size="small"
-                  @click="handleApprove(record, true)"
+                <a-tooltip
+                  v-if="record.flowStatus === 'running'"
+                  title="原生流程审批中，请到 运营流程 → 流程实例 / 我的待办 处理"
                 >
-                  审批通过
-                </Button>
-                <Popconfirm title="确认拒绝该策略申请?" @confirm="handleApprove(record, false)">
+                  <Tag color="blue">流程审批中</Tag>
+                </a-tooltip>
+                <template v-else>
                   <Button
                     v-access:code="['infra:resource-ticket:approve']"
                     type="link"
                     size="small"
-                    danger
+                    @click="handleApprove(record, true)"
                   >
-                    拒绝
+                    审批通过
                   </Button>
-                </Popconfirm>
+                  <Popconfirm title="确认拒绝该策略申请?" @confirm="handleApprove(record, false)">
+                    <Button
+                      v-access:code="['infra:resource-ticket:approve']"
+                      type="link"
+                      size="small"
+                      danger
+                    >
+                      拒绝
+                    </Button>
+                  </Popconfirm>
+                </template>
               </template>
               <Popconfirm
                 v-if="record.ticket_status === 'pending_delivery'"
@@ -403,6 +433,19 @@ async function handleDeliver(ticket: NetworkTicket) {
             <a-col :span="8">
               <a-form-item label="有效期至">
                 <Input v-model:value="form.fw_valid_until" placeholder="如 2027-12-31" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="部门（流程通知用）">
+                <Input v-model:value="form.department" placeholder="所属部门" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="部门主管账号（可选）">
+                <Input
+                  v-model:value="form.supervisorUsername"
+                  placeholder="留空由系统管理员审批"
+                />
               </a-form-item>
             </a-col>
             <a-col :span="24">

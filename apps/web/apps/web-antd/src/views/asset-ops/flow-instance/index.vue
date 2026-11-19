@@ -25,6 +25,7 @@ import {
   retryFlowStep,
 } from '#/api/asset-ops/flow';
 import { stepTypeLabel } from '#/views/asset-ops/flow-definition/data';
+import ApplyCenter from './modules/apply-center.vue';
 
 const STATUS_LABEL: Record<string, string> = {
   running: '进行中',
@@ -162,12 +163,35 @@ async function handleRetryStep(step: AssetOpsFlowApi.FlowStepInstance) {
   gridApi.query();
 }
 
+/* ---------- 申请中心（发起） ---------- */
+const applyCenterRef = ref<InstanceType<typeof ApplyCenter> | null>(null);
+function openApply() {
+  applyCenterRef.value?.open();
+}
+function onApplySuccess() {
+  gridApi.query();
+  loadTodos();
+}
+
 onMounted(loadTodos);
 </script>
 
 <template>
   <Page auto-content-height>
     <Grid table-title="流程实例">
+      <template #toolbar-tools>
+        <TableAction
+          :actions="[
+            {
+              label: '发起申请',
+              type: 'primary',
+              icon: ACTION_ICON.ADD,
+              auth: ['infra:flow-instance:start'],
+              onClick: openApply,
+            },
+          ]"
+        />
+      </template>
 
       <template #status="{ row }">
         <span>{{ STATUS_LABEL[row.status] ?? row.status }}</span>
@@ -252,6 +276,9 @@ onMounted(loadTodos);
         :placeholder="actionState.mode === 'reject' ? '拒绝原因（必填）' : '备注（可选）'"
       />
     </a-modal>
+
+    <!-- 申请中心（办公网IP / 云资源 / 网络策略 / 通用） -->
+    <ApplyCenter ref="applyCenterRef" @success="onApplySuccess" />
 
     <!-- 详情：步骤时间线 -->
     <a-modal

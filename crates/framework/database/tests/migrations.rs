@@ -1,4 +1,5 @@
 use rustset_framework_database::{DatabaseConfig, DatabaseFlavor, DbPool, connect, migrate};
+use serde_json::{Value, json};
 use sqlx::Row;
 
 /// 当前方言（脚本导出 DB_FLAVOR；默认 postgres）。
@@ -40,7 +41,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 65);
+    assert_eq!(applied, 68);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -154,12 +155,96 @@ async fn applies_all_migrations_to_empty_postgres() {
     assert_eq!(flow_next_column, 1, "infra_flow_step.next must exist");
     let ticket_flow: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_flow_definition
-         WHERE name = '资源交付流程（标准）' AND tenant_id = 1 AND deleted = 0 AND status = 0",
+         WHERE name = '资源交付流程（标准）' AND tenant_id = 1 AND deleted = 0 AND status = 1",
     )
     .fetch_one(&pool)
     .await
     .expect("read ticket flow seed");
-    assert_eq!(ticket_flow, 1, "standard ticket flow must be seeded enabled");
+    assert_eq!(
+        ticket_flow, 1,
+        "0068 起影子交付流程停用（资源工单链原生化）"
+    );
+    // 0066：办公网IP申报流程（启用，含 MAC/人员信息 payload 契约）+ 申报通知模板。
+    let office_ip_flow: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_flow_definition
+         WHERE name = '办公网IP申报流程' AND tenant_id = 1 AND deleted = 0 AND status = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read office IP flow seed");
+    assert_eq!(office_ip_flow, 1, "office IP application flow must be seeded enabled");
+    let office_ip_template: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_notify_template
+         WHERE code = 'office_ip_apply_notice' AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read office IP notify template");
+    assert_eq!(office_ip_template, 1);
+    // 0067：云资源/网络策略申请流程（申请中心，启用）+ 两张申报通知模板。
+    for apply_flow in ["云资源申请流程", "网络策略申请流程"] {
+        let seeded: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM infra_flow_definition
+             WHERE name = $1 AND tenant_id = 1 AND deleted = 0 AND status = 0",
+        )
+        .bind(apply_flow)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or_else(|_| panic!("read {apply_flow} seed"));
+        assert_eq!(seeded, 1, "{apply_flow} must be seeded enabled");
+    }
+    // 网络策略流程必须含高危端口检测前置（check_risk_port）与安全会签
+    // 条件步骤——结构断言，防止种子 JSON 嵌套层级写错。
+    let network_definition: Value = sqlx::query_scalar(
+        "SELECT definition FROM infra_flow_definition
+         WHERE name = '网络策略申请流程' AND tenant_id = 1 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read network flow definition");
+    let network_steps = network_definition
+        .get("steps")
+        .and_then(Value::as_array)
+        .expect("network flow steps array");
+    assert!(
+        network_steps
+            .iter()
+            .any(|s| s["config"]["action"] == json!("check_risk_port")),
+        "network flow must start with the high-risk port check"
+    );
+    assert!(
+        network_steps.iter().any(|s| s["key"] == json!("sec_approve")
+            && s["condition"]["field"] == json!("risk_port_hit")),
+        "network flow must gate countersign on risk_port_hit"
+    );
+    let apply_templates: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_notify_template
+         WHERE code IN ('resource_apply_notice','network_apply_notice') AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read apply notify templates");
+    assert_eq!(apply_templates, 2);
+    // 0068：资源工单链原生化——变更申请流程 + 台账触发审批流程 + 变更通知模板。
+    for native_flow in ["资源变更申请流程", "资源工单审批流程（台账触发）"] {
+        let seeded: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM infra_flow_definition
+             WHERE name = $1 AND tenant_id = 1 AND deleted = 0 AND status = 0",
+        )
+        .bind(native_flow)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or_else(|_| panic!("read {native_flow} seed"));
+        assert_eq!(seeded, 1, "{native_flow} must be seeded enabled");
+    }
+    let change_template: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_notify_template
+         WHERE code = 'ticket_change_notice' AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read change notify template");
+    assert_eq!(change_template, 1);
     // 0064：流程定义 update/delete 按钮权限补齐。
     let flow_def_perms: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu

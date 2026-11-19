@@ -104,6 +104,102 @@ fn value_to_string(v: &Value) -> String {
     }
 }
 
+// ===== Value 级插值：保留 JSON 类型（Windmill 风格：任何参数都可引用上游）=====
+
+/// 递归遍历 JSON 树，对所有 string 叶节点做变量插值，保留类型。
+/// 整串恰好是一个 `{{var}}` 引用时返回原始类型的值（数字/布尔/对象/数组）；
+/// 混合文本按字符串插值；未命中保留原文（与 interpolate 一致，不报错）。
+pub(crate) fn interpolate_value(input: &Value, payload: &Value, context: &Value) -> Value {
+    match input {
+        Value::String(s) => {
+            if let Some(inner) = exact_single_var(s) {
+                if let Some(value) = resolve_var_value(inner, payload, context) {
+                    return value;
+                }
+                input.clone()
+            } else {
+                Value::String(interpolate(s, payload, context))
+            }
+        }
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| interpolate_value(item, payload, context))
+                .collect(),
+        ),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, value)| (key.clone(), interpolate_value(value, payload, context)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// 字符串是否恰好为一个 `{{...}}` 表达式（无前后其它字符、无嵌套大括号）。
+fn exact_single_var(s: &str) -> Option<&str> {
+    let inner = s.strip_prefix("{{")?.strip_suffix("}}")?;
+    if inner.contains("{{") || inner.contains("}}") {
+        return None; // "{{a}}{{b}}" 之类不是单变量
+    }
+    Some(inner)
+}
+
+/// 按 `{{...}}` 内的路径解析出原始 JSON 值（带类型）；未命中返回 None。
+fn resolve_var_value(path: &str, payload: &Value, context: &Value) -> Option<Value> {
+    let path = path.trim();
+    if path.is_empty() {
+        return None;
+    }
+    // steps.{key}.output.{field} → context.{key}.{field}（语义别名，同 resolve_var）
+    if let Some(stripped) = path.strip_prefix("steps.") {
+        if let Some(pos) = stripped.find(".output.") {
+            return lookup_in_context_value(
+                context,
+                &stripped[..pos],
+                &stripped[pos + ".output.".len()..],
+            );
+        }
+        if let Some(key) = stripped.strip_suffix(".output") {
+            return lookup_in_context_value(context, key, "");
+        }
+        let (key, field) = stripped.split_once('.').unwrap_or((stripped, ""));
+        return lookup_in_context_value(context, key, field);
+    }
+    let (source, field_path) = path.split_once('.').unwrap_or((path, ""));
+    let root = match source {
+        "payload" => payload,
+        "context" => context,
+        _ => return None, // 未知 source 保留原文
+    };
+    if field_path.is_empty() {
+        return Some(root.clone());
+    }
+    let mut current = root;
+    for seg in field_path.split('.') {
+        current = current.get(seg)?;
+    }
+    Some(current.clone())
+}
+
+/// 在 context 中按 key.field 查找原始值（steps 别名的 Value 版）。
+fn lookup_in_context_value(context: &Value, key: &str, field: &str) -> Option<Value> {
+    let mut current = context.get(key)?;
+    for seg in field.split('.').filter(|s| !s.is_empty()) {
+        current = current.get(seg)?;
+    }
+    Some(current.clone())
+}
+
+/// 按 context 内的点路径取字符串值（审批步骤 fromContext 动态审批人解析用）。
+pub(crate) fn context_string_at(context: &Value, path: &str) -> Option<String> {
+    let mut current = context;
+    for seg in path.split('.').filter(|s| !s.is_empty()) {
+        current = current.get(seg)?;
+    }
+    current.as_str().map(str::to_string)
+}
+
 /// 从 AI 回复文本中提取 JSON：
 /// 1. 优先 ```json ... ``` 代码块
 /// 2. 回退：第一个 { 到最后一个 }
@@ -260,6 +356,119 @@ mod tests {
         let payload = json!({});
         let ctx = json!({});
         assert_eq!(interpolate("hello {{payload", &payload, &ctx), "hello {{payload");
+    }
+
+    // ===== interpolate_value tests =====
+
+    #[test]
+    fn interpolate_value_preserves_scalar_types() {
+        let payload = json!({"port": 8080, "flag": true, "name": "vm-01"});
+        let ctx = json!({});
+        let out = interpolate_value(
+            &json!({
+                "port": "{{payload.port}}",
+                "flag": "{{payload.flag}}",
+                "note": "主机 {{payload.name}}"
+            }),
+            &payload, &ctx,
+        );
+        assert_eq!(out["port"], json!(8080)); // 数字保留类型
+        assert_eq!(out["flag"], json!(true)); // 布尔保留类型
+        assert_eq!(out["note"], "主机 vm-01"); // 混合文本仍是字符串
+    }
+
+    #[test]
+    fn interpolate_value_nested_structures() {
+        let payload = json!({"ecsName": "vm-01"});
+        let ctx = json!({"risk_analysis": {"level": "high"}});
+        let input = json!({
+            "url": "https://api.example.com/host/{{payload.ecsName}}",
+            "tags": ["{{payload.ecsName}}", 42, null],
+            "deep": {"risk": "{{context.risk_analysis.level}}", "keep": 3.5}
+        });
+        let out = interpolate_value(&input, &payload, &ctx);
+        assert_eq!(out["url"], "https://api.example.com/host/vm-01");
+        assert_eq!(out["tags"][0], "vm-01");
+        assert_eq!(out["tags"][1], json!(42)); // 非字符串叶不动
+        assert_eq!(out["tags"][2], Value::Null);
+        assert_eq!(out["deep"]["risk"], "high");
+        assert_eq!(out["deep"]["keep"], json!(3.5));
+    }
+
+    #[test]
+    fn interpolate_value_object_and_array_reference() {
+        let payload = json!({"extra": {"a": 1, "b": [1, 2]}, "list": [1, 2, 3]});
+        let ctx = json!({});
+        let out = interpolate_value(
+            &json!({"payload": "{{payload.extra}}", "items": "{{payload.list}}"}),
+            &payload, &ctx,
+        );
+        assert_eq!(out["payload"], json!({"a": 1, "b": [1, 2]})); // 整对象引用带类型
+        assert_eq!(out["items"], json!([1, 2, 3])); // 整数组引用带类型
+    }
+
+    #[test]
+    fn interpolate_value_unresolved_kept_as_is() {
+        let payload = json!({});
+        let ctx = json!({});
+        let out = interpolate_value(
+            &json!({
+                "a": "{{unknown.var}}",
+                "b": "{{payload.missing}}",
+                "c": "{{broken",
+                "d": "{{a}}{{b}}"
+            }),
+            &payload, &ctx,
+        );
+        assert_eq!(out["a"], "{{unknown.var}}");
+        assert_eq!(out["b"], "{{payload.missing}}");
+        assert_eq!(out["c"], "{{broken"); // 未闭合保留
+        assert_eq!(out["d"], "{{a}}{{b}}"); // 非单变量按字符串处理，未命中全保留
+    }
+
+    #[test]
+    fn interpolate_value_multiple_vars_string_mode() {
+        let payload = json!({"name": "vm-01", "zone": "cn-north-a"});
+        let ctx = json!({});
+        let out = interpolate_value(
+            &json!({"target": "{{payload.name}}@{{payload.zone}}"}),
+            &payload, &ctx,
+        );
+        assert_eq!(out["target"], "vm-01@cn-north-a");
+    }
+
+    #[test]
+    fn interpolate_value_scalar_leaves_untouched() {
+        let payload = json!({"n": 1});
+        let ctx = json!({});
+        let out = interpolate_value(&json!([1, "x", true, null, {"k": 2}]), &payload, &ctx);
+        assert_eq!(out, json!([1, "x", true, Value::Null, {"k": 2}]));
+    }
+
+    #[test]
+    fn interpolate_value_steps_alias() {
+        let payload = json!({});
+        let ctx = json!({"risk_analysis": {"level": "medium"}});
+        let out = interpolate_value(
+            &json!({
+                "level": "{{steps.risk_analysis.output.level}}",
+                "whole": "{{steps.risk_analysis.output}}"
+            }),
+            &payload, &ctx,
+        );
+        assert_eq!(out["level"], "medium");
+        assert_eq!(out["whole"], json!({"level": "medium"})); // Value 版保留对象类型
+    }
+
+    #[test]
+    fn context_string_at_resolution() {
+        let ctx = json!({"risk_analysis": {"approver_username": "ops_admin"}, "n": 5});
+        assert_eq!(
+            context_string_at(&ctx, "risk_analysis.approver_username").as_deref(),
+            Some("ops_admin")
+        );
+        assert_eq!(context_string_at(&ctx, "missing.path"), None);
+        assert_eq!(context_string_at(&ctx, "n"), None); // 非字符串不算
     }
 
     // ===== extract_json tests =====

@@ -2,7 +2,7 @@
 //! 沿用工单到期提醒的直写模式（expiry.rs），跨模块共享序列。
 
 use rustset_framework_database::{BindIn, DbPool};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 /// assignee → 用户 id 集合。支持 {"role":"super_admin"} / {"userIds":[..]} /
 /// {"usernames":["admin"]}，三种可并存（取并集）。
@@ -97,7 +97,9 @@ pub(crate) fn assignee_matches(
         })
 }
 
-/// 渲染模板并发送。占位符：flowName / stepName / title（多余参数进 params）。
+/// 渲染模板并发送。占位符：flowName / stepName / title，外加 params 里的
+/// 自定义键（{ticketName} 等）——params 为步骤 config.params 插值后的对象，
+/// 同名自定义参数覆盖内置占位符（merge 语义：自定义优先）。
 pub(crate) async fn send_step_notice(
     pool: &DbPool,
     tenant_id: i64,
@@ -106,6 +108,7 @@ pub(crate) async fn send_step_notice(
     step_name: &str,
     title: &str,
     recipients: &[i64],
+    params: &Value,
 ) {
     let template = sqlx::query_as::<_, (i64, String, String, String, i16)>(
         "SELECT id, code, nickname, content, type FROM system_notify_template
@@ -118,16 +121,30 @@ pub(crate) async fn send_step_notice(
         tracing::warn!(template_code, "notify template missing; flow notice skipped");
         return;
     };
-    let content = content
+    // 模板参数对象：内置三键 + 自定义 merge（值统一字符串化供占位符替换）。
+    let mut rendered = json!({
+        "flowName": flow_name,
+        "stepName": step_name,
+        "title": title,
+    });
+    let mut content = content
         .replace("{flowName}", flow_name)
         .replace("{stepName}", step_name)
         .replace("{title}", title);
-    let params = format!(
-        "{{\"flowName\":\"{}\",\"stepName\":\"{}\",\"title\":\"{}\"}}",
-        flow_name.replace('"', "\\\""),
-        step_name.replace('"', "\\\""),
-        title.replace('"', "\\\"")
-    );
+    if let Some(map) = params.as_object() {
+        for (key, value) in map {
+            let text = match value {
+                Value::String(s) => s.clone(),
+                Value::Null => String::new(),
+                other => other.to_string(),
+            };
+            content = content.replace(&format!("{{{key}}}"), &text);
+            if let Some(obj) = rendered.as_object_mut() {
+                obj.insert(key.clone(), Value::String(text));
+            }
+        }
+    }
+    let rendered_params = rendered.to_string();
     for user_id in recipients {
         if let Err(error) = sqlx::query(
             "INSERT INTO system_notify_message
@@ -143,7 +160,7 @@ pub(crate) async fn send_step_notice(
         .bind(&nickname)
         .bind(&content)
         .bind(i32::from(template_type))
-        .bind(&params)
+        .bind(&rendered_params)
         .bind(tenant_id)
         .execute(pool)
         .await

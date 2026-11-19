@@ -1,22 +1,43 @@
 # 产品内流程引擎
 
 自研轻量编排：管理员定义流程（顺序/DAG 步骤 + 条件 + 会签），实例化后由引擎推进，
-解决"多级审批 / 条件分支 / 自动动作 / 通知 / 等待工单"的端到端编排。与既有
-资源工单**并行**：`FLOW_TICKET_MODE` 控制工单创建时自动启动交付流程实例。
+解决"多级审批 / 条件分支 / 自动动作 / 通知 / 等待工单"的端到端编排。
+**流程即审批权威**（0068 起资源工单链原生化）：申请中心与工单创建 API 均原生
+启动流程实例，工单表退化为资源台账 + 供应/交付/到期操作记录。
+
+## 资源工单链原生化（迁移 0068）
+
+- 影子机制退役：`FLOW_TICKET_MODE` 与「资源交付流程（标准）」（0063）停用。
+- **前端路径**：资源工单页创建弹窗 → 原生流程发起（create 类→「云资源申请
+  流程」，变更类→「资源变更申请流程」）；网络策略工单页 →「网络策略申请
+  流程」（0067）。审批在 流程实例 / 我的待办 处理。
+- **API/MCP 路径**：工单创建 API 未命中自动审批规则时，自动启动「资源工单
+  审批流程（台账触发）」（payload=工单 JSON，biz 绑定，幂等；无 create_ticket/
+  交付步骤——供应交付仍在工单页操作）。
+- 工单分页附带 `flowInstanceId`/`flowStatus`；运行中的工单在前端显示
+  「流程审批中」标签（存量无流程绑定的工单保留旧审批按钮）。
 
 ## V2 新增（迁移 0063）
 
 - **DAG 分支跳转**：步骤可声明 `next: [{"when":{...},"to":"key"},...]` 多出口；
   完成后按顺序评估第一个命中选路，非命中分支的步骤自动置 skipped。
 - **会签**：`assignee.multi="all"` 时 N 人全部通过才 done（默认 any=首人通过）。
-- **工单链吸收**：`FLOW_TICKET_MODE=off|shadow|full`（默认 off）；
-  full 时工单创建自动启动「资源交付流程（标准）」种子定义。
-  新自动动作：`ticket_approve`/`ticket_provision`/`ticket_deliver`
+- 新自动动作：`ticket_approve`/`ticket_provision`/`ticket_deliver`
   复用工单内核（approve_core/deliver_core）。
 - **事件触发**：任务完成→名含「扫描完成」的启用定义→自动启动实例；
   风险新增→名含「风险新增」→自动启动（inspection_key 幂等）。
 - **前端**：实例页支持"从工单发起"（选工单自动填 payload）、
   步骤编辑器支持出口/会签、实例详情显示会签进度。
+
+## 变量插值与动态审批（0066/0067 特性）
+
+- **Value 级插值**（`interpolate_value`）：auto 节点 params 与通知节点 params
+  的所有 string 叶做 `{{payload.x}}`/`{{context.x}}`/`{{steps.key.output.x}}`
+  替换；整串单变量引用保留原始 JSON 类型（数字/布尔/对象）。
+- **动态审批人**：审批/人工节点 `config.fromContext` 指向 context 内用户名
+  （点路径），激活时并入步骤 assignee（空/未命中回退 assignee 角色）。
+- **通知模板参数**：通知节点 `config.params` 插值后按 `{key}` 替换模板占位
+  符（自定义键与 flowName/stepName/title 并存）。
 
 ## 模型
 
@@ -44,6 +65,11 @@
 （params: name/target/ports/taskKind/policy，复用任务队列幂等键 flow:{id}）、
 `create_ticket`（params=工单字段，自动关联实例 biz）、`set_context`
 （params: key + value/fromPayloadField，写实例 context 供后续条件引用）。
+**`check_risk_port`**（高危端口检测前置，params: port/sourcePort/protocol——
+支持插值与 `443`/`8000-8010`/`80,443` 端口描述；与
+`infra_high_risk_port_rule` 启用规则求区间交集，协议 any 通配，结果写
+context：`risk_port_hit`/`risk_level`/`risk_port_rules`/`risk_ports`；
+网络策略申请流程用作主管审批前的检测与会签触发条件）。
 
 ## 推进
 

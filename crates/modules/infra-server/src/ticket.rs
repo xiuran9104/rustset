@@ -182,26 +182,23 @@ async fn create(
     if let Some(ids) = contract_file_ids.as_deref() {
         bind_ticket_files(&s.pool, tenant.id(), id, ids, "contract", &user.username).await?;
     }
+    let mut auto_approved = false;
     if inserted && let Some(rule) = match_approval_rule(&s, &tenant, id).await? {
         apply_auto_approval(&s, &tenant, id, &rule).await?;
+        auto_approved = true;
     }
-    // V2 工单链吸收：FLOW_TICKET_MODE=shadow|full 时启动影子流程实例。
-    if inserted && flow_ticket_mode() != "off" {
-        start_ticket_flow(&s, &tenant, id).await;
+    // 原生流程：未命中自动审批规则的工单一律启动「资源工单审批流程（台账
+    // 触发）」，流程即审批权威（替代已退役的 FLOW_TICKET_MODE 影子机制）。
+    if inserted && !auto_approved {
+        start_ticket_approval_flow(&s, &tenant, id).await;
     }
     Ok(Json(created))
 }
 
-/// FLOW_TICKET_MODE：off=完全走旧链（默认）；shadow=启动流程但不改按钮；
-/// full=流程为状态权威源。
-pub(crate) fn flow_ticket_mode() -> String {
-    std::env::var("FLOW_TICKET_MODE").unwrap_or_default().to_lowercase()
-}
-
-/// 工单创建钩子：查启用的「资源交付流程（标准）」并启动实例（payload=工单
-/// JSON，biz 关联）。幂等：同 biz_type+biz_id 已有实例则跳过。失败只告警
-/// 不阻断工单创建。
-async fn start_ticket_flow(s: &InfraState, tenant: &TenantContext, ticket_id: i64) {
+/// 工单创建钩子：查启用的「资源工单审批流程（台账触发）」并启动实例
+/// （payload=工单 JSON，biz 绑定）。幂等：同 biz_type+biz_id 已有实例则
+/// 跳过。失败只告警不阻断工单创建。
+async fn start_ticket_approval_flow(s: &InfraState, tenant: &TenantContext, ticket_id: i64) {
     let result: Result<(), String> = async {
         let existing: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM infra_flow_instance
@@ -217,24 +214,30 @@ async fn start_ticket_flow(s: &InfraState, tenant: &TenantContext, ticket_id: i6
         }
         let definition = sqlx::query(
             "SELECT id, name, definition, version FROM infra_flow_definition
-             WHERE name='资源交付流程（标准）' AND tenant_id=$1 AND deleted=0 AND status=0",
+             WHERE name='资源工单审批流程（台账触发）' AND tenant_id=$1 AND deleted=0 AND status=0",
         )
         .bind(tenant.id())
         .fetch_optional(&s.pool)
         .await
         .map_err(|e| e.to_string())?;
         let Some(definition) = definition else { return Ok(()) };
-        let payload = repository::get(&s.pool, tenant, ticket_id)
+        let mut payload = repository::get(&s.pool, tenant, ticket_id)
             .await
             .map_err(|e| e.message().to_string())?;
-        super::workflow::instance::start_instance(
+        // 台账触发的 payload 即工单 JSON；department 供通知模板占位符。
+        if let Some(object) = payload.as_object_mut() {
+            object
+                .entry("department".to_string())
+                .or_insert_with(|| Value::String(String::new()));
+        }
+        let instance_id = super::workflow::instance::start_instance(
             s,
             tenant,
             definition.get::<i64, _>("id"),
             &definition.get::<String, _>("name"),
             definition.get::<i32, _>("version"),
             &(definition.get::<Value, _>("definition")),
-            Some(format!("工单 #{} 交付流程", ticket_id)),
+            Some(format!("工单 #{ticket_id} 审批流程")),
             payload,
             "ticket",
             &ticket_id.to_string(),
@@ -242,11 +245,14 @@ async fn start_ticket_flow(s: &InfraState, tenant: &TenantContext, ticket_id: i6
         )
         .await
         .map_err(|e| e.message().to_string())?;
+        // 首轮推进：激活审批步骤并发待办通知（影子机制遗留的启动不推进
+        // 依赖 runner 兜底，原生路径立即推进缩短待办延迟）。
+        super::workflow::engine::advance(s, tenant, instance_id).await;
         Ok(())
     }
     .await;
     if let Err(error) = result {
-        tracing::warn!(ticket_id, %error, "failed to start ticket flow instance");
+        tracing::warn!(ticket_id, %error, "failed to start ticket approval flow");
     }
 }
 

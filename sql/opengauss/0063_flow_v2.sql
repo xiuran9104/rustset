@@ -2,7 +2,7 @@
 -- next jsonb：[{"when":{field,op,value},"to":"key"},...] 顺序评估第一个命中；
 -- 空数组 = 线性顺序（V1 兼容）。列默认空数组，存量步骤不受影响。
 
-ALTER TABLE public.infra_flow_step ADD COLUMN IF NOT EXISTS next jsonb DEFAULT '[]'::jsonb NOT NULL;
+DO $$ BEGIN ALTER TABLE public.infra_flow_step ADD COLUMN next jsonb DEFAULT '[]'::jsonb NOT NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 -- 种子：资源交付流程（标准）——工单创建钩子（FLOW_TICKET_MODE）自动启动。
 -- DAG 分支：network 走 防火墙直通链；其他走 供应→人工确认→交付链。

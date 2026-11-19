@@ -6,7 +6,8 @@ import { Page } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 import { getCloudPlatformList, getCloudZoneList } from '#/api/scan/cloud-platform';
 import { getMachineRoomList } from '#/api/scan/machine-room';
-import { approveTicket, createResourceTicket, deleteResourceTicket, deliverTicket, getResourceTicketList, getTicketAttachments, getTicketApprovalHistory, provisionTicket } from '#/api/scan/resource-ticket';
+import { approveTicket, deleteResourceTicket, deliverTicket, getResourceTicketList, getTicketAttachments, getTicketApprovalHistory, provisionTicket } from '#/api/scan/resource-ticket';
+import { getFlowDefinitionPage, startFlowInstance } from '#/api/asset-ops/flow';
 import { uploadFile } from '#/api/infra/file';
 import { requestClient } from '#/api/request';
 import { getCloudResourceList } from '#/api/scan/cloud-resource';
@@ -18,7 +19,7 @@ import { useUserStore } from '@vben/stores';
 import { getCloudProviderConfigList } from '#/api/scan/cloud-provider-config';
 import { useLocalTableSearch } from '../composables/useLocalTableSearch';
 
-interface Ticket { id?:number; ticket_type:string; risk_level:string; target_resource_id?:number; target_config?:string; maintenance_window?:string; allow_interruption?:boolean; backup_confirmed?:boolean; rollback_plan?:string; retention_until?:string; expire_at?:string; expiry_remind_stage?:number; approval_stage:number; approval_total:number; current_approval_role?:string; ecs_name:string; resource_type:string; ticket_status:string; customer_name?:string; cloud_region?:string; cpu_cores:number; memory_gb:number; created_at:string; approver?:string; approve_comment?:string; provisioner?:string; provision_details?:string; deliverer?:string; deliver_comment?:string; ecs_type?:string; ecs_os?:string; ip_address?:string; applicant_name?:string; cloud_platform_id?:number; machine_room_id?:number; resource_count?:number; system_disk?:string; system_disk_size_gb?:number; data_disk?:string; security_products?:string; remarks?:string; }
+interface Ticket { id?:number; ticket_type:string; risk_level:string; target_resource_id?:number; target_config?:string; maintenance_window?:string; allow_interruption?:boolean; backup_confirmed?:boolean; rollback_plan?:string; retention_until?:string; expire_at?:string; expiry_remind_stage?:number; approval_stage:number; approval_total:number; current_approval_role?:string; ecs_name:string; resource_type:string; ticket_status:string; customer_name?:string; cloud_region?:string; cpu_cores:number; memory_gb:number; created_at:string; approver?:string; approve_comment?:string; provisioner?:string; provision_details?:string; deliverer?:string; deliver_comment?:string; ecs_type?:string; ecs_os?:string; ip_address?:string; applicant_name?:string; cloud_platform_id?:number; machine_room_id?:number; resource_count?:number; system_disk?:string; system_disk_size_gb?:number; data_disk?:string; security_products?:string; remarks?:string; flowInstanceId?:number; flowStatus?:string; }
 
 const data=ref<Ticket[]>([]); const loading=ref(false); const activeTab=ref('all');
 const { filteredRows: searchedTickets, searchText } = useLocalTableSearch(data, ['ecs_name', 'applicant_name', 'customer_name', 'cloud_region', 'ticket_status']);
@@ -31,7 +32,9 @@ const zones=ref<any[]>([]); const platforms=ref<any[]>([]); const rooms=ref<any[
 const providerConfigs=ref<any[]>([]); const businessResources=ref<any[]>([]); const users=ref<any[]>([]); const applications=ref<any[]>([]);
 const targetResourceType=ref<'cloud'|'physical'>('cloud');
 const defaultForm=()=>({idempotency_key:crypto.randomUUID(),ticket_type:'create',target_resource_id:undefined as number|undefined,target_config:'',maintenance_window:'',allow_interruption:false,backup_confirmed:false,rollback_plan:'',retention_until:'',expire_at:'',ecs_name:'',resource_type:'cloud',// 申请人由后端从登录态自动取
-  provider_id:undefined as number|undefined,cloud_platform_id:undefined as number|undefined,cloud_platform_name:'',machine_room_id:undefined as number|undefined,cloud_region:'',cloud_category:'',zone_name:'',zone_cabinet:'',rack_units:0,customer_name:'',customer_user_id:undefined as number|undefined,application_id:undefined as number|undefined,project_name:'',application_name:'',contract_name:'',ecs_type:'通用型',ecs_os:'Linux',resource_count:1,cpu_cores:4,memory_gb:8,system_disk:'高性能云硬盘',system_disk_size_gb:100,data_disk:'',has_security_product:false,security_products:[] as number[],ip_address:'',remarks:''});
+  provider_id:undefined as number|undefined,cloud_platform_id:undefined as number|undefined,cloud_platform_name:'',machine_room_id:undefined as number|undefined,cloud_region:'',cloud_category:'',zone_name:'',zone_cabinet:'',rack_units:0,customer_name:'',customer_user_id:undefined as number|undefined,application_id:undefined as number|undefined,project_name:'',application_name:'',contract_name:'',ecs_type:'通用型',ecs_os:'Linux',resource_count:1,cpu_cores:4,memory_gb:8,system_disk:'高性能云硬盘',system_disk_size_gb:100,data_disk:'',has_security_product:false,security_products:[] as number[],ip_address:'',remarks:'',
+  // 原生流程申请补充字段（云资源申请流程 / 资源变更申请流程 payload 契约）
+  department:'',supervisorUsername:''});
 const createForm=ref(defaultForm());
 const userStore = useUserStore();
 const currentUserLabel = computed(() => userStore.userInfo?.nickname || userStore.userInfo?.username || '');
@@ -65,9 +68,7 @@ async function uploadTo(list:{value:AttachmentItem[]}, file: File){
   finally{uploading.value=false;}
   return false; // 阻止 a-upload 默认行为，已手动上传
 }
-const uploadContractFile=(file:File)=>uploadTo(contractFiles,file);
 const uploadDeliverFile=(file:File)=>uploadTo(deliverFiles,file);
-const removeContractAttachment=(f:any)=>removeAttachment(contractFiles,f.uid);
 const removeDeliverAttachment=(f:any)=>removeAttachment(deliverFiles,f.uid);
 function removeAttachment(list:{value:AttachmentItem[]}, uid:number|string){list.value=list.value.filter(item=>item.uid!==uid);return true;}
 async function downloadAttachment(file:any){
@@ -120,7 +121,75 @@ async function openCreate(){await fetchData();createForm.value=defaultForm();cre
 async function showDetail(ticket:Ticket){detailTicket.value=ticket;approvalHistory.value=ticket.id?await getTicketApprovalHistory(ticket.id):[];detailAttachments.value=ticket.id?await getTicketAttachments(ticket.id):[];detailVisible.value=true;}
 function handlePlatformChange(platformId:number){const platform=platforms.value.find(item=>item.id===platformId);const zone=zones.value.find(item=>item.id===platform?.zone_id);createForm.value.provider_id=zone?.provider_id;createForm.value.zone_name=zone?.zone_name||'';createForm.value.cloud_platform_name=platform?.platform_name||'';createForm.value.cloud_region=zone?.zone_name||platform?.platform_name||'';createForm.value.machine_room_id=undefined;}
 function handleResourceTypeChange(){createForm.value.cloud_platform_id=undefined;createForm.value.machine_room_id=undefined;createForm.value.provider_id=undefined;createForm.value.zone_name='';}
-async function handleCreate(){if(!createForm.value.ecs_name){message.warning('请输入工单名称');return;}if(createForm.value.ticket_type==='create'&&!createForm.value.application_id){message.warning('请选择归属应用');return;}if(createForm.value.ticket_type==='renew'&&!createForm.value.expire_at){message.warning('续期工单必须填写新的有效期');return;}if(isExistingResourceTicket.value&&!createForm.value.target_resource_id){message.warning('请选择目标业务资源');return;}if(isHighRiskTicket.value&&(!createForm.value.maintenance_window||!createForm.value.backup_confirmed||!createForm.value.rollback_plan)){message.warning('高风险工单必须填写维护窗口、确认备份并填写回滚方案');return;}if(createForm.value.ticket_type==='reclaim'&&!createForm.value.retention_until){message.warning('资源回收必须设置观察保留期');return;}if(createForm.value.ticket_type==='create'&&createForm.value.resource_type==='cloud'&&!createForm.value.cloud_platform_id){message.warning('请选择云平台');return;}const payload={...createForm.value,contract_file_ids:contractFiles.value.map(item=>item.id),cloud_platform_id:createForm.value.resource_type==='cloud'?createForm.value.cloud_platform_id:undefined,target_resource_type:targetResourceType.value,security_products:createForm.value.security_products.join(',')};await createResourceTicket(payload);message.success('工单已提交多级审批');createVisible.value=false;contractFiles.value=[];if(route.query.resource){router.replace({query:{}});}fetchData();}
+/** 按名字定位启用中的种子流程定义（原生审批链）。 */
+async function resolveFlowDefinition(name:string):Promise<number>{
+  const page=await getFlowDefinitionPage({pageNo:1,pageSize:100});
+  const hit=(page?.list??[]).find((d:any)=>d.name===name&&d.status===0);
+  if(!hit){message.error(`未找到启用中的「${name}」流程定义`);return 0;}
+  return hit.id;
+}
+
+// 创建即发起原生流程：create 类走「云资源申请流程」，变更类走「资源变更
+// 申请流程」；审批在流程实例/我的待办处理，工单由流程 create_ticket 落台账。
+async function handleCreate(){
+  if(!createForm.value.ecs_name){message.warning('请输入工单名称');return;}
+  if(createForm.value.ticket_type==='create'&&!createForm.value.application_id){message.warning('请选择归属应用');return;}
+  if(createForm.value.ticket_type==='renew'&&!createForm.value.expire_at){message.warning('续期工单必须填写新的有效期');return;}
+  if(isExistingResourceTicket.value&&!createForm.value.target_resource_id){message.warning('请选择目标业务资源');return;}
+  if(isHighRiskTicket.value&&(!createForm.value.maintenance_window||!createForm.value.backup_confirmed||!createForm.value.rollback_plan)){message.warning('高风险工单必须填写维护窗口、确认备份并填写回滚方案');return;}
+  if(createForm.value.ticket_type==='reclaim'&&!createForm.value.retention_until){message.warning('资源回收必须设置观察保留期');return;}
+  if(createForm.value.ticket_type==='create'&&createForm.value.resource_type==='cloud'&&!createForm.value.cloud_platform_id){message.warning('请选择云平台');return;}
+  const applicantName=currentUserLabel.value;
+  const common={applicantName,department:createForm.value.department.trim(),supervisorUsername:createForm.value.supervisorUsername.trim()};
+  let definitionId:number;let payload:Record<string,any>;
+  if(createForm.value.ticket_type==='create'){
+    definitionId=await resolveFlowDefinition('云资源申请流程');if(!definitionId)return;
+    payload={...common,
+      ecsName:createForm.value.ecs_name,
+      resourceType:createForm.value.resource_type,
+      cloudPlatformName:createForm.value.cloud_platform_name,
+      cloudRegion:createForm.value.cloud_region,
+      machineRoomName:rooms.value.find(item=>item.id===createForm.value.machine_room_id)?.room_name||'',
+      projectName:createForm.value.project_name,
+      applicationName:createForm.value.application_name,
+      contractName:createForm.value.contract_name,
+      hasSecurityProduct:createForm.value.has_security_product?1:0,
+      securityProducts:createForm.value.security_products.join(','),
+      resourceCount:createForm.value.resource_count,
+      cpuCores:createForm.value.cpu_cores,
+      memoryGb:createForm.value.memory_gb,
+      ecsType:createForm.value.ecs_type,
+      ecsOs:createForm.value.ecs_os,
+      systemDisk:createForm.value.system_disk,
+      systemDiskSizeGb:createForm.value.system_disk_size_gb,
+      dataDisk:createForm.value.data_disk,
+      ipAddress:createForm.value.ip_address,
+      expireAt:createForm.value.expire_at,
+      reason:createForm.value.remarks};
+  }else{
+    definitionId=await resolveFlowDefinition('资源变更申请流程');if(!definitionId)return;
+    payload={...common,
+      ticketType:createForm.value.ticket_type,
+      ecsName:createForm.value.ecs_name,
+      resourceType:createForm.value.resource_type,
+      riskLevel:isHighRiskTicket.value?'high':'normal',
+      targetResourceId:createForm.value.target_resource_id,
+      targetResourceType:targetResourceType.value,
+      targetConfig:createForm.value.target_config,
+      maintenanceWindow:createForm.value.maintenance_window,
+      allowInterruption:createForm.value.allow_interruption,
+      backupConfirmed:createForm.value.backup_confirmed,
+      rollbackPlan:createForm.value.rollback_plan,
+      retentionUntil:createForm.value.retention_until,
+      expireAt:createForm.value.expire_at,
+      reason:createForm.value.remarks};
+  }
+  await startFlowInstance({definitionId,title:`${applicantName} ${createForm.value.ecs_name}`,payload});
+  message.success('申请已提交流程审批（我的待办/流程实例处理）');
+  createVisible.value=false;contractFiles.value=[];
+  if(route.query.resource){router.replace({query:{}});}
+  fetchData();
+}
 async function handleApprove(ticket:Ticket){const result:any=await approveTicket(ticket.id!,{approved:true,comment:'审批通过'});message.success(result?.message||'本级审批完成');fetchData();}async function handleReject(ticket:Ticket){await approveTicket(ticket.id!,{approved:false,comment:'审批拒绝'});message.success('已拒绝');fetchData();}
 function openProvision(ticket:Ticket){
   provisionTicketRecord.value=ticket;
@@ -151,8 +220,11 @@ async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}co
           <template v-else-if="column.key==='spec'">{{ record.resource_count||1 }}台 · {{ record.cpu_cores }}核/{{ record.memory_gb }}GB</template>
           <template v-else-if="column.key==='actions'"><a-space :size="12" wrap>
             <a-button size="small" @click="showDetail(record)">详情</a-button>
-            <a-button v-if="record.ticket_status==='pending_approval'" v-access:code="['infra:resource-ticket:approve']" type="primary" size="small" @click="handleApprove(record)">通过</a-button>
-            <a-button v-if="record.ticket_status==='pending_approval'" v-access:code="['infra:resource-ticket:approve']" danger size="small" @click="handleReject(record)">拒绝</a-button>
+            <a-tooltip v-if="record.ticket_status==='pending_approval'&&record.flowStatus==='running'" title="原生流程审批中，请到 运营流程 → 流程实例 / 我的待办 处理">
+              <a-tag color="blue">流程审批中</a-tag>
+            </a-tooltip>
+            <a-button v-if="record.ticket_status==='pending_approval'&&record.flowStatus!=='running'" v-access:code="['infra:resource-ticket:approve']" type="primary" size="small" @click="handleApprove(record)">通过</a-button>
+            <a-button v-if="record.ticket_status==='pending_approval'&&record.flowStatus!=='running'" v-access:code="['infra:resource-ticket:approve']" danger size="small" @click="handleReject(record)">拒绝</a-button>
             <a-button v-if="(record.ticket_status==='pending_provision'||record.ticket_status==='approved')&&record.ticket_type==='create'&&record.resource_type==='cloud'" v-access:code="['infra:resource-ticket:provision']" type="primary" size="small" @click="openProvision(record)">登记配置</a-button>
             <a-tag v-else-if="record.ticket_status==='pending_provision'||record.ticket_status==='approved'" color="orange">待安全执行</a-tag>
             <a-button v-if="record.ticket_status==='pending_delivery'" v-access:code="['infra:resource-ticket:deliver']" type="primary" size="small" @click="openDeliver(record)">确认交付</a-button>
@@ -218,12 +290,11 @@ async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}co
             <a-col :span="12"><a-form-item label="预分配 IP"><a-input v-model:value="createForm.ip_address" /></a-form-item></a-col>
             <a-col :span="24"><a-form-item><a-checkbox v-model:checked="createForm.has_security_product">需要安全产品</a-checkbox></a-form-item></a-col>
             <a-col v-if="createForm.has_security_product" :span="24"><a-form-item label="安全产品"><a-select v-model:value="createForm.security_products" mode="multiple" :options="securityProducts.map(item=>({value:item.id,label:item.name}))" /></a-form-item></a-col>
-            <a-col :span="24"><a-form-item label="合同附件（支持 Word / PDF / Excel / 压缩包，单个 ≤50MB）">
-              <a-upload :file-list="contractFiles" accept=".doc,.docx,.pdf,.xls,.xlsx,.zip,.rar,.7z" :before-upload="uploadContractFile" :remove="removeContractAttachment">
-                <a-button :loading="uploading">选择文件上传</a-button>
-              </a-upload>
-            </a-form-item></a-col>
+            <a-col :span="8"><a-form-item label="部门（流程通知用）"><a-input v-model:value="createForm.department" placeholder="所属部门" /></a-form-item></a-col>
+            <a-col :span="8"><a-form-item label="部门主管账号（可选）"><a-input v-model:value="createForm.supervisorUsername" placeholder="留空由系统管理员审批" /></a-form-item></a-col>
             </template>
+            <a-col v-if="createForm.ticket_type!=='create'" :span="8"><a-form-item label="部门（流程通知用）"><a-input v-model:value="createForm.department" placeholder="所属部门" /></a-form-item></a-col>
+            <a-col v-if="createForm.ticket_type!=='create'" :span="8"><a-form-item label="部门主管账号（可选）"><a-input v-model:value="createForm.supervisorUsername" placeholder="留空由系统管理员审批" /></a-form-item></a-col>
             <a-col v-if="['create','renew'].includes(createForm.ticket_type)" :span="8"><a-form-item :label="createForm.ticket_type==='renew'?'续期至（新有效期，必填）':'有效期至（临时资源到期时间）'" :required="createForm.ticket_type==='renew'"><a-input v-model:value="createForm.expire_at" type="datetime-local" /><span style="color:var(--ant-color-text-secondary);font-size:12px">到期前 3 天、1 天会提醒申请人与运维；到期未续期将自动进入回收流程</span></a-form-item></a-col>
             <a-col :span="24"><a-form-item label="申请说明"><a-textarea v-model:value="createForm.remarks" :rows="3" /></a-form-item></a-col>
           </a-row>

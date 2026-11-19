@@ -234,6 +234,7 @@ async fn handle_timeouts(pool: &DbPool) -> Result<(), String> {
                     &step_name,
                     &title,
                     &recipients,
+                    &serde_json::json!({}),
                 )
                 .await;
                 sqlx::query(
