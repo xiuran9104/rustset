@@ -233,7 +233,10 @@ function openProvision(ticket:Ticket){
   provisionForm.value={...emptyProvisionForm(),config_id:saved.configId??(configs.length===1?configs[0]?.id:undefined),image_id:saved.imageId||'',flavor:saved.flavor||ticket.ecs_type||'',availability_zone:saved.availabilityZone||'',subnet_id:saved.subnetId||'',vpc_id:saved.vpcId||'',security_groups:Array.isArray(saved.securityGroups)?saved.securityGroups:[]};
   provisionVisible.value=true;
 }
-async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}const form=provisionForm.value;if(!form.config_id||!form.image_id.trim()||!form.flavor.trim()||!form.availability_zone.trim()||!form.subnet_id.trim()||!form.security_groups.length){message.warning('请填写凭据、镜像、规格、可用区、子网和安全组');return;}const config=providerConfigs.value.find(item=>item.id===form.config_id);if(['tencent','tencentcloud'].includes(config?.provider)&&!form.vpc_id.trim()){message.warning('腾讯云开通需要 VPC ID');return;}provisioning.value=true;try{await provisionTicket(provisionTicketRecord.value.id,form);await advanceFlowManual(provisionTicketRecord.value.flowInstanceId,'配置登记完成（工单页）');message.success('云资源开通完成，工单进入待交付');provisionVisible.value=false;await fetchData();}catch{message.error('开通失败，请查看工单执行日志');}finally{provisioning.value=false;}}
+async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}const form=provisionForm.value;const availableConfigs=providerConfigs.value.filter(item=>item.platform_id===provisionTicketRecord.value.cloud_platform_id&&['active','enabled'].includes(item.status));const manualMode=!form.config_id;// 无云凭据：人工登记模式（后端不跑 Tofu，记录配置并推进待交付）
+  if(availableConfigs.length===0&&!form.details.trim()){message.warning('无可用云凭据，人工登记模式必须填写配置说明');return;}
+  if(!manualMode&&(!form.image_id.trim()||!form.flavor.trim()||!form.availability_zone.trim()||!form.subnet_id.trim()||!form.security_groups.length)){message.warning('请填写镜像、规格、可用区、子网和安全组');return;}
+  const config=providerConfigs.value.find(item=>item.id===form.config_id);if(['tencent','tencentcloud'].includes(config?.provider)&&!form.vpc_id.trim()){message.warning('腾讯云开通需要 VPC ID');return;}provisioning.value=true;try{await provisionTicket(provisionTicketRecord.value.id,form);await advanceFlowManual(provisionTicketRecord.value.flowInstanceId,'配置登记完成（工单页）');message.success(manualMode?'配置已人工登记，工单进入待交付':'云资源开通完成，工单进入待交付');provisionVisible.value=false;await fetchData();}catch{message.error('开通失败，请查看工单执行日志');}finally{provisioning.value=false;}}
 </script>
 
 <template>
@@ -354,9 +357,9 @@ async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}co
         </a-form>
       </a-modal>
       <a-modal v-model:open="provisionVisible" title="登记资源配置" :confirm-loading="provisioning" @ok="handleProvision" width="560px">
-        <a-alert message="当前阶段记录人工或外部平台配置结果，不会直接调用云厂商创建实例。" type="info" show-icon style="margin-bottom:16px" />
+        <a-alert message="当前阶段记录人工或外部平台配置结果，不会直接调用云厂商创建实例；未选择云凭据时按人工登记处理（配置说明必填）。" type="info" show-icon style="margin-bottom:16px" />
         <a-form layout="vertical">
-          <a-form-item label="云厂商对接配置" required><a-select v-model:value="provisionForm.config_id" :options="providerConfigs.filter(item=>item.platform_id===provisionTicketRecord?.cloud_platform_id&&['active','enabled'].includes(item.status)).map(item=>({value:item.id,label:`${item.account_name} / ${item.region_name}`}))" placeholder="选择实际用于开通的凭据" /></a-form-item>
+          <a-form-item label="云厂商对接配置（留空=人工登记）"><a-select v-model:value="provisionForm.config_id" allow-clear :options="providerConfigs.filter(item=>item.platform_id===provisionTicketRecord?.cloud_platform_id&&['active','enabled'].includes(item.status)).map(item=>({value:item.id,label:`${item.account_name} / ${item.region_name}`}))" placeholder="选择实际用于开通的凭据；无凭据时留空并填写配置说明" /></a-form-item>
           <a-form-item label="镜像 ID" required><a-input v-model:value="provisionForm.image_id" placeholder="云平台中的镜像 ID" /></a-form-item>
           <a-form-item label="实例规格"><a-input v-model:value="provisionForm.flavor" placeholder="例如 ecs.c6.large" /></a-form-item>
           <a-form-item label="可用区" required><a-input v-model:value="provisionForm.availability_zone" placeholder="例如 cn-hangzhou-h" /></a-form-item>

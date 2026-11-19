@@ -258,14 +258,61 @@ pub(crate) async fn run(
     let (target, config_id) = match load_platform_target(s, tenant, &ticket, config_id).await {
         Ok(target) => target,
         Err(error) => {
-            record_failure(
-                s,
-                tenant,
-                id,
-                "无法加载开通凭据：请检查厂商、平台、状态和区域",
+            // 人工登记模式：未配置云凭据（或工单无平台归属）时不跑 Tofu，
+            // 记录人工填写的配置结果并推进工单到待交付——与登记配置弹窗的
+            // 文案语义一致（"记录人工或外部平台配置结果"）。details 必填。
+            let details = payload
+                .get("details")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|v| !v.is_empty());
+            let Some(details) = details else {
+                record_failure(
+                    s,
+                    tenant,
+                    id,
+                    "无可用云凭据：人工登记模式必须填写配置说明（details）",
+                )
+                .await?;
+                return Err(error);
+            };
+            let provision_details = format!("{details}（人工登记，未调用云平台）");
+            // target_config 为 text 列：合并原参数与本次人工登记表单后整串覆盖。
+            let mut merged = saved;
+            if let Some(object) = merged.as_object_mut() {
+                object.insert(
+                    "manualRegistration".to_string(),
+                    json!({
+                        "imageId": payload.get("imageId").and_then(Value::as_str).unwrap_or(""),
+                        "flavor": payload.get("flavor").and_then(Value::as_str).unwrap_or(""),
+                        "availabilityZone": payload.get("availabilityZone").and_then(Value::as_str).unwrap_or(""),
+                        "subnetId": payload.get("subnetId").and_then(Value::as_str).unwrap_or(""),
+                        "securityGroups": payload.get("securityGroups").cloned().unwrap_or(json!([])),
+                    }),
+                );
+            }
+            sqlx::query(
+                "UPDATE infra_resource_ticket
+                 SET ticket_status='pending_delivery', provisioner=$3,
+                     provision_time=$4, provision_details=$5,
+                     target_config=$6, update_time=now()
+                 WHERE id=$1 AND tenant_id=$2",
             )
-            .await?;
-            return Err(error);
+            .bind(id)
+            .bind(tenant.id())
+            .bind(operator)
+            .bind(&now)
+            .bind(&provision_details)
+            .bind(merged.to_string())
+            .execute(&s.pool)
+            .await
+            .map_err(|_| AppError::internal("failed to record manual provision"))?;
+            tracing::info!(ticket_id = id, operator, "ticket manually provisioned (no cloud credential)");
+            return Ok(json!({
+                "mode": "manual-registered",
+                "ticketId": id,
+                "ticketStatus": "pending_delivery",
+            }));
         }
     };
     let cloud_category = target.cloud_category.clone();
