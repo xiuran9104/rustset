@@ -13,12 +13,13 @@ use sqlx::Row;
 
 /// 已知动作名（校验用）。
 pub(crate) fn is_known_action(action: &str) -> Option<&'static str> {
-    const ACTIONS: [&str; 10] = [
+    const ACTIONS: [&str; 11] = [
         "firewall_push",
         "trigger_scan",
         "create_ticket",
         "set_context",
         "check_risk_port",
+        "register_terminal",
         "ticket_approve",
         "ticket_provision",
         "ticket_deliver",
@@ -125,6 +126,7 @@ async fn execute_step_inner(
         "create_ticket" => create_ticket(pool, tenant, instance_id, &payload, &params).await,
         "set_context" => set_context(&mut context, &payload, &params),
         "check_risk_port" => check_risk_port(pool, &mut context, &params).await,
+        "register_terminal" => register_terminal(pool, tenant, instance_id, &payload).await,
         "ticket_approve" => ticket_approve(state, tenant, instance_id, &params).await,
         "ticket_provision" => ticket_provision(state, tenant, instance_id, &params).await,
         "ticket_deliver" => ticket_deliver(state, tenant, instance_id, &params).await,
@@ -922,5 +924,116 @@ mod tests {
         assert!(ranges_overlap((8080, 8090), (8000, 9000))); // 端口包含规则
         assert!(!ranges_overlap((80, 443), (444, 65535))); // 相邻不交
         assert!(!ranges_overlap((22, 22), (23, 80))); // 错开
+    }
+}
+
+// ==================== 终端入账（办公网IP申报闭环） ====================
+
+/// 从文本中提取第一个 IPv4（分配 IP 记录在 assign_ip 步骤备注里）。
+fn extract_ipv4(text: &str) -> Option<String> {
+    let re = regex::Regex::new(r"(\d{1,3}\.){3}\d{1,3}").ok()?;
+    re.find(text).map(|m| m.as_str().to_string())
+}
+
+/// 终端入账：办公网IP申报交付确认后把终端（MAC/人员/分配IP）写入
+/// infra_terminal 台账（资产中心-终端设备）。幂等：同租户同 MAC 覆盖
+/// 更新（应用层 upsert，避免方言分支）。分配 IP 从 assign_ip 步骤的
+/// 备注/结果提取；payload.requestedIp 兜底。
+async fn register_terminal(
+    pool: &DbPool,
+    tenant: &TenantContext,
+    instance_id: i64,
+    payload: &Value,
+) -> Result<Value, String> {
+    let field = |key: &str| {
+        payload
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let mac = field("macAddress");
+    if mac.is_empty() {
+        return Err("register_terminal：payload 缺少 macAddress".to_string());
+    }
+    // 分配 IP：优先 assign_ip 步骤备注（人工填写），requestedIp 兜底。
+    let assigned: Option<String> = sqlx::query_scalar(
+        "SELECT comment FROM infra_flow_step
+         WHERE instance_id=$1 AND tenant_id=$2 AND step_key='assign_ip' AND comment IS NOT NULL",
+    )
+    .bind(instance_id)
+    .bind(tenant.id())
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .and_then(|comment: String| extract_ipv4(&comment))
+    .or_else(|| {
+        let requested = field("requestedIp");
+        (!requested.is_empty()).then_some(requested)
+    });
+
+    let existing: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM infra_terminal WHERE tenant_id=$1 AND mac_address=$2 AND deleted=0",
+    )
+    .bind(tenant.id())
+    .bind(&mac)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let status_active = "active";
+    if let Some(id) = existing {
+        sqlx::query(
+            "UPDATE infra_terminal
+             SET hostname=$3, device_type=$4, ip_address=$5, network_zone=$6,
+                 access_period=$7, applicant_name=$8, department=$9, employee_id=$10,
+                 phone=$11, reason=$12, flow_instance_id=$13, status=$14,
+                 updater='flow', update_time=now()
+             WHERE id=$1 AND tenant_id=$2",
+        )
+        .bind(id)
+        .bind(tenant.id())
+        .bind(field("hostname"))
+        .bind(field("deviceType"))
+        .bind(assigned.clone().unwrap_or_default())
+        .bind(field("networkZone"))
+        .bind(field("accessPeriod"))
+        .bind(field("applicantName"))
+        .bind(field("department"))
+        .bind(field("employeeId"))
+        .bind(field("phone"))
+        .bind(field("reason"))
+        .bind(instance_id)
+        .bind(status_active)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        Ok(json!({ "terminalId": id, "macAddress": mac, "ipAddress": assigned, "mode": "updated" }))
+    } else {
+        let id: i64 = sqlx::query_scalar(
+            "INSERT INTO infra_terminal
+                 (mac_address, hostname, device_type, ip_address, network_zone,
+                  access_period, applicant_name, department, employee_id, phone,
+                  reason, flow_instance_id, status, creator, tenant_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'flow',$14) RETURNING id",
+        )
+        .bind(&mac)
+        .bind(field("hostname"))
+        .bind(field("deviceType"))
+        .bind(assigned.clone().unwrap_or_default())
+        .bind(field("networkZone"))
+        .bind(field("accessPeriod"))
+        .bind(field("applicantName"))
+        .bind(field("department"))
+        .bind(field("employeeId"))
+        .bind(field("phone"))
+        .bind(field("reason"))
+        .bind(instance_id)
+        .bind(status_active)
+        .bind(tenant.id())
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        Ok(json!({ "terminalId": id, "macAddress": mac, "ipAddress": assigned, "mode": "created" }))
     }
 }

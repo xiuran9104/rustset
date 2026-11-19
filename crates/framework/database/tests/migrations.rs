@@ -41,7 +41,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 69);
+    assert_eq!(applied, 70);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -277,6 +277,49 @@ async fn applies_all_migrations_to_empty_postgres() {
             && s["type"] == json!("manual")),
         "office ip flow must include the delivery-confirm manual stage"
     );
+    // 0070：终端台账（办公网IP申报闭环）——表 + 入账步骤 + 资产中心菜单。
+    let terminal_table: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='infra_terminal')",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("inspect infra_terminal");
+    assert!(terminal_table, "0070 must create the terminal ledger table");
+    let office_ip_definition_70: Value = sqlx::query_scalar(
+        "SELECT definition FROM infra_flow_definition
+         WHERE name = '办公网IP申报流程' AND tenant_id = 1 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read office ip flow after 0070");
+    assert!(
+        office_ip_definition_70
+            .get("steps")
+            .and_then(Value::as_array)
+            .expect("steps")
+            .iter()
+            .any(|s| s["config"]["action"] == json!("register_terminal")),
+        "office ip flow must auto-register the terminal into the ledger"
+    );
+    let terminal_menu: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu
+         WHERE id = 30386 AND parent_id = 30342 AND sort = 1
+           AND component = 'asset-ops/terminal/index' AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read terminal menu");
+    assert_eq!(terminal_menu, 1, "terminal ledger page must lead the asset center");
+    let terminal_grants: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_role_menu rm
+         JOIN system_role r ON r.id = rm.role_id AND r.code = 'super_admin'
+         WHERE rm.menu_id IN (30386, 30387) AND rm.deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read terminal menu grants");
+    assert_eq!(terminal_grants, 2, "terminal page + query button granted to super_admin");
     // 0064：流程定义 update/delete 按钮权限补齐。
     let flow_def_perms: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
@@ -1251,8 +1294,8 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read Kairos asset operations pages");
     // 16 pages after 0021 + 资产核查 (0022) + 网络策略工单 (0054) + 流程引擎两页 (0062)
-    // + 办公网IP申报独立页 (0069).
-    assert_eq!(asset_ops_pages, 22);
+    // + 办公网IP申报独立页 (0069) + 终端设备台账页 (0070).
+    assert_eq!(asset_ops_pages, 23);
 
     let asset_ops_permissions: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu

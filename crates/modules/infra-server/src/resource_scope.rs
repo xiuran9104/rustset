@@ -38,6 +38,7 @@ pub(crate) const TENANT_TABLES: &[&str] = &[
     "infra_security_product",
     "infra_service_provider",
     "infra_task",
+    "infra_terminal",
 ];
 pub(crate) fn scope_for(table: &str) -> Option<ResourceScope> {
     GLOBAL_TABLES

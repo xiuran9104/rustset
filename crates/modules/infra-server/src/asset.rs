@@ -48,12 +48,19 @@ pub const NETWORK_POLICY: TableSpec = TableSpec {
     table: "infra_network_policy",
     seq: "infra_network_policy_seq",
 };
+/// 终端台账（办公网IP申报闭环，register_terminal 动作写入；页面只读）。
+const TERMINAL: TableSpec = TableSpec {
+    table: "infra_terminal",
+    seq: "infra_terminal_seq",
+};
 
 pub fn routes() -> ApiRouter<InfraState> {
     ApiRouter::new()
         .merge(csv::routes())
         .api_route("/infra/asset/page", get(asset_page))
         .api_route("/infra/asset/list", get(asset_list))
+        .api_route("/infra/terminal/page", get(terminal_page))
+        .api_route("/infra/terminal/list", get(terminal_list))
         .api_route("/infra/asset/get", get(asset_get))
         .api_route("/infra/asset/create", post(asset_create))
         .api_route("/infra/asset/update", put(asset_update))
@@ -214,6 +221,23 @@ async fn asset_page(
 ) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
     repository::page(&state.pool, ASSET, &tenant, p).await
+}
+
+/// 终端台账（只读）：办公网IP申报自动入账的终端清单。
+async fn terminal_page(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Query(p): Query<QueryParams>,
+) -> Result<Json<ApiResponse<crate::Page<Value>>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    tenant_table_page(&state.pool, tenant.id(), TERMINAL, p).await
+}
+async fn terminal_list(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    tenant_table_list(&state.pool, tenant.id(), TERMINAL).await
 }
 async fn asset_list(
     State(state): State<InfraState>,

@@ -606,6 +606,8 @@ static ROUTE_PERMISSIONS: &[(&str, &str, Option<&str>)] = &[
     ("GET", "/infra/task/get", Some("infra:task:query")),
     ("GET", "/infra/task/list", Some("infra:task:query")),
     ("GET", "/infra/task/page", Some("infra:task:query")),
+    ("GET", "/infra/terminal/list", Some("infra:terminal:query")),
+    ("GET", "/infra/terminal/page", Some("infra:terminal:query")),
     ("GET", "/upload/{*path}", Some("infra:file:query")),
     (
         "POST",
@@ -984,7 +986,7 @@ mod tests {
 
     #[test]
     fn registry_covers_every_entry_with_sorted_keys() {
-        assert_eq!(ROUTE_PERMISSIONS.len(), 234);
+        assert_eq!(ROUTE_PERMISSIONS.len(), 236);
         for window in ROUTE_PERMISSIONS.windows(2) {
             assert!(
                 (window[0].0, window[0].1) < (window[1].0, window[1].1),
