@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -20,7 +20,13 @@ import {
   deliverTicket,
   getResourceTicketList,
 } from '#/api/scan/resource-ticket';
-import { getFlowDefinitionPage, startFlowInstance } from '#/api/asset-ops/flow';
+import {
+  approveFlowStep,
+  getFlowDefinitionPage,
+  getFlowTodo,
+  rejectFlowStep,
+  startFlowInstance,
+} from '#/api/asset-ops/flow';
 import { getBusinessApplicationList } from '#/api/scan/business-application';
 import { getUserPage } from '#/api/system/user';
 import { useUserStore } from '@vben/stores';
@@ -124,11 +130,16 @@ const columns: any[] = [
 async function fetchData() {
   loading.value = true;
   try {
-    const [tickets, appRows, userPage] = await Promise.all([
+    const [tickets, appRows, userPage, todoList] = await Promise.all([
       getResourceTicketList(),
       getBusinessApplicationList(),
       getUserPage({ pageNo: 1, pageSize: 500 }),
+      getFlowTodo().catch(() => []),
     ]);
+    // 我的审批待办（流程实例 id 匹配 → 本页直接审批）
+    flowTodos.value = ((todoList ?? []) as any[]).filter(
+      (t) => t.type === 'approval',
+    );
     const all = tickets as any[];
     // 原生流程路径落单 ticketType=network_change（0067 种子流程），与存量
     // create 类网络工单一并展示。
@@ -240,6 +251,63 @@ async function handleApprove(ticket: NetworkTicket, approved: boolean) {
   await fetchData();
 }
 
+/* ---------- 原生流程审批（本页直审，待办匹配） ---------- */
+const flowTodos = ref<any[]>([]);
+
+function todoFor(flowInstanceId?: number) {
+  return flowInstanceId
+    ? flowTodos.value.find((t) => t.instanceId === flowInstanceId)
+    : undefined;
+}
+
+const flowAction = reactive({
+  comment: '',
+  approved: true,
+  instanceId: 0,
+  stepKey: '',
+  title: '',
+  visible: false,
+});
+
+function openFlowApprove(record: NetworkTicket, approved: boolean) {
+  const todo = todoFor(record.flowInstanceId);
+  if (!todo) {
+    message.warning('未找到你的审批待办');
+    return;
+  }
+  Object.assign(flowAction, {
+    approved,
+    comment: '',
+    instanceId: record.flowInstanceId!,
+    stepKey: todo.stepKey,
+    title: record.ecs_name || '',
+    visible: true,
+  });
+}
+
+async function submitFlowApprove() {
+  if (!flowAction.approved && !flowAction.comment.trim()) {
+    message.error('流程审批拒绝必须填写原因');
+    return;
+  }
+  try {
+    if (flowAction.approved) {
+      await approveFlowStep(flowAction.instanceId, flowAction.stepKey, {
+        comment: flowAction.comment,
+      });
+    } else {
+      await rejectFlowStep(flowAction.instanceId, flowAction.stepKey, {
+        comment: flowAction.comment,
+      });
+    }
+    message.success(flowAction.approved ? '流程审批已通过' : '流程审批已拒绝');
+    flowAction.visible = false;
+    await fetchData();
+  } catch (error: any) {
+    message.error(error?.message ?? '流程审批失败');
+  }
+}
+
 async function handleDeliver(ticket: NetworkTicket) {
   await deliverTicket(ticket.id!, { comment: '策略已下发设备' });
   message.success('策略已下发，台账已登记');
@@ -291,9 +359,28 @@ async function handleDeliver(ticket: NetworkTicket) {
           <template v-else-if="column.key === 'actions'">
             <Space :size="8">
               <template v-if="record.ticket_status === 'pending_approval'">
+                <template v-if="record.flowStatus === 'running' && todoFor(record.flowInstanceId)">
+                  <Button
+                    v-access:code="['infra:resource-ticket:approve']"
+                    type="link"
+                    size="small"
+                    @click="openFlowApprove(record, true)"
+                  >
+                    流程通过
+                  </Button>
+                  <Button
+                    v-access:code="['infra:resource-ticket:approve']"
+                    type="link"
+                    size="small"
+                    danger
+                    @click="openFlowApprove(record, false)"
+                  >
+                    流程拒绝
+                  </Button>
+                </template>
                 <a-tooltip
-                  v-if="record.flowStatus === 'running'"
-                  title="原生流程审批中，请到 运营流程 → 流程实例 / 我的待办 处理"
+                  v-else-if="record.flowStatus === 'running'"
+                  title="原生流程审批中，由步骤办理人处理（流程实例 / 我的待办）"
                 >
                   <Tag color="blue">流程审批中</Tag>
                 </a-tooltip>
@@ -335,6 +422,19 @@ async function handleDeliver(ticket: NetworkTicket) {
           </template>
         </template>
       </Table>
+
+      <!-- 流程审批弹窗（本页直审） -->
+      <a-modal
+        v-model:open="flowAction.visible"
+        :title="`${flowAction.approved ? '流程审批通过' : '流程审批拒绝'}：${flowAction.title}`"
+        @ok="submitFlowApprove"
+      >
+        <Textarea
+          v-model:value="flowAction.comment"
+          :rows="3"
+          :placeholder="flowAction.approved ? '审批备注（可选）' : '拒绝原因（必填）'"
+        />
+      </a-modal>
 
       <!-- eslint-disable-next-line vue/no-v-html -->
       <a-modal

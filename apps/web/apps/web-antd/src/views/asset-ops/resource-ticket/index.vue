@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
@@ -7,7 +7,7 @@ import { message } from 'ant-design-vue';
 import { getCloudPlatformList, getCloudZoneList } from '#/api/scan/cloud-platform';
 import { getMachineRoomList } from '#/api/scan/machine-room';
 import { approveTicket, deleteResourceTicket, deliverTicket, getResourceTicketList, getTicketAttachments, getTicketApprovalHistory, provisionTicket } from '#/api/scan/resource-ticket';
-import { getFlowDefinitionPage, startFlowInstance } from '#/api/asset-ops/flow';
+import { approveFlowStep, completeFlowStep, getFlowDefinitionPage, getFlowInstance, getFlowTodo, rejectFlowStep, startFlowInstance } from '#/api/asset-ops/flow';
 import { uploadFile } from '#/api/infra/file';
 import { requestClient } from '#/api/request';
 import { getCloudResourceList } from '#/api/scan/cloud-resource';
@@ -84,6 +84,7 @@ async function downloadAttachment(file:any){
 function openDeliver(ticket:Ticket){deliverTarget.value=ticket;deliverComment.value='';deliverFiles.value=[];deliverVisible.value=true;}
 async function confirmDeliver(){
   await deliverTicket(deliverTarget.value!.id!,{comment:deliverComment.value,fileIds:deliverFiles.value.map(item=>item.id)});
+  await advanceFlowManual(deliverTarget.value!.flowInstanceId,'工单页确认交付');
   message.success('工单已交付');deliverVisible.value=false;fetchData();
 }
 
@@ -97,7 +98,7 @@ const tabs=[{key:'all',label:'全部工单',statuses:[]},{key:'approval',label:'
 const filteredTickets=computed(()=>{const tab=tabs.find(item=>item.key===activeTab.value);return !tab?.statuses.length?searchedTickets.value:searchedTickets.value.filter(ticket=>tab.statuses.includes(ticket.ticket_status));});
 const columns=[{title:'工单名称',dataIndex:'ecs_name'},{title:'工单类型',key:'ticket_type'},{title:'申请人',dataIndex:'applicant_name'},{title:'资源类型',key:'resource_type'},{title:'状态',key:'ticket_status'},{title:'审批进度',key:'approval_progress'},{title:'云平台',key:'cloud_platform_id'},{title:'规格',key:'spec'},{title:'创建时间',dataIndex:'created_at'},{title:'操作',key:'actions',width:300}];
 
-async function fetchData(){loading.value=true;try{const rows=await Promise.all([getResourceTicketList(),getCloudZoneList(),getCloudPlatformList(),getMachineRoomList(),getSecurityProductList(),getCloudProviderConfigList(),getCloudResourceList(),getPhysicalResourceList(),getUserPage({pageNo:1,pageSize:500}),getBusinessApplicationList()]);data.value=rows[0] as any;zones.value=rows[1] as any;platforms.value=rows[2] as any;rooms.value=rows[3] as any;securityProducts.value=rows[4] as any;providerConfigs.value=rows[5] as any;businessResources.value=[...(rows[6] as any[]).map(item=>({...item,resource_type:'cloud'})),...(rows[7] as any[]).map(item=>({...item,resource_type:'physical'}))];users.value=((rows[8] as any)?.list??[]) as any;applications.value=rows[9] as any;}catch{message.error('加载失败');}finally{loading.value=false;}}
+async function fetchData(){loading.value=true;try{const rows=await Promise.all([getResourceTicketList(),getCloudZoneList(),getCloudPlatformList(),getMachineRoomList(),getSecurityProductList(),getCloudProviderConfigList(),getCloudResourceList(),getPhysicalResourceList(),getUserPage({pageNo:1,pageSize:500}),getBusinessApplicationList(),getFlowTodo().catch(()=>[])]);data.value=rows[0] as any;zones.value=rows[1] as any;platforms.value=rows[2] as any;rooms.value=rows[3] as any;securityProducts.value=rows[4] as any;providerConfigs.value=rows[5] as any;businessResources.value=[...(rows[6] as any[]).map(item=>({...item,resource_type:'cloud'})),...(rows[7] as any[]).map(item=>({...item,resource_type:'physical'}))];users.value=((rows[8] as any)?.list??[]) as any;applications.value=rows[9] as any;flowTodos.value=((rows[10] as any[])??[]).filter(t=>t.type==='approval');}catch{message.error('加载失败');}finally{loading.value=false;}}
 const route = useRoute();
 const router = useRouter();
 onMounted(async () => {
@@ -191,6 +192,39 @@ async function handleCreate(){
   fetchData();
 }
 async function handleApprove(ticket:Ticket){const result:any=await approveTicket(ticket.id!,{approved:true,comment:'审批通过'});message.success(result?.message||'本级审批完成');fetchData();}async function handleReject(ticket:Ticket){await approveTicket(ticket.id!,{approved:false,comment:'审批拒绝'});message.success('已拒绝');fetchData();}
+
+/* ---------- 原生流程操作（本页直审 + 操作推进流程） ---------- */
+// 我的待办（审批步骤）——工单行 flowInstanceId 匹配待办即可在本页直接审批。
+const flowTodos=ref<any[]>([]);
+async function loadFlowTodos(){try{flowTodos.value=(await getFlowTodo() as any[]).filter(t=>t.type==='approval');}catch{flowTodos.value=[];}}
+function todoFor(flowInstanceId?:number){return flowInstanceId?flowTodos.value.find(t=>t.instanceId===flowInstanceId):undefined;}
+
+const flowActionState=reactive({visible:false,approved:true,comment:'',instanceId:0,stepKey:'',title:''});
+function openFlowApprove(ticket:Ticket,approved:boolean){
+  const todo=todoFor(ticket.flowInstanceId);
+  if(!todo){message.warning('未找到你的审批待办');return;}
+  Object.assign(flowActionState,{visible:true,approved,comment:'',instanceId:ticket.flowInstanceId!,stepKey:todo.stepKey,title:ticket.ecs_name});
+}
+async function submitFlowApprove(){
+  if(!flowActionState.approved&&!flowActionState.comment.trim()){message.error('流程审批拒绝必须填写原因');return;}
+  try{
+    if(flowActionState.approved){await approveFlowStep(flowActionState.instanceId,flowActionState.stepKey,{comment:flowActionState.comment});}
+    else{await rejectFlowStep(flowActionState.instanceId,flowActionState.stepKey,{comment:flowActionState.comment});}
+    message.success(flowActionState.approved?'流程审批已通过':'流程审批已拒绝');
+    flowActionState.visible=false;fetchData();loadFlowTodos();
+  }catch(error:any){message.error(error?.message??'流程审批失败');}
+}
+
+// 工单页操作（配置/交付）后推进流程实例的 active manual 步骤（如
+// 「资源供应确认」）——失败静默（runner/流程实例页兜底），不打断工单操作。
+async function advanceFlowManual(instanceId?:number,note:string='工单页操作完成'){
+  if(!instanceId)return;
+  try{
+    const data=await getFlowInstance(instanceId);
+    const step=(data.steps??[]).find((s:any)=>s.status==='active'&&s.type==='manual');
+    if(step){await completeFlowStep(instanceId,step.stepKey,{comment:note});}
+  }catch{/* 静默 */ }
+}
 function openProvision(ticket:Ticket){
   provisionTicketRecord.value=ticket;
   const configs=providerConfigs.value.filter(item=>item.platform_id===ticket.cloud_platform_id&&['active','enabled'].includes(item.status));
@@ -199,7 +233,7 @@ function openProvision(ticket:Ticket){
   provisionForm.value={...emptyProvisionForm(),config_id:saved.configId??(configs.length===1?configs[0]?.id:undefined),image_id:saved.imageId||'',flavor:saved.flavor||ticket.ecs_type||'',availability_zone:saved.availabilityZone||'',subnet_id:saved.subnetId||'',vpc_id:saved.vpcId||'',security_groups:Array.isArray(saved.securityGroups)?saved.securityGroups:[]};
   provisionVisible.value=true;
 }
-async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}const form=provisionForm.value;if(!form.config_id||!form.image_id.trim()||!form.flavor.trim()||!form.availability_zone.trim()||!form.subnet_id.trim()||!form.security_groups.length){message.warning('请填写凭据、镜像、规格、可用区、子网和安全组');return;}const config=providerConfigs.value.find(item=>item.id===form.config_id);if(['tencent','tencentcloud'].includes(config?.provider)&&!form.vpc_id.trim()){message.warning('腾讯云开通需要 VPC ID');return;}provisioning.value=true;try{await provisionTicket(provisionTicketRecord.value.id,form);message.success('云资源开通完成，工单进入待交付');provisionVisible.value=false;await fetchData();}catch{message.error('开通失败，请查看工单执行日志');}finally{provisioning.value=false;}}
+async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}const form=provisionForm.value;if(!form.config_id||!form.image_id.trim()||!form.flavor.trim()||!form.availability_zone.trim()||!form.subnet_id.trim()||!form.security_groups.length){message.warning('请填写凭据、镜像、规格、可用区、子网和安全组');return;}const config=providerConfigs.value.find(item=>item.id===form.config_id);if(['tencent','tencentcloud'].includes(config?.provider)&&!form.vpc_id.trim()){message.warning('腾讯云开通需要 VPC ID');return;}provisioning.value=true;try{await provisionTicket(provisionTicketRecord.value.id,form);await advanceFlowManual(provisionTicketRecord.value.flowInstanceId,'配置登记完成（工单页）');message.success('云资源开通完成，工单进入待交付');provisionVisible.value=false;await fetchData();}catch{message.error('开通失败，请查看工单执行日志');}finally{provisioning.value=false;}}
 </script>
 
 <template>
@@ -220,9 +254,15 @@ async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}co
           <template v-else-if="column.key==='spec'">{{ record.resource_count||1 }}台 · {{ record.cpu_cores }}核/{{ record.memory_gb }}GB</template>
           <template v-else-if="column.key==='actions'"><a-space :size="12" wrap>
             <a-button size="small" @click="showDetail(record)">详情</a-button>
-            <a-tooltip v-if="record.ticket_status==='pending_approval'&&record.flowStatus==='running'" title="原生流程审批中，请到 运营流程 → 流程实例 / 我的待办 处理">
-              <a-tag color="blue">流程审批中</a-tag>
-            </a-tooltip>
+            <template v-if="record.ticket_status==='pending_approval'&&record.flowStatus==='running'">
+              <template v-if="todoFor(record.flowInstanceId)">
+                <a-button v-access:code="['infra:resource-ticket:approve']" type="primary" size="small" @click="openFlowApprove(record,true)">流程通过</a-button>
+                <a-button v-access:code="['infra:resource-ticket:approve']" danger size="small" @click="openFlowApprove(record,false)">流程拒绝</a-button>
+              </template>
+              <a-tooltip v-else title="原生流程审批中，由步骤办理人处理（流程实例 / 我的待办）">
+                <a-tag color="blue">流程审批中</a-tag>
+              </a-tooltip>
+            </template>
             <a-button v-if="record.ticket_status==='pending_approval'&&record.flowStatus!=='running'" v-access:code="['infra:resource-ticket:approve']" type="primary" size="small" @click="handleApprove(record)">通过</a-button>
             <a-button v-if="record.ticket_status==='pending_approval'&&record.flowStatus!=='running'" v-access:code="['infra:resource-ticket:approve']" danger size="small" @click="handleReject(record)">拒绝</a-button>
             <a-button v-if="(record.ticket_status==='pending_provision'||record.ticket_status==='approved')&&record.ticket_type==='create'&&record.resource_type==='cloud'" v-access:code="['infra:resource-ticket:provision']" type="primary" size="small" @click="openProvision(record)">登记配置</a-button>
@@ -299,6 +339,9 @@ async function handleProvision(){if(!provisionTicketRecord.value?.id){return;}co
             <a-col :span="24"><a-form-item label="申请说明"><a-textarea v-model:value="createForm.remarks" :rows="3" /></a-form-item></a-col>
           </a-row>
         </a-form>
+      </a-modal>
+      <a-modal v-model:open="flowActionState.visible" :title="`${flowActionState.approved?'流程审批通过':'流程审批拒绝'}：${flowActionState.title}`" @ok="submitFlowApprove">
+        <a-textarea v-model:value="flowActionState.comment" :rows="3" :placeholder="flowActionState.approved?'审批备注（可选）':'拒绝原因（必填）'" />
       </a-modal>
       <a-modal v-model:open="deliverVisible" title="确认交付" @ok="confirmDeliver">
         <a-form layout="vertical">
