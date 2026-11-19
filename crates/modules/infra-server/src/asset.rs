@@ -61,6 +61,12 @@ pub fn routes() -> ApiRouter<InfraState> {
         .api_route("/infra/asset/list", get(asset_list))
         .api_route("/infra/terminal/page", get(terminal_page))
         .api_route("/infra/terminal/list", get(terminal_list))
+        .api_route("/infra/terminal/update", put(terminal_update))
+        .api_route("/infra/terminal/delete", delete(terminal_delete))
+        .api_route(
+            "/infra/terminal/delete-list",
+            delete(terminal_delete_list),
+        )
         .api_route("/infra/asset/get", get(asset_get))
         .api_route("/infra/asset/create", post(asset_create))
         .api_route("/infra/asset/update", put(asset_update))
@@ -238,6 +244,34 @@ async fn terminal_list(
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     let tenant = TenantContext::from_user(&user)?;
     tenant_table_list(&state.pool, tenant.id(), TERMINAL).await
+}
+
+/// 终端台账直改（编辑弹窗）：低风险字段管理语义；入网/退役/换人等
+/// 高风险变更走「终端变更申请流程」（操作列"工单"按钮）。
+async fn terminal_update(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Json(p): Json<Value>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    let _ = user;
+    repository::update(&state.pool, TERMINAL, &tenant, p).await
+}
+async fn terminal_delete(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Query(p): Query<HashMap<String, String>>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    repository::delete(&state.pool, TERMINAL, &tenant, &[id_param(&p)?]).await
+}
+async fn terminal_delete_list(
+    State(state): State<InfraState>,
+    user: CurrentUser,
+    Query(p): Query<HashMap<String, String>>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let tenant = TenantContext::from_user(&user)?;
+    repository::delete(&state.pool, TERMINAL, &tenant, &ids_param(&p)).await
 }
 async fn asset_list(
     State(state): State<InfraState>,

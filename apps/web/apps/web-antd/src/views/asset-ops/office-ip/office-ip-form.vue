@@ -4,9 +4,10 @@
  * 复用同一表单，payload 契约见迁移 0066（办公网IP申报流程）。
  * 表单结构与资源工单创建弹窗同风格（a-form 垂直布局 + row/col 栅格）。
  */
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 
 import { message } from 'ant-design-vue';
+import { useUserStore } from '@vben/stores';
 
 import {
   getFlowDefinitionPage,
@@ -15,11 +16,15 @@ import {
 
 const emit = defineEmits(['submitted']);
 
+const userStore = useUserStore();
+const currentUserLabel = computed(
+  () => userStore.userInfo?.nickname || userStore.userInfo?.username || '',
+);
+
 const OFFICE_IP_FLOW_NAME = '办公网IP申报流程';
 
 const emptyForm = () => ({
   accessPeriod: '长期',
-  applicantName: '',
   department: '',
   deviceType: '笔记本',
   employeeId: '',
@@ -36,13 +41,7 @@ const form = reactive(emptyForm());
 const submitting = ref(false);
 
 async function handleSubmit() {
-  const applicantName = form.applicantName.trim();
-  const department = form.department.trim();
   const macAddress = form.macAddress.trim().toUpperCase();
-  if (!applicantName || !department) {
-    message.error('姓名、部门为必填项');
-    return;
-  }
   if (!form.supervisorUsername.trim()) {
     message.error('部门主管账号为必填项（用于动态指派审批人）');
     return;
@@ -74,11 +73,11 @@ async function handleSubmit() {
   try {
     await startFlowInstance({
       definitionId,
-      title: `${applicantName} 办公网IP申报`,
+      title: `${currentUserLabel.value} 办公网IP申报`,
       payload: {
         accessPeriod: form.accessPeriod,
-        applicantName,
-        department,
+        applicantName: currentUserLabel.value,
+        department: form.department.trim(),
         deviceType: form.deviceType,
         employeeId: form.employeeId.trim(),
         hostname: form.hostname.trim(),
@@ -107,13 +106,13 @@ defineExpose({ submit: handleSubmit });
   <a-form layout="vertical">
     <a-row :gutter="16">
       <a-col :span="8">
-        <a-form-item label="申报人姓名" required>
-          <a-input v-model:value="form.applicantName" placeholder="真实姓名" />
+        <a-form-item label="申报人（当前登录人）">
+          <a-input :value="currentUserLabel" disabled />
         </a-form-item>
       </a-col>
       <a-col :span="8">
-        <a-form-item label="部门" required>
-          <a-input v-model:value="form.department" placeholder="所属部门" />
+        <a-form-item label="部门（系统自动带出）">
+          <a-input v-model:value="form.department" placeholder="无部门归属时填写，提交后自动带出" />
         </a-form-item>
       </a-col>
       <a-col :span="8">

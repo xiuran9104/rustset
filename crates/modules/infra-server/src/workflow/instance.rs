@@ -281,6 +281,38 @@ pub(crate) async fn start_instance(
     Ok(instance_id)
 }
 
+/// 申请人固定为当前登录人（与资源工单链语义一致）：applicantName 强制
+/// 覆盖为 nickname（缺省 username），department 自动带出所属部门——
+/// 前端传入的申请人信息不采信，API 直调也无法冒名。
+async fn normalize_applicant(
+    state: &InfraState,
+    user: &CurrentUser,
+    mut payload: Value,
+) -> Value {
+    let profile: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT u.nickname, d.name FROM system_users u
+         LEFT JOIN system_dept d ON d.id = u.dept_id AND d.deleted = 0
+         WHERE u.username = $1 AND u.deleted = 0 LIMIT 1",
+    )
+    .bind(&user.username)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+    let (nickname, dept_name) = profile.unwrap_or((None, None));
+    if let Some(object) = payload.as_object_mut() {
+        object.insert(
+            "applicantName".to_string(),
+            Value::String(nickname.filter(|n| !n.is_empty()).unwrap_or_else(|| user.username.clone())),
+        );
+        // 部门有归属才覆盖（无部门的账号保留前端传入值，供通知占位符使用）。
+        if let Some(dept) = dept_name.filter(|d| !d.is_empty()) {
+            object.insert("department".to_string(), Value::String(dept));
+        }
+    }
+    payload
+}
+
 async fn create(
     user: CurrentUser,
     State(state): State<InfraState>,
@@ -306,7 +338,8 @@ async fn create(
         definition.get("version"),
         &(definition.get("definition")),
         request.title.clone(),
-        request.payload.clone().unwrap_or_else(|| json!({})),
+        normalize_applicant(&state, &user, request.payload.clone().unwrap_or_else(|| json!({})))
+            .await,
         request.biz_type.as_deref().unwrap_or(""),
         request.biz_id.as_deref().unwrap_or(""),
         &user.username,

@@ -41,7 +41,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 71);
+    assert_eq!(applied, 73);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -304,22 +304,22 @@ async fn applies_all_migrations_to_empty_postgres() {
     );
     let terminal_menu: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
-         WHERE id = 30386 AND parent_id = 30342 AND sort = 1
+         WHERE id = 30386 AND parent_id = 30342 AND sort = 2
            AND component = 'asset-ops/terminal/index' AND deleted = 0",
     )
     .fetch_one(&pool)
     .await
     .expect("read terminal menu");
-    assert_eq!(terminal_menu, 1, "terminal ledger page must lead the asset center");
+    assert_eq!(terminal_menu, 1, "0072 起终端设备排在发现资产之后");
     let terminal_grants: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_role_menu rm
          JOIN system_role r ON r.id = rm.role_id AND r.code = 'super_admin'
-         WHERE rm.menu_id IN (30386, 30387) AND rm.deleted = 0",
+         WHERE rm.menu_id IN (30386, 30387, 30388, 30389) AND rm.deleted = 0",
     )
     .fetch_one(&pool)
     .await
     .expect("read terminal menu grants");
-    assert_eq!(terminal_grants, 2, "terminal page + query button granted to super_admin");
+    assert_eq!(terminal_grants, 4, "terminal page + query/edit/delete buttons granted to super_admin");
     // 0071：终端变更申请流程（台账只读，退役/信息变更走申请）。
     let terminal_change_flow: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_flow_definition
@@ -1318,7 +1318,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .expect("read Kairos asset operations permissions");
     // 0021 adds the four infra:physical-resource:* buttons; 0062 adds the
     // five infra:flow-* buttons; 0064 adds two more flow-definition buttons.
-    assert_eq!(asset_ops_permissions, 74);
+    assert_eq!(asset_ops_permissions, 76);
 
     let missing_super_admin_asset_links: i64 = sqlx::query_scalar(
         "SELECT count(*)

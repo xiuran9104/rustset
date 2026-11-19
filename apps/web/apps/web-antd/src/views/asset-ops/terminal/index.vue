@@ -79,7 +79,7 @@ const columns = [
   { title: '状态', key: 'status', width: 85 },
   { title: '入账时间', dataIndex: 'createTime', key: 'create_time', width: 170 },
   { title: '用途', dataIndex: 'reason', key: 'reason' },
-  { title: '操作', key: 'actions', width: 110, fixed: 'right' },
+  { title: '操作', key: 'actions', width: 200, fixed: 'right' },
 ];
 
 /* ---------- 申请变更（台账只读，退役/信息变更走「终端变更申请流程」） ---------- */
@@ -92,8 +92,6 @@ const changeForm = reactive({
   newDepartment: '',
   newIpAddress: '',
   newAccessPeriod: '',
-  applicantName: '',
-  department: '',
   supervisorUsername: '',
   reason: '',
 });
@@ -106,8 +104,6 @@ function openChange(record: any) {
     newDepartment: '',
     newIpAddress: '',
     newAccessPeriod: '',
-    applicantName: '',
-    department: '',
     supervisorUsername: '',
     reason: '',
   });
@@ -117,10 +113,6 @@ function openChange(record: any) {
 async function submitChange() {
   const record = changeTarget.value;
   if (!record) return;
-  if (!changeForm.applicantName.trim() || !changeForm.department.trim()) {
-    message.error('申请人、部门为必填项');
-    return;
-  }
   if (!changeForm.supervisorUsername.trim()) {
     message.error('部门主管账号为必填项（动态审批人）');
     return;
@@ -137,10 +129,8 @@ async function submitChange() {
   try {
     await startFlowInstance({
       definitionId: definition.id,
-      title: `${changeForm.applicantName.trim()} 终端变更 ${record.macAddress}`,
+      title: `终端变更 ${record.macAddress}`,
       payload: {
-        applicantName: changeForm.applicantName.trim(),
-        department: changeForm.department.trim(),
         supervisorUsername: changeForm.supervisorUsername.trim(),
         macAddress: record.macAddress,
         operation: changeForm.operation,
@@ -157,6 +147,65 @@ async function submitChange() {
     message.error(error?.message ?? '提交失败');
   } finally {
     changeSubmitting.value = false;
+  }
+}
+
+/* ---------- 编辑（低风险字段直改）/ 删除（误入账清理） ---------- */
+const editVisible = ref(false);
+const editForm = reactive({
+  id: 0,
+  hostname: '',
+  deviceType: '',
+  ipAddress: '',
+  applicantName: '',
+  department: '',
+  employeeId: '',
+  phone: '',
+  networkZone: '',
+  accessPeriod: '',
+  reason: '',
+});
+
+function openEdit(record: any) {
+  Object.assign(editForm, {
+    id: record.id,
+    hostname: record.hostname ?? '',
+    deviceType: record.deviceType ?? '',
+    ipAddress: record.ipAddress ?? '',
+    applicantName: record.applicantName ?? '',
+    department: record.department ?? '',
+    employeeId: record.employeeId ?? '',
+    phone: record.phone ?? '',
+    networkZone: record.networkZone ?? '',
+    accessPeriod: record.accessPeriod ?? '',
+    reason: record.reason ?? '',
+  });
+  editVisible.value = true;
+}
+
+async function submitEdit() {
+  try {
+    await requestClient.put('/infra/terminal/update', {
+      ...editForm,
+      deviceType: editForm.deviceType,
+    });
+    message.success('终端信息已更新');
+    editVisible.value = false;
+    fetchData();
+  } catch (error: any) {
+    message.error(error?.message ?? '更新失败');
+  }
+}
+
+async function handleDelete(record: any) {
+  try {
+    await requestClient.delete('/infra/terminal/delete', {
+      params: { id: record.id },
+    });
+    message.success('已删除');
+    fetchData();
+  } catch (error: any) {
+    message.error(error?.message ?? '删除失败');
   }
 }
 
@@ -209,14 +258,35 @@ onActivated(fetchData);
             {{ String(record.createTime ?? '').slice(0, 19) }}
           </template>
           <template v-else-if="column.key === 'actions'">
-            <a-button
-              v-access:code="['infra:flow-instance:start']"
-              size="small"
-              :disabled="record.status !== 'active'"
-              @click="openChange(record)"
-            >
-              申请变更
-            </a-button>
+            <a-space :size="8">
+              <a-button
+                v-access:code="['infra:flow-instance:start']"
+                size="small"
+                :disabled="record.status !== 'active'"
+                @click="openChange(record)"
+              >
+                工单
+              </a-button>
+              <a-button
+                v-access:code="['infra:terminal:update']"
+                size="small"
+                @click="openEdit(record)"
+              >
+                编辑
+              </a-button>
+              <a-popconfirm
+                title="确认删除该终端记录？（误入账清理；退役请走工单）"
+                @confirm="handleDelete(record)"
+              >
+                <a-button
+                  v-access:code="['infra:terminal:delete']"
+                  danger
+                  size="small"
+                >
+                  删除
+                </a-button>
+              </a-popconfirm>
+            </a-space>
           </template>
         </template>
       </a-table>
@@ -231,8 +301,7 @@ onActivated(fetchData);
       >
         <div class="mb-3 text-xs text-gray-400">
           目标终端：{{ changeTarget?.macAddress }}（{{ changeTarget?.hostname || '-' }}，
-          当前使用人 {{ changeTarget?.applicantName || '-' }}）；提交后由部门主管审批，
-          通过后自动更新台账。
+          当前使用人 {{ changeTarget?.applicantName || '-' }}）；申请人为当前登录人（部门自动带出），提交后由部门主管审批，通过后自动更新台账。
         </div>
         <a-form layout="vertical">
           <a-row :gutter="16">
@@ -242,16 +311,6 @@ onActivated(fetchData);
                   <a-select-option value="retire">退役（停用）</a-select-option>
                   <a-select-option value="update">信息更新（换人/换IP等）</a-select-option>
                 </a-select>
-              </a-form-item>
-            </a-col>
-            <a-col :span="8">
-              <a-form-item label="申请人" required>
-                <a-input v-model:value="changeForm.applicantName" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="8">
-              <a-form-item label="部门" required>
-                <a-input v-model:value="changeForm.department" />
               </a-form-item>
             </a-col>
             <a-col :span="8">
@@ -284,6 +343,68 @@ onActivated(fetchData);
             <a-col :span="24">
               <a-form-item label="变更原因">
                 <a-textarea v-model:value="changeForm.reason" :rows="2" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+        </a-form>
+      </a-modal>
+
+      <!-- 编辑（低风险字段直改；MAC 只读） -->
+      <a-modal
+        v-model:open="editVisible"
+        title="编辑终端信息"
+        @ok="submitEdit"
+      >
+        <a-form layout="vertical">
+          <a-row :gutter="16">
+            <a-col :span="12">
+              <a-form-item label="主机名">
+                <a-input v-model:value="editForm.hostname" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="设备类型">
+                <a-input v-model:value="editForm.deviceType" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="分配 IP">
+                <a-input v-model:value="editForm.ipAddress" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="接入区域">
+                <a-input v-model:value="editForm.networkZone" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="使用人">
+                <a-input v-model:value="editForm.applicantName" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="部门">
+                <a-input v-model:value="editForm.department" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="工号">
+                <a-input v-model:value="editForm.employeeId" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="联系电话">
+                <a-input v-model:value="editForm.phone" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="使用期限">
+                <a-input v-model:value="editForm.accessPeriod" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="24">
+              <a-form-item label="用途说明">
+                <a-textarea v-model:value="editForm.reason" :rows="2" />
               </a-form-item>
             </a-col>
           </a-row>
