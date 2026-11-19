@@ -2,6 +2,7 @@
 /**
  * 办公网 IP 申报表单（共享组件）：申请中心弹窗与独立「办公网IP申报」页
  * 复用同一表单，payload 契约见迁移 0066（办公网IP申报流程）。
+ * 表单结构与资源工单创建弹窗同风格（a-form 垂直布局 + row/col 栅格）。
  */
 import { reactive, ref } from 'vue';
 
@@ -103,75 +104,88 @@ defineExpose({ submit: handleSubmit });
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-x-4 gap-y-2">
-    <div>
-      <div class="mb-1 text-xs text-gray-500">申报人姓名 *</div>
-      <a-input v-model:value="form.applicantName" size="small" placeholder="真实姓名" />
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">部门 *</div>
-      <a-input v-model:value="form.department" size="small" placeholder="所属部门" />
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">工号</div>
-      <a-input v-model:value="form.employeeId" size="small" />
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">联系电话</div>
-      <a-input v-model:value="form.phone" size="small" />
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">设备 MAC 地址 *</div>
-      <a-input v-model:value="form.macAddress" size="small" placeholder="AA:BB:CC:DD:EE:FF" />
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">设备类型</div>
-      <a-select v-model:value="form.deviceType" class="w-full" size="small">
-        <a-select-option value="台式机">台式机</a-select-option>
-        <a-select-option value="笔记本">笔记本</a-select-option>
-        <a-select-option value="移动终端">移动终端</a-select-option>
-        <a-select-option value="打印机">打印机</a-select-option>
-        <a-select-option value="其他">其他</a-select-option>
-      </a-select>
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">主机名</div>
-      <a-input v-model:value="form.hostname" size="small" />
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">申请 IP（留空自动分配）</div>
-      <a-input v-model:value="form.requestedIp" size="small" placeholder="192.168.1.100" />
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">接入区域</div>
-      <a-select v-model:value="form.networkZone" class="w-full" size="small">
-        <a-select-option value="办公区">办公区</a-select-option>
-        <a-select-option value="访客区">访客区</a-select-option>
-        <a-select-option value="研发区">研发区</a-select-option>
-      </a-select>
-    </div>
-    <div>
-      <div class="mb-1 text-xs text-gray-500">使用期限</div>
-      <a-select v-model:value="form.accessPeriod" class="w-full" size="small">
-        <a-select-option value="长期">长期</a-select-option>
-        <a-select-option value="3个月">3个月</a-select-option>
-        <a-select-option value="6个月">6个月</a-select-option>
-        <a-select-option value="12个月">12个月</a-select-option>
-      </a-select>
-    </div>
-    <div class="col-span-2">
-      <div class="mb-1 text-xs text-gray-500">用途说明</div>
-      <a-textarea v-model:value="form.reason" :rows="2" size="small" placeholder="接入办公网的用途" />
-    </div>
-    <div class="col-span-2">
-      <div class="mb-1 text-xs text-gray-500">部门主管系统账号 *</div>
-      <a-input
-        v-model:value="form.supervisorUsername"
-        size="small"
-        placeholder="主管的用户名，审批将动态指派给该用户"
-      />
-    </div>
-    <div class="col-span-2 text-right">
+  <a-form layout="vertical">
+    <a-row :gutter="16">
+      <a-col :span="8">
+        <a-form-item label="申报人姓名" required>
+          <a-input v-model:value="form.applicantName" placeholder="真实姓名" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="部门" required>
+          <a-input v-model:value="form.department" placeholder="所属部门" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="部门主管系统账号" required>
+          <a-input
+            v-model:value="form.supervisorUsername"
+            placeholder="主管用户名，审批将动态指派"
+          />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="设备 MAC 地址" required>
+          <a-input v-model:value="form.macAddress" placeholder="AA:BB:CC:DD:EE:FF" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="设备类型">
+          <a-select v-model:value="form.deviceType">
+            <a-select-option value="台式机">台式机</a-select-option>
+            <a-select-option value="笔记本">笔记本</a-select-option>
+            <a-select-option value="移动终端">移动终端</a-select-option>
+            <a-select-option value="打印机">打印机</a-select-option>
+            <a-select-option value="其他">其他</a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="主机名">
+          <a-input v-model:value="form.hostname" placeholder="如 zhangsan-laptop" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="申请 IP（留空自动分配）">
+          <a-input v-model:value="form.requestedIp" placeholder="192.168.1.100" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="接入区域">
+          <a-select v-model:value="form.networkZone">
+            <a-select-option value="办公区">办公区</a-select-option>
+            <a-select-option value="访客区">访客区</a-select-option>
+            <a-select-option value="研发区">研发区</a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="使用期限">
+          <a-select v-model:value="form.accessPeriod">
+            <a-select-option value="长期">长期</a-select-option>
+            <a-select-option value="3个月">3个月</a-select-option>
+            <a-select-option value="6个月">6个月</a-select-option>
+            <a-select-option value="12个月">12个月</a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="工号">
+          <a-input v-model:value="form.employeeId" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="联系电话">
+          <a-input v-model:value="form.phone" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="24">
+        <a-form-item label="用途说明">
+          <a-textarea v-model:value="form.reason" :rows="3" placeholder="接入办公网的用途" />
+        </a-form-item>
+      </a-col>
+    </a-row>
+    <div class="text-right">
       <a-button
         v-access:code="['infra:flow-instance:start']"
         type="primary"
@@ -181,5 +195,5 @@ defineExpose({ submit: handleSubmit });
         提交申报
       </a-button>
     </div>
-  </div>
+  </a-form>
 </template>
