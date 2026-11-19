@@ -312,7 +312,7 @@ async fn applies_all_migrations_to_empty_postgres() {
     .expect("read terminal menu");
     assert_eq!(terminal_menu, 1, "0072 起终端设备排在发现资产之后");
     // 0074：网络策略排到物理资源之后。
-    let network_policy_pos: i64 = sqlx::query_scalar(
+    let network_policy_pos: i32 = sqlx::query_scalar(
         "SELECT sort FROM system_menu WHERE id = 30311 AND parent_id = 30342 AND deleted = 0",
     )
     .fetch_one(&pool)
