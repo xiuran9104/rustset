@@ -33,7 +33,7 @@ WHERE NOT EXISTS (
 INSERT INTO public.infra_flow_definition
     (name, description, status, definition, version, creator, updater, tenant_id)
 SELECT '资源变更申请流程',
-       '变更类工单原生化：登记 → 主管动态审批（fromContext）→（高风险会签）→ 创建工单（变更字段全量插值）→ 审批直通 → 变更结果通知；供应/交付在资源工单页操作',
+       '变更类工单原生化：登记 → 主管动态审批（fromContext）→（高风险附加安全审批）→ 创建工单（变更字段全量插值）→ 审批直通 → 变更结果通知；供应/交付在资源工单页操作',
        0,
        '{
          "steps": [
@@ -44,8 +44,8 @@ SELECT '资源变更申请流程',
             "config":{"assignee":{"role":"super_admin"},
                       "fromContext":"supervisor_username",
                       "timeoutHours":48,"onTimeout":"escalate_notify"}},
-           {"key":"sec_approve","name":"安全会签（高风险）","type":"approval",
-            "config":{"assignee":{"role":"super_admin","multi":"all"},
+           {"key":"sec_approve","name":"安全审批（高风险）","type":"approval",
+            "config":{"assignee":{"role":"super_admin"},
                       "timeoutHours":24,"onTimeout":"auto_reject"},
             "condition":{"field":"riskLevel","op":"in","value":["high","critical"]}},
            {"key":"create_ticket_record","name":"创建变更工单","type":"auto",
@@ -90,15 +90,15 @@ WHERE NOT EXISTS (
 INSERT INTO public.infra_flow_definition
     (name, description, status, definition, version, creator, updater, tenant_id)
 SELECT '资源工单审批流程（台账触发）',
-       '台账路径原生审批：主管审批 →（高风险会签）→ 工单审批直通 → 审批结果通知。由工单创建 API 自动启动（幂等 biz 绑定）',
+       '台账路径原生审批：主管审批 →（高风险附加安全审批）→ 工单审批直通 → 审批结果通知。由工单创建 API 自动启动（幂等 biz 绑定）',
        0,
        '{
          "steps": [
            {"key":"dept_approve","name":"资源管理员审批","type":"approval",
             "config":{"assignee":{"role":"super_admin"},
                       "timeoutHours":48,"onTimeout":"escalate_notify"}},
-           {"key":"sec_approve","name":"安全会签（高风险）","type":"approval",
-            "config":{"assignee":{"role":"super_admin","multi":"all"},
+           {"key":"sec_approve","name":"安全审批（高风险）","type":"approval",
+            "config":{"assignee":{"role":"super_admin"},
                       "timeoutHours":24,"onTimeout":"auto_reject"},
             "condition":{"field":"riskLevel","op":"in","value":["high","critical"]}},
            {"key":"do_approve","name":"工单审批直通","type":"auto",

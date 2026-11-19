@@ -62,7 +62,7 @@ SELECT '云资源申请流程',
                       "fromContext":"supervisor_username",
                       "timeoutHours":48,"onTimeout":"escalate_notify"}},
            {"key":"sec_approve","name":"安全会签（高规格）","type":"approval",
-            "config":{"assignee":{"role":"super_admin","multi":"all"},
+            "config":{"assignee":{"role":"super_admin"},
                       "timeoutHours":24,"onTimeout":"auto_reject"},
             "condition":{"field":"resourceCount","op":"gt","value":4}},
            {"key":"create_ticket_record","name":"创建资源工单","type":"auto",
@@ -116,13 +116,13 @@ WHERE NOT EXISTS (
 );
 
 -- 网络策略申请流程：登记 → 高危端口检测前置（check_risk_port 写 context）→
--- 主管动态审批 →（命中高危端口则安全会签）→ 创建工单（fw 字段插值，风险
+-- 主管动态审批 →（命中高危端口则附加安全审批）→ 创建工单（fw 字段插值，风险
 -- 等级取检测结论）→ 审批直通 → 防火墙下发（firewall_push 直接读 payload
 -- 的 fw* 字段）→ 交付 → 通知（携带检测结论）。
 INSERT INTO public.infra_flow_definition
     (name, description, status, definition, version, creator, updater, tenant_id)
 SELECT '网络策略申请流程',
-       '申请中心：人员登记 → 高危端口检测（check_risk_port 前置）→ 部门主管动态审批（fromContext）→（命中高危端口则安全会签）→ 创建网络工单（fw 字段插值）→ 审批直通 → 防火墙策略下发 → 交付 → 结果通知',
+       '申请中心：人员登记 → 高危端口检测（check_risk_port 前置）→ 部门主管动态审批（fromContext）→（命中高危端口则附加安全审批）→ 创建网络工单（fw 字段插值）→ 审批直通 → 防火墙策略下发 → 交付 → 结果通知',
        0,
        '{
          "steps": [
@@ -138,8 +138,8 @@ SELECT '网络策略申请流程',
             "config":{"assignee":{"role":"super_admin"},
                       "fromContext":"supervisor_username",
                       "timeoutHours":48,"onTimeout":"escalate_notify"}},
-           {"key":"sec_approve","name":"安全会签（高危端口）","type":"approval",
-            "config":{"assignee":{"role":"super_admin","multi":"all"},
+           {"key":"sec_approve","name":"安全审批（高危端口）","type":"approval",
+            "config":{"assignee":{"role":"super_admin"},
                       "timeoutHours":24,"onTimeout":"auto_reject"},
             "condition":{"field":"risk_port_hit","op":"eq","value":true}},
            {"key":"create_ticket_record","name":"创建网络工单","type":"auto",
