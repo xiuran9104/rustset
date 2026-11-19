@@ -1,6 +1,7 @@
 -- 办公网IP申报流程：终端（MAC 地址）+ 人员信息登记 → 部门主管动态审批
--- → 申报结果通知 → 网络管理员确认开通。
--- 演示并启用引擎的两个插值特性：
+-- → 网络管理员配置（分配 IP/录入端口，完成时备注分配结果）→ 开通交付确认
+-- → 申报结果通知。生命周期与资源工单链同构：审批 → 配置 → 交付 → 完成。
+-- 启用引擎的两个插值特性：
 -- 1) fromContext 动态审批人：payload.supervisorUsername 经 set_context 写入
 --    context，审批步骤激活时按点路径取用户名并入办理人（未配置回退超管角色）；
 -- 2) 通知模板参数：步骤 config.params 先做 {{payload.x}} 插值，再按 {key}
@@ -27,7 +28,7 @@ WHERE NOT EXISTS (
 INSERT INTO public.infra_flow_definition
     (name, description, status, definition, version, creator, updater, tenant_id)
 SELECT '办公网IP申报流程',
-       '办公网终端 IP 申报：人员/设备（MAC）登记 → 部门主管动态审批（fromContext）→ 申报结果通知（模板参数插值）→ 网络管理员确认开通',
+       '办公网终端 IP 申报：人员/设备（MAC）登记 → 部门主管动态审批（fromContext）→ 网络管理员配置（分配IP）→ 开通交付确认 → 申报结果通知（模板参数插值）',
        0,
        '{
          "steps": [
@@ -38,6 +39,11 @@ SELECT '办公网IP申报流程',
             "config":{"assignee":{"role":"super_admin"},
                       "fromContext":"supervisor_username",
                       "timeoutHours":48,"onTimeout":"escalate_notify"}},
+           {"key":"assign_ip","name":"配置-分配IP","type":"manual",
+            "config":{"assignee":{"role":"super_admin"},
+                      "timeoutHours":72,"onTimeout":"escalate_notify"}},
+           {"key":"confirm_open","name":"交付-开通确认","type":"manual",
+            "config":{"assignee":{"role":"super_admin"}}},
            {"key":"notify_result","name":"申报结果通知","type":"notification",
             "config":{"assignee":{"role":"super_admin"},
                       "templateCode":"office_ip_apply_notice",
@@ -46,9 +52,7 @@ SELECT '办公网IP申报流程',
                         "department":"{{payload.department}}",
                         "macAddress":"{{payload.macAddress}}",
                         "requestedIp":"{{payload.requestedIp}}"
-                      }}},
-           {"key":"confirm","name":"网络管理员确认开通","type":"manual",
-            "config":{"assignee":{"role":"super_admin"}}}
+                      }}}
          ]
        }'::jsonb, 1, 'system', 'system', 1
 WHERE NOT EXISTS (

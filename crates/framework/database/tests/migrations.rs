@@ -41,7 +41,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 68);
+    assert_eq!(applied, 69);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -245,6 +245,38 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read change notify template");
     assert_eq!(change_template, 1);
+    // 0069：办公网IP申报独立页菜单 + 超管授权；流程定义含配置/交付环节
+    // （审批→配置→交付→完成，与资源工单链同构）。
+    let office_ip_menu: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM system_menu
+         WHERE id = 30385 AND parent_id = 30344 AND sort = 0
+           AND component = 'asset-ops/office-ip/index' AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read office-ip menu");
+    assert_eq!(office_ip_menu, 1, "office-ip page must be seeded first in ops-center");
+    let office_ip_definition: Value = sqlx::query_scalar(
+        "SELECT definition FROM infra_flow_definition
+         WHERE name = '办公网IP申报流程' AND tenant_id = 1 AND deleted = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read office ip flow definition");
+    let office_ip_steps = office_ip_definition
+        .get("steps")
+        .and_then(Value::as_array)
+        .expect("office ip flow steps array");
+    assert!(
+        office_ip_steps.iter().any(|s| s["key"] == json!("assign_ip")
+            && s["type"] == json!("manual")),
+        "office ip flow must include the assign-ip manual stage"
+    );
+    assert!(
+        office_ip_steps.iter().any(|s| s["key"] == json!("confirm_open")
+            && s["type"] == json!("manual")),
+        "office ip flow must include the delivery-confirm manual stage"
+    );
     // 0064：流程定义 update/delete 按钮权限补齐。
     let flow_def_perms: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
@@ -686,7 +718,8 @@ async fn applies_all_migrations_to_empty_postgres() {
     .expect("read ops-center menu order");
     assert_eq!(
         order_check,
-        "资源工单,网络策略工单,审批规则,自动化配置,流程定义,流程实例"
+        "办公网IP申报,资源工单,网络策略工单,审批规则,自动化配置,流程定义,流程实例",
+        "0069 起办公网IP申报独立页排在运营流程最前（员工自服务入口）"
     );
     rerun_migration_file(&pool, "0056_automation_config.sql").await;
     let automation_types: i64 = sqlx::query_scalar(
@@ -1217,8 +1250,9 @@ async fn applies_all_migrations_to_empty_postgres() {
     .fetch_one(&pool)
     .await
     .expect("read Kairos asset operations pages");
-    // 16 pages after 0021 + 资产核查 (0022) + 网络策略工单 (0054) + 流程引擎两页 (0062).
-    assert_eq!(asset_ops_pages, 21);
+    // 16 pages after 0021 + 资产核查 (0022) + 网络策略工单 (0054) + 流程引擎两页 (0062)
+    // + 办公网IP申报独立页 (0069).
+    assert_eq!(asset_ops_pages, 22);
 
     let asset_ops_permissions: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu

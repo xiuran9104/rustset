@@ -17,6 +17,7 @@ import {
   getFlowDefinitionPage,
   startFlowInstance,
 } from '#/api/asset-ops/flow';
+import OfficeIpForm from '../../office-ip/office-ip-form.vue';
 
 const emit = defineEmits(['success']);
 
@@ -34,7 +35,6 @@ function pickType(type: ApplyType) {
   activeType.value = type;
   pickerVisible.value = false;
   if (type === 'ip') {
-    Object.assign(ipForm, emptyIpForm());
     ipVisible.value = true;
   } else if (type === 'cloud') {
     Object.assign(cloudForm, emptyCloudForm());
@@ -95,58 +95,8 @@ function requireSupervisor(form: { supervisorUsername: string }): boolean {
   return true;
 }
 
-/* ---------- 办公网 IP 申报 ---------- */
-const OFFICE_IP_FLOW_NAME = '办公网IP申报流程';
-const emptyIpForm = () => ({
-  accessPeriod: '长期',
-  applicantName: '',
-  department: '',
-  deviceType: '笔记本',
-  employeeId: '',
-  hostname: '',
-  macAddress: '',
-  networkZone: '办公区',
-  phone: '',
-  reason: '',
-  requestedIp: '',
-  supervisorUsername: '',
-});
+/* ---------- 办公网 IP 申报（表单在共享组件 OfficeIpForm） ---------- */
 const ipVisible = ref(false);
-const ipForm = reactive(emptyIpForm());
-
-async function submitIp() {
-  const applicantName = ipForm.applicantName.trim();
-  const department = ipForm.department.trim();
-  const macAddress = ipForm.macAddress.trim().toUpperCase();
-  if (!applicantName || !department) {
-    message.error('姓名、部门为必填项');
-    return;
-  }
-  if (!requireSupervisor(ipForm)) return;
-  if (!/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(macAddress)) {
-    message.error('MAC 地址格式无效，示例：AA:BB:CC:DD:EE:FF');
-    return;
-  }
-  const requestedIp = ipForm.requestedIp.trim();
-  if (requestedIp && !/^(\d{1,3}\.){3}\d{1,3}$/.test(requestedIp)) {
-    message.error('申请 IP 格式无效');
-    return;
-  }
-  await submit(OFFICE_IP_FLOW_NAME, `${applicantName} 办公网IP申报`, {
-    accessPeriod: ipForm.accessPeriod,
-    applicantName,
-    department,
-    deviceType: ipForm.deviceType,
-    employeeId: ipForm.employeeId.trim(),
-    hostname: ipForm.hostname.trim(),
-    macAddress,
-    networkZone: ipForm.networkZone,
-    phone: ipForm.phone.trim(),
-    reason: ipForm.reason.trim(),
-    requestedIp,
-    supervisorUsername: ipForm.supervisorUsername.trim(),
-  });
-}
 
 /* ---------- 云资源申请 ---------- */
 const CLOUD_FLOW_NAME = '云资源申请流程';
@@ -395,83 +345,14 @@ defineExpose({ open: openPicker });
     </div>
   </a-modal>
 
-  <!-- 办公网 IP 申报 -->
+  <!-- 办公网 IP 申报（共享组件，与独立页同源） -->
   <a-modal
     v-model:open="ipVisible"
     title="办公网 IP 申报"
-    :confirm-loading="submitting"
+    :footer="null"
     width="640px"
-    @ok="submitIp"
   >
-    <div class="grid grid-cols-2 gap-x-4 gap-y-2">
-      <div>
-        <div class="mb-1 text-xs text-gray-500">申报人姓名 *</div>
-        <a-input v-model:value="ipForm.applicantName" size="small" placeholder="真实姓名" />
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">部门 *</div>
-        <a-input v-model:value="ipForm.department" size="small" placeholder="所属部门" />
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">工号</div>
-        <a-input v-model:value="ipForm.employeeId" size="small" />
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">联系电话</div>
-        <a-input v-model:value="ipForm.phone" size="small" />
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">设备 MAC 地址 *</div>
-        <a-input v-model:value="ipForm.macAddress" size="small" placeholder="AA:BB:CC:DD:EE:FF" />
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">设备类型</div>
-        <a-select v-model:value="ipForm.deviceType" class="w-full" size="small">
-          <a-select-option value="台式机">台式机</a-select-option>
-          <a-select-option value="笔记本">笔记本</a-select-option>
-          <a-select-option value="移动终端">移动终端</a-select-option>
-          <a-select-option value="打印机">打印机</a-select-option>
-          <a-select-option value="其他">其他</a-select-option>
-        </a-select>
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">主机名</div>
-        <a-input v-model:value="ipForm.hostname" size="small" />
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">申请 IP（留空自动分配）</div>
-        <a-input v-model:value="ipForm.requestedIp" size="small" placeholder="192.168.1.100" />
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">接入区域</div>
-        <a-select v-model:value="ipForm.networkZone" class="w-full" size="small">
-          <a-select-option value="办公区">办公区</a-select-option>
-          <a-select-option value="访客区">访客区</a-select-option>
-          <a-select-option value="研发区">研发区</a-select-option>
-        </a-select>
-      </div>
-      <div>
-        <div class="mb-1 text-xs text-gray-500">使用期限</div>
-        <a-select v-model:value="ipForm.accessPeriod" class="w-full" size="small">
-          <a-select-option value="长期">长期</a-select-option>
-          <a-select-option value="3个月">3个月</a-select-option>
-          <a-select-option value="6个月">6个月</a-select-option>
-          <a-select-option value="12个月">12个月</a-select-option>
-        </a-select>
-      </div>
-      <div class="col-span-2">
-        <div class="mb-1 text-xs text-gray-500">用途说明</div>
-        <a-textarea v-model:value="ipForm.reason" :rows="2" size="small" placeholder="接入办公网的用途" />
-      </div>
-      <div class="col-span-2">
-        <div class="mb-1 text-xs text-gray-500">部门主管系统账号 *</div>
-        <a-input
-          v-model:value="ipForm.supervisorUsername"
-          size="small"
-          placeholder="主管的用户名，审批将动态指派给该用户"
-        />
-      </div>
-    </div>
+    <OfficeIpForm @submitted="ipVisible = false; emit('success')" />
   </a-modal>
 
   <!-- 云资源申请 -->
