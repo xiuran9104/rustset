@@ -152,7 +152,26 @@ pub(crate) fn compute_reachable(steps: &[sqlx::postgres::PgRow], payload: &Value
                     }
                 }
             }
-            // skipped：不传播（被跳过的分支不向后延伸）。
+            // skipped：条件跳过的节点等于"透传"——线性后继（index+1）与自身
+            // next 出口继续传播；否则链上 done 节点会成为孤儿，其后的 pending
+            // 会被误判不可达而批量跳过（E2E F19 抓到：会签条件跳过后半链全跳）。
+            // 分支跳过场景安全：被跳过的节点已是终态不会再激活，传播只影响
+            // 可达集判定；同轮批量跳过的后继早已不是 pending。
+            "skipped" => {
+                for edge in &next_array {
+                    if let Some(target) = edge.get("to").and_then(Value::as_str) {
+                        if !target.is_empty() && reachable.insert(target.to_string()) {
+                            queue.push_back(target.to_string());
+                        }
+                    }
+                }
+                let next_index = index + 1;
+                if let Some(next_key) = ordered_keys.get(next_index as usize) {
+                    if reachable.insert(next_key.clone()) {
+                        queue.push_back(next_key.clone());
+                    }
+                }
+            }
             // failed/cancelled：不传播（已终止）。
             _ => {}
         }

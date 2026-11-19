@@ -12,6 +12,11 @@
 --         memoryGb 内存 / ecsOs 系统 / ecsType 实例规格 / systemDisk 系统盘类型
 --         systemDiskSizeGb 系统盘GB / dataDisk 数据盘 / ipAddress 预分配IP
 --         expireAt 有效期 / reason 用途
+-- 注：网络工单 ticketType 必须是 create（resourceType=network 表达网络类）——
+-- 工单状态机对非 create 类型审批后直达 delivered 终态，会跳过交付环节。
+-- 云资源流程止于供应确认（manual）：云工单审批后为 pending_provision，
+-- 配置登记与交付（→ pending_delivery → delivered）按操作台语义留在工单页。
+--
 -- 网络策略申请 payload 契约：
 --   人员：同上；策略：fwSourceZone/fwSourceAddress/fwSourcePort/fwFirewallName/
 --         fwDestZone/fwDestAddress/fwDestPort/fwProtocol/fwDirection/
@@ -45,7 +50,7 @@ WHERE NOT EXISTS (
 INSERT INTO public.infra_flow_definition
     (name, description, status, definition, version, creator, updater, tenant_id)
 SELECT '云资源申请流程',
-       '申请中心：人员登记 → 部门主管动态审批（fromContext）→（数量>4 安全会签）→ 创建资源工单（参数全量插值）→ 审批直通 → 供应确认 → 交付 → 结果通知',
+       '申请中心：人员登记 → 部门主管动态审批（fromContext）→（数量>4 安全会签）→ 创建资源工单（参数全量插值）→ 审批直通 → 供应确认 → 结果通知（配置登记与交付在资源工单页操作）',
        0,
        '{
          "steps": [
@@ -92,8 +97,6 @@ SELECT '云资源申请流程',
            {"key":"confirm_provision","name":"资源供应确认","type":"manual",
             "config":{"assignee":{"role":"super_admin"},
                       "onTimeout":"escalate_notify"}},
-           {"key":"do_deliver","name":"工单交付","type":"auto",
-            "config":{"action":"ticket_deliver","params":{"comment":"流程申请交付"}}},
            {"key":"notify_done","name":"申请结果通知","type":"notification",
             "config":{"assignee":{"role":"super_admin"},
                       "templateCode":"resource_apply_notice",
@@ -144,7 +147,7 @@ SELECT '网络策略申请流程',
                       "params":{
                         "ecsName":"{{payload.ecsName}}",
                         "resourceType":"network",
-                        "ticketType":"network_change",
+                        "ticketType":"create",
                         "riskLevel":"{{context.risk_level}}",
                         "applicantName":"{{payload.applicantName}}",
                         "customerName":"{{payload.applicantName}}",
