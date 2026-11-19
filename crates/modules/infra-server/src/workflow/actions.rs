@@ -1106,11 +1106,17 @@ async fn update_terminal(
     .fetch_one(pool)
     .await
     .map_err(|e| e.to_string())?;
-    let pick = |json_field: &str, new_value: &str| -> Value {
-        if new_value.is_empty() || unresolved(new_value) {
-            current.get(json_field).cloned().unwrap_or(Value::Null)
+    // 覆盖值与保留值统一为字符串：Value 直接 bind 到 varchar 列会带
+    // JSON 引号/Null 编码落库（E2E 抓获），此处显式 as_str 转换。
+    let pick = |json_field: &str, new_value: &str| -> String {
+        if !new_value.is_empty() && !unresolved(new_value) {
+            new_value.to_string()
         } else {
-            json!(new_value)
+            current
+                .get(json_field)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
         }
     };
     let applicant = pick("applicantName", &new_applicant);
