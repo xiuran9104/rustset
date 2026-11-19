@@ -3,13 +3,14 @@
  * 终端设备台账（资产中心）：办公网IP申报交付后由流程 register_terminal
  * 动作自动入账（MAC/人员/分配IP），页面只读 + 搜索 + 状态筛选。
  */
-import { onActivated, onMounted, ref } from 'vue';
+import { onActivated, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
 import { message } from 'ant-design-vue';
 
 import { requestClient } from '#/api/request';
+import { getFlowDefinitionPage, startFlowInstance } from '#/api/asset-ops/flow';
 import { useLocalTableSearch } from '../composables/useLocalTableSearch';
 
 interface Terminal {
@@ -78,7 +79,86 @@ const columns = [
   { title: '状态', key: 'status', width: 85 },
   { title: '入账时间', dataIndex: 'createTime', key: 'create_time', width: 170 },
   { title: '用途', dataIndex: 'reason', key: 'reason' },
+  { title: '操作', key: 'actions', width: 110, fixed: 'right' },
 ];
+
+/* ---------- 申请变更（台账只读，退役/信息变更走「终端变更申请流程」） ---------- */
+const changeVisible = ref(false);
+const changeSubmitting = ref(false);
+const changeTarget = ref<any>(null);
+const changeForm = reactive({
+  operation: 'retire' as 'retire' | 'update',
+  newApplicantName: '',
+  newDepartment: '',
+  newIpAddress: '',
+  newAccessPeriod: '',
+  applicantName: '',
+  department: '',
+  supervisorUsername: '',
+  reason: '',
+});
+
+function openChange(record: any) {
+  changeTarget.value = record;
+  Object.assign(changeForm, {
+    operation: 'retire',
+    newApplicantName: '',
+    newDepartment: '',
+    newIpAddress: '',
+    newAccessPeriod: '',
+    applicantName: '',
+    department: '',
+    supervisorUsername: '',
+    reason: '',
+  });
+  changeVisible.value = true;
+}
+
+async function submitChange() {
+  const record = changeTarget.value;
+  if (!record) return;
+  if (!changeForm.applicantName.trim() || !changeForm.department.trim()) {
+    message.error('申请人、部门为必填项');
+    return;
+  }
+  if (!changeForm.supervisorUsername.trim()) {
+    message.error('部门主管账号为必填项（动态审批人）');
+    return;
+  }
+  const page = await getFlowDefinitionPage({ pageNo: 1, pageSize: 100 });
+  const definition = (page?.list ?? []).find(
+    (d: any) => d.name === '终端变更申请流程' && d.status === 0,
+  );
+  if (!definition) {
+    message.error('未找到启用中的「终端变更申请流程」定义');
+    return;
+  }
+  changeSubmitting.value = true;
+  try {
+    await startFlowInstance({
+      definitionId: definition.id,
+      title: `${changeForm.applicantName.trim()} 终端变更 ${record.macAddress}`,
+      payload: {
+        applicantName: changeForm.applicantName.trim(),
+        department: changeForm.department.trim(),
+        supervisorUsername: changeForm.supervisorUsername.trim(),
+        macAddress: record.macAddress,
+        operation: changeForm.operation,
+        newApplicantName: changeForm.newApplicantName.trim(),
+        newDepartment: changeForm.newDepartment.trim(),
+        newIpAddress: changeForm.newIpAddress.trim(),
+        newAccessPeriod: changeForm.newAccessPeriod.trim(),
+        reason: changeForm.reason.trim(),
+      },
+    });
+    message.success('变更申请已提交，等待部门主管审批');
+    changeVisible.value = false;
+  } catch (error: any) {
+    message.error(error?.message ?? '提交失败');
+  } finally {
+    changeSubmitting.value = false;
+  }
+}
 
 onMounted(fetchData);
 onActivated(fetchData);
@@ -128,8 +208,87 @@ onActivated(fetchData);
           <template v-else-if="column.key === 'create_time'">
             {{ String(record.createTime ?? '').slice(0, 19) }}
           </template>
+          <template v-else-if="column.key === 'actions'">
+            <a-button
+              v-access:code="['infra:flow-instance:start']"
+              size="small"
+              :disabled="record.status !== 'active'"
+              @click="openChange(record)"
+            >
+              申请变更
+            </a-button>
+          </template>
         </template>
       </a-table>
+
+      <!-- 申请变更（退役 / 信息更新，走终端变更申请流程） -->
+      <a-modal
+        v-model:open="changeVisible"
+        title="终端变更申请"
+        :confirm-loading="changeSubmitting"
+        width="640px"
+        @ok="submitChange"
+      >
+        <div class="mb-3 text-xs text-gray-400">
+          目标终端：{{ changeTarget?.macAddress }}（{{ changeTarget?.hostname || '-' }}，
+          当前使用人 {{ changeTarget?.applicantName || '-' }}）；提交后由部门主管审批，
+          通过后自动更新台账。
+        </div>
+        <a-form layout="vertical">
+          <a-row :gutter="16">
+            <a-col :span="8">
+              <a-form-item label="变更类型" required>
+                <a-select v-model:value="changeForm.operation">
+                  <a-select-option value="retire">退役（停用）</a-select-option>
+                  <a-select-option value="update">信息更新（换人/换IP等）</a-select-option>
+                </a-select>
+              </a-form-item>
+            </a-col>
+            <a-col :span="8">
+              <a-form-item label="申请人" required>
+                <a-input v-model:value="changeForm.applicantName" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="8">
+              <a-form-item label="部门" required>
+                <a-input v-model:value="changeForm.department" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="8">
+              <a-form-item label="部门主管账号" required>
+                <a-input v-model:value="changeForm.supervisorUsername" />
+              </a-form-item>
+            </a-col>
+            <template v-if="changeForm.operation === 'update'">
+              <a-col :span="8">
+                <a-form-item label="新使用人">
+                  <a-input v-model:value="changeForm.newApplicantName" placeholder="留空不变" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item label="新部门">
+                  <a-input v-model:value="changeForm.newDepartment" placeholder="留空不变" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item label="新 IP">
+                  <a-input v-model:value="changeForm.newIpAddress" placeholder="留空不变" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item label="新使用期限">
+                  <a-input v-model:value="changeForm.newAccessPeriod" placeholder="留空不变" />
+                </a-form-item>
+              </a-col>
+            </template>
+            <a-col :span="24">
+              <a-form-item label="变更原因">
+                <a-textarea v-model:value="changeForm.reason" :rows="2" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+        </a-form>
+      </a-modal>
     </div>
   </Page>
 </template>

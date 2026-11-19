@@ -13,13 +13,14 @@ use sqlx::Row;
 
 /// 已知动作名（校验用）。
 pub(crate) fn is_known_action(action: &str) -> Option<&'static str> {
-    const ACTIONS: [&str; 11] = [
+    const ACTIONS: [&str; 12] = [
         "firewall_push",
         "trigger_scan",
         "create_ticket",
         "set_context",
         "check_risk_port",
         "register_terminal",
+        "update_terminal",
         "ticket_approve",
         "ticket_provision",
         "ticket_deliver",
@@ -127,6 +128,7 @@ async fn execute_step_inner(
         "set_context" => set_context(&mut context, &payload, &params),
         "check_risk_port" => check_risk_port(pool, &mut context, &params).await,
         "register_terminal" => register_terminal(pool, tenant, instance_id, &payload).await,
+        "update_terminal" => update_terminal(pool, tenant, &params).await,
         "ticket_approve" => ticket_approve(state, tenant, instance_id, &params).await,
         "ticket_provision" => ticket_provision(state, tenant, instance_id, &params).await,
         "ticket_deliver" => ticket_deliver(state, tenant, instance_id, &params).await,
@@ -1036,4 +1038,102 @@ async fn register_terminal(
         .map_err(|e| e.to_string())?;
         Ok(json!({ "terminalId": id, "macAddress": mac, "ipAddress": assigned, "mode": "created" }))
     }
+}
+
+// ==================== 终端变更（台账只读，变更走申请） ====================
+
+/// 终端变更：按 params.macAddress 定位台账行（参数已插值），operation =
+/// retire → status=retired；update → 非空字段覆盖（使用人/部门/IP/期限）。
+/// 台账无删除/直改入口，一切变更经「终端变更申请流程」审批后到达这里。
+async fn update_terminal(
+    pool: &DbPool,
+    tenant: &TenantContext,
+    params: &Value,
+) -> Result<Value, String> {
+    let field = |key: &str| {
+        params
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let mac = field("macAddress");
+    // 插值未命中的 {{...}} 占位视为空（同 check_risk_port 防御）。
+    let unresolved = |v: &str| v.contains("{{") && v.contains("}}");
+    let mac = if unresolved(&mac) { String::new() } else { mac };
+    if mac.is_empty() {
+        return Err("update_terminal：缺少 macAddress（无法定位终端）".to_string());
+    }
+    let operation = field("operation");
+    let id: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM infra_terminal WHERE tenant_id=$1 AND mac_address=$2 AND deleted=0",
+    )
+    .bind(tenant.id())
+    .bind(&mac)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(id) = id else {
+        return Err(format!("终端台账中不存在 MAC：{mac}"));
+    };
+
+    if operation == "retire" {
+        sqlx::query(
+            "UPDATE infra_terminal SET status='retired', updater='flow', update_time=now()
+             WHERE id=$1 AND tenant_id=$2",
+        )
+        .bind(id)
+        .bind(tenant.id())
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        return Ok(json!({ "terminalId": id, "macAddress": mac, "operation": "retire", "status": "retired" }));
+    }
+
+    // update：非空字段覆盖（信创便携：固定列更新，无动态 SQL 拼接）。
+    let (new_applicant, new_department, new_ip, new_period) = (
+        field("newApplicantName"),
+        field("newDepartment"),
+        field("newIpAddress"),
+        field("newAccessPeriod"),
+    );
+    let current: Value = sqlx::query_scalar(
+        "SELECT to_jsonb(t) FROM infra_terminal t WHERE id=$1 AND tenant_id=$2",
+    )
+    .bind(id)
+    .bind(tenant.id())
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let pick = |json_field: &str, new_value: &str| -> Value {
+        if new_value.is_empty() || unresolved(new_value) {
+            current.get(json_field).cloned().unwrap_or(Value::Null)
+        } else {
+            json!(new_value)
+        }
+    };
+    let applicant = pick("applicantName", &new_applicant);
+    let department = pick("department", &new_department);
+    let ip = pick("ipAddress", &new_ip);
+    let period = pick("accessPeriod", &new_period);
+    sqlx::query(
+        "UPDATE infra_terminal
+         SET applicant_name=$3, department=$4, ip_address=$5, access_period=$6,
+             status='active', updater='flow', update_time=now()
+         WHERE id=$1 AND tenant_id=$2",
+    )
+    .bind(id)
+    .bind(tenant.id())
+    .bind(&applicant)
+    .bind(&department)
+    .bind(&ip)
+    .bind(&period)
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(json!({
+        "terminalId": id, "macAddress": mac, "operation": "update",
+        "applicantName": applicant, "department": department, "ipAddress": ip, "accessPeriod": period,
+    }))
 }

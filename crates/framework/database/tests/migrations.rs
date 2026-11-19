@@ -41,7 +41,7 @@ async fn applies_all_migrations_to_empty_postgres() {
         .fetch_one(&pool)
         .await
         .expect("read migration history");
-    assert_eq!(applied, 70);
+    assert_eq!(applied, 71);
     let high_risk_rules: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM infra_high_risk_port_rule WHERE enabled AND deleted = 0",
     )
@@ -320,6 +320,15 @@ async fn applies_all_migrations_to_empty_postgres() {
     .await
     .expect("read terminal menu grants");
     assert_eq!(terminal_grants, 2, "terminal page + query button granted to super_admin");
+    // 0071：终端变更申请流程（台账只读，退役/信息变更走申请）。
+    let terminal_change_flow: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM infra_flow_definition
+         WHERE name = '终端变更申请流程' AND tenant_id = 1 AND deleted = 0 AND status = 0",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read terminal change flow seed");
+    assert_eq!(terminal_change_flow, 1);
     // 0064：流程定义 update/delete 按钮权限补齐。
     let flow_def_perms: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM system_menu
